@@ -19,11 +19,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copiamos el proyecto
 COPY . .
 
-# Recolectamos estáticos en build (Whitenoise los sirve en producción)
-RUN python manage.py collectstatic --noinput
-
 EXPOSE 8000
 
-# Al arrancar: aplicamos migraciones y luego levantamos Gunicorn.
-# (entrypoint.sh corre migrate antes de servir; ver el archivo entrypoint.sh)
+# Nada de collectstatic ni migrate en el build: eso se hace en runtime
+# (ver entrypoint.sh) para no depender de la DB ni de los estáticos al construir.
 CMD ["sh", "entrypoint.sh"]

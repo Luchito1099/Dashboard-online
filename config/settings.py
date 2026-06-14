@@ -82,6 +82,9 @@ if os.environ.get('DB_HOST'):
             'PASSWORD': os.environ.get('DB_PASSWORD'),
             'HOST': os.environ.get('DB_HOST'),
             'PORT': os.environ.get('DB_PORT', '5432'),
+            # Conexiones persistentes: reutiliza la conexión hasta 60s en vez de
+            # abrir una nueva en cada request (gran parte de los ~3.5s por pestaña).
+            'CONN_MAX_AGE': 60,
         }
     }
 else:

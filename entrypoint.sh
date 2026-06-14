@@ -33,5 +33,14 @@ print('Superusuario creado.' if creado else 'Superusuario actualizado.')
 " || echo "Aviso: no se pudo asegurar el superusuario (continuo igual)."
 fi
 
+echo "Recolectando estáticos..."
+python manage.py collectstatic --noinput
+
 echo "Iniciando Gunicorn..."
-exec gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 3
+exec gunicorn config.wsgi:application \
+  --bind 0.0.0.0:8000 \
+  --workers 2 \
+  --timeout 120 \
+  --keep-alive 5 \
+  --max-requests 1000 \
+  --max-requests-jitter 100
