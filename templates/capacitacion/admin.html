@@ -1,0 +1,97 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% comment %} templates/capacitacion/admin.html — Panel de edición del runbook (solo admin)
+   Importante: NO carga capacitacion.css para no heredar el overflow:hidden de la timeline.
+   Usa su propio CSS aislado (admin_cap.css) y el scroll natural de .page-content. {% endcomment %}
+
+{% block title %}Administrar tareas · KLYNEA{% endblock %}
+{% block nav_capacitacion %}active{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'core/css/admin_cap.css' %}">
+{% endblock %}
+
+{% block breadcrumb %}
+  <span>›</span><a href="{% url 'capacitacion:index' %}">Capacitación</a><span>›</span><span>Administrar</span>
+{% endblock %}
+
+{% block content %}
+
+<div class="admin-cap">
+
+  <div class="admin-cap-header">
+    <div>
+      <h2 class="admin-cap-title">Administrar tareas del Runbook</h2>
+      <p class="admin-cap-subtitle">{{ tareas.count }} tareas · edita y guarda los cambios de cada una</p>
+    </div>
+    <a href="{% url 'capacitacion:index' %}" class="btn-volver">← Volver al runbook</a>
+  </div>
+
+  {# Lista simple de tareas (no agrupadas por bloque), una card-formulario por tarea #}
+  {% for tarea in tareas %}
+  <div class="admin-tarea-card" id="tarea-{{ tarea.id }}">
+    <form method="post" action="{% url 'capacitacion:editar_tarea' tarea.id %}">
+      {% csrf_token %}
+
+      <div class="admin-tarea-head">
+        <span class="admin-tarea-orden">#{{ tarea.orden }}</span>
+        <span class="admin-badge badge-{{ tarea.tipo|lower }}">{{ tarea.tipo }}</span>
+        <span class="admin-tarea-nombre">{{ tarea.nombre }}</span>
+      </div>
+
+      <div class="admin-grid">
+        <label class="admin-field admin-field-wide">
+          <span>Nombre</span>
+          <input type="text" name="nombre" value="{{ tarea.nombre }}" required>
+        </label>
+
+        <label class="admin-field">
+          <span>Hora (HH:MM)</span>
+          <input type="text" name="hora" value="{{ tarea.hora }}" pattern="[0-2][0-9]:[0-5][0-9]" required>
+        </label>
+
+        <label class="admin-field">
+          <span>Prioridad</span>
+          <select name="prioridad">
+            {% for valor, etiqueta in prioridades %}
+            <option value="{{ valor }}" {% if tarea.prioridad == valor %}selected{% endif %}>{{ etiqueta }}</option>
+            {% endfor %}
+          </select>
+        </label>
+
+        <label class="admin-field">
+          <span>Tipo</span>
+          <select name="tipo">
+            {% for valor, etiqueta in tipos %}
+            <option value="{{ valor }}" {% if tarea.tipo == valor %}selected{% endif %}>{{ etiqueta }}</option>
+            {% endfor %}
+          </select>
+        </label>
+      </div>
+
+      <label class="admin-field">
+        <span>Descripción</span>
+        <textarea name="descripcion" rows="2">{{ tarea.descripcion }}</textarea>
+      </label>
+
+      <label class="admin-field">
+        <span>Pasos <em>(uno por línea)</em></span>
+        <textarea name="pasos" rows="6">{% for paso in tarea.pasos %}{{ paso }}
+{% endfor %}</textarea>
+      </label>
+
+      <label class="admin-field">
+        <span>Tips <em>(uno por línea, formato <code>tip|texto</code>, <code>warn|texto</code> o <code>info|texto</code>)</em></span>
+        <textarea name="tips" rows="3">{% for tip in tarea.tips %}{{ tip.k }}|{{ tip.t }}
+{% endfor %}</textarea>
+      </label>
+
+      <button type="submit" class="btn-guardar">Guardar cambios</button>
+    </form>
+  </div>
+  {% endfor %}
+
+</div>
+
+{% endblock %}

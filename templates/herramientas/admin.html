@@ -1,0 +1,85 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% comment %} templates/herramientas/admin.html — Administración de herramientas (solo admin) {% endcomment %}
+
+{% block title %}Administrar herramientas · KLYNEA{% endblock %}
+{% block nav_capacitacion %}active{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'core/css/herramientas.css' %}">
+{% endblock %}
+
+{% block breadcrumb %}
+  <span>›</span><a href="{% url 'herramientas:lista' %}">Herramientas</a><span>›</span><span>Administrar</span>
+{% endblock %}
+
+{% block content %}
+
+<div class="herr-admin">
+
+  <div class="herr-admin-header">
+    <div>
+      <h2 class="herr-title">Administrar herramientas</h2>
+      <p class="herr-subtitle">{{ herramientas|length }} herramientas</p>
+    </div>
+    <div class="herr-admin-acciones">
+      <a href="{% url 'herramientas:lista' %}" class="ha-btn-volver">← Volver</a>
+      <form method="post" action="{% url 'herramientas:crear' %}">
+        {% csrf_token %}
+        <button type="submit" class="btn-crear">+ Nueva herramienta</button>
+      </form>
+    </div>
+  </div>
+
+  {% for h in herramientas %}
+  <div class="ha-card">
+    <form method="post" action="{% url 'herramientas:editar' h.id %}">
+      {% csrf_token %}
+      <div class="ha-grid">
+        <label class="ha-field ha-icono-field">
+          <span>Icono</span>
+          <input type="text" name="icono" value="{{ h.icono }}" maxlength="10" placeholder="🔗">
+        </label>
+        <label class="ha-field">
+          <span>Nombre</span>
+          <input type="text" name="nombre" value="{{ h.nombre }}" required>
+        </label>
+        <label class="ha-field">
+          <span>Categoría</span>
+          <input type="text" name="categoria" value="{{ h.categoria }}" placeholder="Automatización, Tienda…">
+        </label>
+        <label class="ha-check">
+          <input type="checkbox" name="activo" {% if h.activo %}checked{% endif %}>
+          Activa
+        </label>
+      </div>
+      <label class="ha-field full">
+        <span>Descripción</span>
+        <input type="text" name="descripcion" value="{{ h.descripcion }}" maxlength="200">
+      </label>
+      <label class="ha-field full">
+        <span>URL</span>
+        <input type="text" name="url" value="{{ h.url }}" required>
+      </label>
+      <button type="submit" class="btn-guardar">Guardar cambios</button>
+    </form>
+
+    {# Eliminar en formulario aparte (no se anidan formularios) #}
+    <form method="post" action="{% url 'herramientas:eliminar' h.id %}" style="margin-top:10px;"
+          onsubmit="return confirm('¿Eliminar «{{ h.nombre|escapejs }}»?');">
+      {% csrf_token %}
+      <button type="submit" class="btn-eliminar">Eliminar</button>
+    </form>
+  </div>
+  {% empty %}
+  <div class="cat-vacio">No hay herramientas. Crea la primera con «+ Nueva herramienta».</div>
+  {% endfor %}
+
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'core/js/extras.js' %}"></script>
+{% endblock %}

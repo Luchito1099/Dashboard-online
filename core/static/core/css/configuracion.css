@@ -1,0 +1,116 @@
+/* ═══════════════════════════════════════
+   KLYNEA ERP — configuracion.css
+   Gestión de usuarios y configuración del sistema (solo admin).
+   Scroll natural de .page-content.
+   ═══════════════════════════════════════ */
+
+.config { max-width: 920px; margin: 0 auto; }
+
+.config-header { margin-bottom: 20px; }
+.config-title { font-size: 20px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
+.config-subtitle { font-size: 13px; color: var(--text-secondary); }
+
+/* ── Secciones tipo card ── */
+.cfg-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 18px;
+  margin-bottom: 18px;
+  box-shadow: var(--shadow);
+}
+.cfg-card-title {
+  font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em;
+  color: var(--muted); margin-bottom: 14px;
+}
+
+/* ── Formularios ── */
+.cfg-field { display: flex; flex-direction: column; gap: 5px; }
+.cfg-field > span { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+
+.cfg-input, .cfg-select {
+  padding: 8px 10px;
+  border: 1px solid var(--border-dark);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+}
+.cfg-input:focus, .cfg-select:focus { border-color: var(--primary); }
+
+.cfg-form-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-end;
+}
+.cfg-form-row .cfg-field { flex: 1; min-width: 140px; }
+
+.btn-primary {
+  padding: 9px 18px; border-radius: 8px; border: none;
+  background: var(--primary); color: #fff; font-size: 13px; font-weight: 600;
+  font-family: inherit; cursor: pointer; transition: background .15s; white-space: nowrap;
+}
+.btn-primary:hover { background: var(--primary-dark); }
+
+.btn-mini {
+  padding: 6px 12px; border-radius: 7px;
+  border: 1px solid var(--border-dark); background: var(--surface); color: var(--text-secondary);
+  font-size: 12px; font-weight: 600; font-family: inherit; cursor: pointer; transition: all .15s;
+}
+.btn-mini:hover { border-color: var(--primary); color: var(--primary); }
+
+/* ── Tabla de usuarios ── */
+.tabla-usuarios { width: 100%; border-collapse: collapse; }
+.tabla-usuarios th {
+  text-align: left; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em;
+  color: var(--muted); padding: 8px 10px; border-bottom: 1px solid var(--border);
+}
+.tabla-usuarios td { padding: 10px; border-bottom: 1px solid var(--border); font-size: 13px; vertical-align: middle; }
+.tabla-usuarios tr:last-child td { border-bottom: none; }
+
+.u-nombre { font-weight: 600; color: var(--text); }
+.u-mail { font-size: 11px; color: var(--muted); }
+
+.pill-rol { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 100px; }
+.pill-rol.admin    { background: var(--primary-bg); color: var(--primary-dark); }
+.pill-rol.vendedor { background: rgba(71,85,105,.1); color: #475569; }
+
+.pill-estado { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 100px; }
+.pill-estado.on  { background: oklch(58% 0.18 145 / 0.12); color: var(--success); }
+.pill-estado.off { background: oklch(60% 0.2 25 / 0.12); color: var(--error); }
+
+.u-acciones { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.u-acciones form { display: inline; }
+.u-acciones .cfg-select { padding: 5px 8px; font-size: 12px; }
+
+/* ── Toggles de configuración ── */
+.cfg-toggle {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 12px 0; border-bottom: 1px solid var(--border);
+}
+.cfg-toggle:last-of-type { border-bottom: none; }
+.cfg-toggle-label { font-size: 13.5px; color: var(--text); font-weight: 500; }
+.cfg-toggle-desc { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+.switch { position: relative; width: 42px; height: 24px; flex-shrink: 0; }
+.switch input { opacity: 0; width: 0; height: 0; }
+.switch .slider {
+  position: absolute; inset: 0; cursor: pointer;
+  background: var(--border-dark); border-radius: 100px; transition: background .2s;
+}
+.switch .slider::before {
+  content: ''; position: absolute; height: 18px; width: 18px; left: 3px; top: 3px;
+  background: #fff; border-radius: 50%; transition: transform .2s;
+}
+.switch input:checked + .slider { background: var(--primary); }
+.switch input:checked + .slider::before { transform: translateX(18px); }
+
+/* ── Tabla informativa de permisos ── */
+.tabla-permisos { width: 100%; border-collapse: collapse; }
+.tabla-permisos th, .tabla-permisos td { padding: 9px 10px; border-bottom: 1px solid var(--border); font-size: 13px; text-align: left; }
+.tabla-permisos th { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.tabla-permisos .si { color: var(--success); font-weight: 700; }
+.tabla-permisos .no { color: var(--muted); }

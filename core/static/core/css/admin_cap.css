@@ -1,0 +1,129 @@
+/* ═══════════════════════════════════════
+   KLYNEA ERP — admin_cap.css
+   Panel de administración de tareas del runbook.
+   Autónomo: NO depende de capacitacion.css ni usa overflow:hidden.
+   El scroll lo da el .page-content de base.html (overflow-y:auto), como cualquier página normal.
+   ═══════════════════════════════════════ */
+
+.admin-cap {
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+/* ── Cabecera ── */
+.admin-cap-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.admin-cap-title { font-size: 20px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
+.admin-cap-subtitle { font-size: 13px; color: var(--text-secondary); }
+
+.btn-volver {
+  flex-shrink: 0;
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border-dark);
+  background: var(--surface);
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: all .15s;
+}
+.btn-volver:hover { border-color: var(--primary); color: var(--primary); }
+
+/* ── Card-formulario por tarea ── */
+.admin-tarea-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 18px;
+  margin-bottom: 16px;
+  box-shadow: var(--shadow);
+  scroll-margin-top: 80px; /* para que el anclaje #tarea-id no quede bajo la topbar */
+}
+
+.admin-tarea-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.admin-tarea-orden { font-size: 12px; font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums; }
+.admin-tarea-nombre { font-size: 14px; font-weight: 600; color: var(--text); }
+
+/* Badge de tipo (autónomo, no depende de capacitacion.css) */
+.admin-badge {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  padding: 2px 7px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.badge-llamada { background: oklch(62% 0.18 195 / 0.1); color: var(--primary-dark); border: 1px solid oklch(62% 0.18 195 / 0.25); }
+.badge-pedido  { background: rgba(245,158,11,.1);        color: #b45309;             border: 1px solid rgba(245,158,11,.25); }
+.badge-seguim  { background: rgba(99,102,241,.1);        color: #4338ca;             border: 1px solid rgba(99,102,241,.25); }
+.badge-reporte { background: rgba(168,85,247,.1);        color: #7c3aed;             border: 1px solid rgba(168,85,247,.25); }
+.badge-turno   { background: rgba(71,85,105,.1);         color: #475569;             border: 1px solid rgba(71,85,105,.2); }
+
+/* ── Campos del formulario ── */
+.admin-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+@media (min-width: 720px) {
+  /* Nombre ancho + 3 campos pequeños (hora, prioridad, tipo) */
+  .admin-grid { grid-template-columns: 2fr 1fr 1fr 1fr; }
+  .admin-field-wide { grid-column: 1 / -1; }
+}
+
+.admin-field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 12px; }
+.admin-field > span { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+.admin-field em { font-weight: 400; text-transform: none; letter-spacing: 0; color: var(--muted); }
+.admin-field code { background: var(--bg); border: 1px solid var(--border); border-radius: 4px; padding: 1px 4px; font-size: 11px; }
+
+.admin-field input,
+.admin-field select,
+.admin-field textarea {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--border-dark);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color .15s;
+}
+.admin-field input:focus,
+.admin-field select:focus,
+.admin-field textarea:focus { border-color: var(--primary); }
+.admin-field textarea { resize: vertical; line-height: 1.5; }
+
+/* ── Botón guardar (teal KLYNEA) ── */
+.btn-guardar {
+  padding: 9px 18px;
+  border-radius: 8px;
+  border: none;
+  background: var(--primary);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background .15s;
+}
+.btn-guardar:hover { background: var(--primary-dark); }

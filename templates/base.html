@@ -1,0 +1,175 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}KLYNEA ERP{% endblock %}</title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{% static 'core/css/base.css' %}">
+  {% block extra_css %}{% endblock %}
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-mark">
+      <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round">
+        <rect x="3" y="3" width="7" height="7" rx="1.5"/>
+        <rect x="14" y="3" width="7" height="7" rx="1.5"/>
+        <rect x="3" y="14" width="7" height="7" rx="1.5"/>
+        <path d="M14 17.5h7M17.5 14v7"/>
+      </svg>
+    </div>
+    <span class="logo-text">KLYNEA <span>ERP</span></span>
+  </div>
+
+  <nav class="sidebar-nav">
+    <div class="nav-section-label">Principal</div>
+    <a href="{% url 'core:home' %}" class="nav-item {% block nav_home %}{% endblock %}">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
+      </svg>
+      <span class="nav-label">Inicio</span>
+    </a>
+
+    <div class="nav-section-label">Módulos</div>
+    <a href="{% url 'capacitacion:index' %}" class="nav-item {% block nav_capacitacion %}{% endblock %}">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <path d="M12 20h9M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/>
+      </svg>
+      <span class="nav-label">Capacitación</span>
+    </a>
+  </nav>
+
+  <div class="sidebar-bottom">
+    <a href="#" class="nav-item {% block nav_config %}{% endblock %}">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
+      </svg>
+      <span class="nav-label">Configuración</span>
+    </a>
+
+    <form method="post" action="{% url 'core:logout' %}">
+      {% csrf_token %}
+      <button type="submit" class="nav-item nav-logout">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/>
+        </svg>
+        <span class="nav-label">Cerrar sesión</span>
+      </button>
+    </form>
+
+    <div class="user-card">
+      <div class="user-avatar">{{ request.user.username|first|upper }}</div>
+      <div class="user-info">
+        <div class="user-name">{{ request.user.get_full_name|default:request.user.username }}</div>
+        <div class="user-role">
+          {% if request.user.is_superuser %}Administrador
+          {% else %}Vendedor{% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <button class="collapse-btn" id="collapseBtn">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+      <path d="M15 18l-6-6 6-6"/>
+    </svg>
+  </button>
+</aside>
+
+<!-- MAIN WRAPPER -->
+<div class="main-wrapper" id="mainWrapper">
+
+  <!-- TOPBAR -->
+  <header class="topbar">
+    <div class="breadcrumb">
+      <a href="{% url 'core:home' %}">KLYNEA</a>
+      {% block breadcrumb %}{% endblock %}
+    </div>
+    <div class="topbar-search">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0"/>
+      </svg>
+      <input type="text" placeholder="Buscar...">
+      <span class="search-kbd">⌘K</span>
+    </div>
+    <button class="topbar-btn" id="notifBtn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0"/>
+      </svg>
+      <span class="notif-dot"></span>
+    </button>
+    <div class="topbar-avatar">{{ request.user.username|first|upper }}</div>
+  </header>
+
+  <!-- CONTENT + PANEL DERECHO -->
+  <div class="content-layout">
+
+    <!-- CONTENIDO PRINCIPAL -->
+    <main class="page-content">
+      {% if messages %}
+        {% for message in messages %}
+          <div class="alert alert-{{ message.tags }}">{{ message }}</div>
+        {% endfor %}
+      {% endif %}
+      {% block content %}{% endblock %}
+    </main>
+
+    <!-- PANEL DERECHO -->
+    <aside class="right-panel" id="rightPanel">
+      <div class="right-panel-header">
+        <span class="right-panel-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <path d="M12 20h9M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/>
+          </svg>
+          Capacitación
+        </span>
+        <button class="right-panel-toggle" id="rightPanelToggle">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+            <path d="M9 18l6-6-6-6"/>
+          </svg>
+        </button>
+      </div>
+      <div class="right-panel-body">
+        {% block right_panel %}
+          {# Resumen del runbook diario — datos inyectados por el context processor 'runbook' #}
+          <div class="panel-resumen">
+            <div>
+              <div class="panel-prog-label">Progreso de hoy</div>
+              <div class="panel-prog-num">{{ rb_done }} <span>/ {{ rb_total }}</span></div>
+              <div class="panel-prog-bar">
+                <div class="panel-prog-fill" style="width: {% if rb_total %}{% widthratio rb_done rb_total 100 %}{% else %}0{% endif %}%"></div>
+              </div>
+            </div>
+
+            <div class="panel-next">
+              <div class="panel-next-label">Próxima tarea</div>
+              {% if rb_proxima %}
+                <div class="panel-next-hora">{{ rb_proxima.hora }}</div>
+                <div class="panel-next-nombre">{{ rb_proxima.nombre }}</div>
+              {% else %}
+                <div class="panel-next-done">✓ ¡Todo completado por hoy!</div>
+              {% endif %}
+            </div>
+
+            <a href="{% url 'capacitacion:index' %}" class="btn-panel">Ir al runbook</a>
+            {% if puede_editar %}
+              <a href="{% url 'capacitacion:admin_panel' %}" class="btn-panel">Administrar tareas</a>
+            {% endif %}
+          </div>
+        {% endblock %}
+      </div>
+    </aside>
+
+  </div>
+</div>
+
+<script src="{% static 'core/js/base.js' %}"></script>
+{% block extra_js %}{% endblock %}
+
+</body>
+</html>

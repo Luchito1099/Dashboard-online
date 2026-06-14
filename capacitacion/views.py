@@ -1,0 +1,220 @@
+# capacitacion/views.py
+from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib.auth.decorators import login_required
+from django.contrib import messages
+from django.http import JsonResponse, HttpResponseNotAllowed
+from django.utils import timezone
+from .models import Tarea, Bloque, ProgresoTarea
+
+
+# ───────────────────────── Datos estáticos (no necesitan BD) ─────────────────────────
+
+GLOSARIO = [
+    {"t": "CRM", "d": "Sistema de gestión de clientes"},
+    {"t": "KPI", "d": "Indicador clave de rendimiento"},
+    {"t": "Ticket", "d": "Monto promedio por pedido"},
+    {"t": "Carrito", "d": "Productos sin completar = oportunidad"},
+    {"t": "Courier", "d": "Empresa de mensajería"},
+    {"t": "ETA", "d": "Fecha/hora estimada de entrega"},
+    {"t": "VIP", "d": "Cliente frecuente o de alto valor"},
+    {"t": "Inactivo", "d": "Sin compra en 30+ días"},
+    {"t": "Conversión", "d": "Llamada que resulta en venta"},
+]
+
+REGLAS = [
+    "Si un cliente está enojado, escucha primero, soluciona después.",
+    "Toda promesa al cliente debe quedar en el CRM. Si no está escrito, no existe.",
+    "Quiebre de stock: notifica en menos de 2 horas.",
+    "Corte logístico a las 16:00 — después, despacho al día siguiente.",
+    "Si el caso escala, transfiere al supervisor de inmediato.",
+    "Cierra cada llamada con un próximo paso claro.",
+]
+
+
+# ───────────────────────── Helpers de permisos ─────────────────────────
+
+def es_admin(user):
+    """True si el usuario es superuser o tiene rol 'admin' en su Perfil.
+    Se usa hasattr para no romper con usuarios que aún no tienen Perfil asociado."""
+    if user.is_superuser:
+        return True
+    return hasattr(user, 'perfil') and user.perfil.rol == 'admin'
+
+
+def tareas_completadas_hoy(user):
+    """IDs de las tareas que el usuario marcó como completadas el día de hoy."""
+    hoy = timezone.now().date()
+    return set(
+        ProgresoTarea.objects.filter(
+            usuario=user, fecha=hoy, completada=True
+        ).values_list('tarea_id', flat=True)
+    )
+
+
+def calcular_porcentaje(done, total):
+    """Porcentaje entero de avance (evita división por cero)."""
+    return round(done / total * 100) if total else 0
+
+
+# ───────────────────────── Vistas ─────────────────────────
+
+@login_required
+def index(request):
+    """Runbook diario: embudo, timeline de bloques y sidebar con tabs."""
+    # Bloques con sus tareas en una sola consulta (evita N+1)
+    bloques = (
+        Bloque.objects
+        .prefetch_related('bloquearea_set__tarea')
+        .order_by('orden')
+    )
+
+    completadas = tareas_completadas_hoy(request.user)
+    tareas = Tarea.objects.filter(activo=True)
+    total = tareas.count()
+    done = len(completadas)
+
+    # Datos de tareas para el JS (embudo, sidebar de alerta, mini-lista).
+    # Se serializan con json_script en la plantilla.
+    tareas_data = [
+        {
+            'id': t.id,
+            'nombre': t.nombre,
+            'hora': t.hora,
+            'mins': t.mins,
+            'tipo': t.tipo,
+            'prioridad': t.prioridad,
+            'flexible': t.flexible,
+            'completada': t.id in completadas,
+        }
+        for t in tareas.order_by('mins')
+    ]
+
+    context = {
+        'bloques': bloques,
+        # Lista (no set) para que json_script pueda serializarla; el "in" del template funciona igual
+        'completadas': list(completadas),
+        'total': total,
+        'done': done,
+        'porcentaje': calcular_porcentaje(done, total),
+        'puede_editar': es_admin(request.user),
+        'tareas_data': tareas_data,
+        'glosario': GLOSARIO,
+        'reglas': REGLAS,
+    }
+    return render(request, 'capacitacion/index.html', context)
+
+
+@login_required
+def toggle_tarea(request, tarea_id):
+    """Marca/desmarca una tarea como completada para hoy.
+    Devuelve JSON {completada, done, total, porcentaje} para actualizar la UI sin recargar."""
+    if request.method != 'POST':
+        return HttpResponseNotAllowed(['POST'])
+
+    hoy = timezone.now().date()
+    tarea = get_object_or_404(Tarea, id=tarea_id)
+
+    progreso, creado = ProgresoTarea.objects.get_or_create(
+        usuario=request.user,
+        tarea=tarea,
+        fecha=hoy,
+        defaults={'completada': True},
+    )
+    # Si ya existía, invertimos el estado (toggle)
+    if not creado:
+        progreso.completada = not progreso.completada
+        progreso.save()
+
+    # Recalculamos el progreso global del día para devolverlo al front
+    done = len(tareas_completadas_hoy(request.user))
+    total = Tarea.objects.filter(activo=True).count()
+
+    return JsonResponse({
+        'completada': progreso.completada,
+        'done': done,
+        'total': total,
+        'porcentaje': calcular_porcentaje(done, total),
+    })
+
+
+@login_required
+def admin_panel(request):
+    """Panel de administración del runbook: lista todas las tareas para editarlas.
+    Solo accesible para admin/superuser; un vendedor es redirigido al inicio."""
+    if not es_admin(request.user):
+        messages.error(request, 'No tienes permisos para administrar tareas.')
+        return redirect('capacitacion:index')
+
+    tareas = Tarea.objects.all().order_by('orden', 'mins')
+    context = {
+        'tareas': tareas,
+        'prioridades': Tarea.PRIORIDAD_CHOICES,
+        'tipos': Tarea.TIPO_CHOICES,
+    }
+    return render(request, 'capacitacion/admin.html', context)
+
+
+@login_required
+def editar_tarea(request, tarea_id):
+    """Guarda los cambios de una tarea enviados desde el panel admin (POST).
+    Solo admin/superuser. Los pasos llegan uno por línea; los tips como 'tipo|texto'."""
+    if not es_admin(request.user):
+        messages.error(request, 'No tienes permisos para editar tareas.')
+        return redirect('capacitacion:index')
+
+    if request.method != 'POST':
+        return HttpResponseNotAllowed(['POST'])
+
+    tarea = get_object_or_404(Tarea, id=tarea_id)
+
+    # Campos simples
+    tarea.nombre = request.POST.get('nombre', tarea.nombre).strip()
+    tarea.hora = request.POST.get('hora', tarea.hora).strip()
+    tarea.tipo = request.POST.get('tipo', tarea.tipo)
+    tarea.prioridad = request.POST.get('prioridad', tarea.prioridad)
+    tarea.descripcion = request.POST.get('descripcion', tarea.descripcion).strip()
+
+    # "mins" se recalcula desde "hora" (HH:MM) para mantener coherente la línea de tiempo
+    tarea.mins = _hora_a_minutos(tarea.hora, tarea.mins)
+
+    # Pasos: una línea = un paso (se ignoran líneas vacías)
+    pasos_raw = request.POST.get('pasos', '')
+    tarea.pasos = [p.strip() for p in pasos_raw.splitlines() if p.strip()]
+
+    # Tips: cada línea con formato "tipo|texto" (tipo = tip | warn | info)
+    tips_raw = request.POST.get('tips', '')
+    tarea.tips = _parsear_tips(tips_raw)
+
+    tarea.save()
+    messages.success(request, f'Tarea «{tarea.nombre}» actualizada.')
+    return redirect('capacitacion:admin_panel')
+
+
+# ───────────────────────── Utilidades internas ─────────────────────────
+
+def _hora_a_minutos(hora, por_defecto):
+    """Convierte 'HH:MM' a minutos desde medianoche. Si falla, devuelve el valor previo."""
+    try:
+        h, m = hora.split(':')
+        return int(h) * 60 + int(m)
+    except (ValueError, AttributeError):
+        return por_defecto
+
+
+def _parsear_tips(texto):
+    """Convierte un textarea de tips a la estructura [{'k': tipo, 't': texto}].
+    Formato por línea: 'tipo|texto'. Si no hay '|', se asume tipo 'info'."""
+    tips = []
+    for linea in texto.splitlines():
+        linea = linea.strip()
+        if not linea:
+            continue
+        if '|' in linea:
+            tipo, txt = linea.split('|', 1)
+            tipo = tipo.strip().lower()
+            if tipo not in ('tip', 'warn', 'info'):
+                tipo = 'info'
+            tips.append({'k': tipo, 't': txt.strip()})
+        else:
+            tips.append({'k': 'info', 't': linea})
+    return tips

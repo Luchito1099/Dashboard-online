@@ -1,0 +1,524 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% comment %} templates/capacitacion/index.html — Runbook diario {% endcomment %}
+
+{% block title %}Capacitación · KLYNEA{% endblock %}
+{% block nav_capacitacion %}active{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'core/css/capacitacion.css' %}">
+{# productos.css aporta los estilos del selector central (.view-selector/.vbtn) #}
+<link rel="stylesheet" href="{% static 'core/css/productos.css' %}">
+{% endblock %}
+
+{% block breadcrumb %}
+  <span>›</span><span>Capacitación</span>
+{% endblock %}
+
+{% block content %}
+
+{# Datos de tareas y progreso para el JS (embudo, sidebar, mini-lista) #}
+{{ tareas_data|json_script:"tareas-data" }}
+{{ completadas|json_script:"completadas-data" }}
+
+<!-- ═══════════ SELECTOR CENTRAL Capacitación / Productos / Herramientas ═══════════ -->
+<div class="view-selector">
+  <a href="{% url 'capacitacion:index' %}" class="vbtn active" data-view="capacitacion">📋 Capacitación</a>
+  <a href="{% url 'productos:catalogo' %}" class="vbtn" data-view="productos">📦 Productos</a>
+  <a href="{% url 'herramientas:lista' %}" class="vbtn" data-view="herramientas">🔗 Herramientas</a>
+</div>
+
+<!-- ═══════════ EMBUDO DE PRIORIDADES (lo rellena el JS) ═══════════ -->
+<div class="funnel" id="funnel"></div>
+
+<!-- ═══════════ LAYOUT: TIMELINE + SIDEBAR ═══════════ -->
+<div class="cap-layout">
+
+  <!-- ── TIMELINE (área principal scrolleable) ── -->
+  <div class="cap-timeline">
+
+    <div class="cap-header">
+      <div>
+        <h2 class="cap-title">Runbook Diario</h2>
+        <p class="cap-subtitle">
+          Guía operativa de la vendedora ·
+          <span id="capDone">{{ done }}</span> de <span id="capTotal">{{ total }}</span> tareas completadas hoy
+        </p>
+      </div>
+      <div class="cap-header-right">
+        {# El botón de administración solo lo ven admin/superuser #}
+        {% if puede_editar %}
+        <a href="{% url 'capacitacion:admin_panel' %}" class="btn-admin-top">⚙️ Administrar tareas</a>
+        {% endif %}
+        <div class="cap-progress-wrap">
+          <div class="cap-progress-bar">
+            <div class="cap-progress-fill" id="capFill" style="width: {{ porcentaje }}%"></div>
+          </div>
+          <span class="cap-progress-pct" id="capPct">{{ porcentaje }}%</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Simulador de hora -->
+    <div class="sim-bar">
+      <span class="sim-label">Simular hora</span>
+      <input type="range" id="simRange" min="480" max="1110" step="5" value="540">
+      <span class="sim-val" id="simVal">09:00</span>
+    </div>
+
+    <!-- Bloques de tareas -->
+    {% for bloque in bloques %}
+    <div class="bloque">
+      <div class="bloque-header">
+        <span class="bloque-label">{{ bloque.label }}</span>
+        <div class="bloque-line"></div>
+      </div>
+
+      {% for bt in bloque.bloquearea_set.all %}
+      {% with tarea=bt.tarea %}
+      <div class="tarea-row" data-mins="{{ tarea.mins }}" data-id="{{ tarea.id }}" id="row-{{ tarea.id }}">
+
+        <div class="tarea-time">
+          <span class="tarea-hora">{{ tarea.hora }}</span>
+          {% if tarea.flexible %}<span class="tarea-flex">flexible</span>{% endif %}
+        </div>
+
+        <div class="tarea-cn">
+          <div class="cn-top"></div>
+          <div class="cn-dot {% if tarea.id in completadas %}done{% endif %}" id="dot-{{ tarea.id }}"></div>
+          <div class="cn-bot"></div>
+        </div>
+
+        <div class="tarea-cw">
+          <div class="tarea-card {% if tarea.id in completadas %}is-done{% endif %}" id="card-{{ tarea.id }}">
+
+            <div class="tarea-card-top" onclick="toggleCard({{ tarea.id }})">
+              <div class="pdot {{ tarea.prioridad }}"></div>
+              <div class="tarea-badges">
+                <span class="badge b-{{ tarea.tipo|lower }}">{{ tarea.tipo }}</span>
+                {% if tarea.flexible %}<span class="badge-flex">~ flexible</span>{% endif %}
+              </div>
+              <span class="tarea-nombre">{{ tarea.nombre }}</span>
+              <span class="tarea-chev" id="chev-{{ tarea.id }}">▾</span>
+            </div>
+
+            {% if tarea.habilidades %}
+            <div class="tarea-chips">
+              {% for skill in tarea.habilidades %}<span class="chip">{{ skill }}</span>{% endfor %}
+            </div>
+            {% endif %}
+
+            <!-- Bloque expandible (animación max-height) -->
+            <div class="tarea-exp" id="exp-{{ tarea.id }}">
+              <div class="exp-inner">
+                <p class="exp-desc">{{ tarea.descripcion }}</p>
+
+                <div class="exp-h">Cómo hacerlo — paso a paso</div>
+                <div class="exp-steps">
+                  {% for paso in tarea.pasos %}
+                  <div class="exp-step">
+                    <div class="exp-n">{{ forloop.counter }}</div>
+                    <div class="exp-t">{{ paso }}</div>
+                  </div>
+                  {% endfor %}
+                </div>
+
+                {% if tarea.tips %}
+                <div class="exp-h">Tips importantes</div>
+                <div class="exp-tips">
+                  {% for tip in tarea.tips %}
+                  <div class="exp-tip {{ tip.k }}">{{ tip.t }}</div>
+                  {% endfor %}
+                </div>
+                {% endif %}
+
+                <!-- Tutorial en video (se guarda en localStorage) -->
+                <div class="exp-h">▶ Tutorial en video</div>
+                <div class="video-slot">
+                  <div class="video-placeholder" id="vph-{{ tarea.id }}">
+                    <div class="video-input-row">
+                      <input type="text" class="video-input" id="vin-{{ tarea.id }}"
+                             placeholder="Pega un link de YouTube o Vimeo…">
+                      <button type="button" class="btn-video-save" onclick="guardarVideo({{ tarea.id }})">Guardar</button>
+                    </div>
+                  </div>
+                  <div class="video-embed" id="vem-{{ tarea.id }}">
+                    <div class="ratio">
+                      <iframe id="vif-{{ tarea.id }}"
+                              frameborder="0"
+                              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                              referrerpolicy="strict-origin-when-cross-origin"
+                              allowfullscreen></iframe>
+                    </div>
+                    <button type="button" class="btn-video-change" onclick="cambiarVideo({{ tarea.id }})">Cambiar</button>
+                  </div>
+                </div>
+
+                <!-- Acciones -->
+                <div class="tarea-acciones">
+                  <button
+                    class="btn-completar {% if tarea.id in completadas %}completada{% endif %}"
+                    id="btn-{{ tarea.id }}"
+                    onclick="toggleTarea({{ tarea.id }})">
+                    {% if tarea.id in completadas %}✓ Completada{% else %}Marcar como completada{% endif %}
+                  </button>
+                  {% if puede_editar %}
+                  <a href="{% url 'capacitacion:admin_panel' %}#tarea-{{ tarea.id }}" class="btn-editar">Editar tarea</a>
+                  {% endif %}
+                </div>
+
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+      {% endwith %}
+      {% endfor %}
+
+    </div>
+    {% endfor %}
+
+  </div>
+
+  <!-- ── SIDEBAR DERECHO (300px, tabs) ── -->
+  <aside class="cap-sidebar">
+    <div class="cap-sidebar-tabs">
+      <button class="cap-sidebar-tab active" data-tab="alerta" onclick="cambiarTab('alerta')">🔔 Alerta</button>
+      <button class="cap-sidebar-tab" data-tab="guia" onclick="cambiarTab('guia')">📖 Guía</button>
+      <button class="cap-sidebar-tab" data-tab="reglas" onclick="cambiarTab('reglas')">⭐ Reglas</button>
+    </div>
+
+    <div class="cap-sidebar-body">
+
+      <!-- TAB ALERTA (lo rellena el JS según la hora simulada) -->
+      <div class="tab-pane active" id="pane-alerta">
+        <div id="sbAlertBox"></div>
+        <div class="sb-section-label">Tareas del día</div>
+        <div class="sb-mini-list" id="sbMiniList"></div>
+      </div>
+
+      <!-- TAB GUÍA (glosario, estático) -->
+      <div class="tab-pane" id="pane-guia">
+        <div class="sb-section-label">Glosario</div>
+        <div class="sb-glosario">
+          {% for g in glosario %}
+          <div class="sg-item">
+            <div class="sg-term">{{ g.t }}</div>
+            <div class="sg-def">{{ g.d }}</div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <!-- TAB REGLAS (prioridades + reglas de oro, estático) -->
+      <div class="tab-pane" id="pane-reglas">
+        <div class="sb-section-label">Prioridades</div>
+        <div class="sb-prioridades">
+          <div class="sb-pri-item"><span class="pdot alta"></span> Crítico · atender de inmediato</div>
+          <div class="sb-pri-item"><span class="pdot media"></span> Importante · dentro del bloque</div>
+          <div class="sb-pri-item"><span class="pdot baja"></span> Regular · cuando haya espacio</div>
+        </div>
+
+        <div class="sb-section-label">Reglas de oro</div>
+        <div class="sb-rules">
+          {% for regla in reglas %}
+          <div class="sb-rule">
+            <div class="sb-rn">{{ forloop.counter }}</div>
+            <span>{{ regla }}</span>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+
+    </div>
+  </aside>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{# Script transversal: buscador del topbar + enlace Configuración #}
+<script src="{% static 'core/js/extras.js' %}"></script>
+<script>
+// Guarda la vista activa para el selector central
+localStorage.setItem('klynea_view', 'capacitacion');
+
+// ═══════════════════════════════════════
+//  DATOS Y ESTADO
+// ═══════════════════════════════════════
+const CSRF = '{{ csrf_token }}';
+const TAREAS = JSON.parse(document.getElementById('tareas-data').textContent);
+// Set de IDs completados (mutable: se actualiza al marcar/desmarcar)
+const COMPLETADAS = new Set(JSON.parse(document.getElementById('completadas-data').textContent));
+// Tareas ordenadas por hora, para calcular activa/próxima
+const TAREAS_ORD = [...TAREAS].sort((a, b) => a.mins - b.mins);
+
+const simRange = document.getElementById('simRange');
+const simVal   = document.getElementById('simVal');
+
+// ═══════════════════════════════════════
+//  UTILIDADES
+// ═══════════════════════════════════════
+function m2s(m) {
+  return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
+}
+
+// Devuelve {activo, proximo} según los minutos simulados
+function calcularTurno(simMins) {
+  let activo = null, proximo = null;
+  for (const t of TAREAS_ORD) {
+    if (t.mins <= simMins) activo = t;          // la última que ya empezó
+    else if (!proximo) proximo = t;             // la primera que falta por empezar
+  }
+  return { activo, proximo };
+}
+
+// ═══════════════════════════════════════
+//  1 · SIMULADOR DE HORA + REFRESCO GENERAL
+// ═══════════════════════════════════════
+const SIM_KEY = 'klynea_sim';
+
+// Recalcula TODA la UI dependiente del estado: puntos, cards, embudo, sidebar
+function refrescarUI() {
+  const simMins = parseInt(simRange.value);
+  simVal.textContent = m2s(simMins);
+  localStorage.setItem(SIM_KEY, simMins);
+
+  const { activo } = calcularTurno(simMins);
+  const activoId = activo ? activo.id : null;
+
+  // Puntos y cards de la timeline
+  TAREAS.forEach(t => {
+    const dot  = document.getElementById('dot-' + t.id);
+    const card = document.getElementById('card-' + t.id);
+    if (!dot || !card) return;
+
+    dot.classList.remove('done', 'active');
+    card.classList.remove('is-active', 'is-done');
+
+    if (COMPLETADAS.has(t.id)) {
+      dot.classList.add('done');
+      card.classList.add('is-done');
+    } else if (t.id === activoId) {
+      dot.classList.add('active');
+      card.classList.add('is-active');
+    }
+  });
+
+  actualizarEmbudo();
+  actualizarAlerta(simMins);
+}
+
+simRange.addEventListener('input', refrescarUI);
+
+// ═══════════════════════════════════════
+//  2 · EXPANDIR / COLAPSAR CARD (max-height)
+// ═══════════════════════════════════════
+function toggleCard(id) {
+  const exp  = document.getElementById('exp-' + id);
+  const chev = document.getElementById('chev-' + id);
+  const abierto = exp.classList.toggle('open');
+  chev.style.transform = abierto ? 'rotate(180deg)' : '';
+}
+
+// ═══════════════════════════════════════
+//  3 · MARCAR / DESMARCAR TAREA (sin recargar)
+// ═══════════════════════════════════════
+function toggleTarea(id) {
+  fetch(`/capacitacion/toggle/${id}/`, {
+    method: 'POST',
+    headers: { 'X-CSRFToken': CSRF, 'Content-Type': 'application/json' }
+  })
+  .then(r => r.json())
+  .then(data => {
+    // Actualizamos el set local según la respuesta del servidor
+    if (data.completada) COMPLETADAS.add(id);
+    else COMPLETADAS.delete(id);
+
+    // Botón de la card
+    const btn = document.getElementById('btn-' + id);
+    if (data.completada) {
+      btn.textContent = '✓ Completada';
+      btn.classList.add('completada');
+    } else {
+      btn.textContent = 'Marcar como completada';
+      btn.classList.remove('completada');
+    }
+
+    // Contador y barra de progreso del header
+    document.getElementById('capDone').textContent = data.done;
+    document.getElementById('capTotal').textContent = data.total;
+    document.getElementById('capFill').style.width = data.porcentaje + '%';
+    document.getElementById('capPct').textContent = data.porcentaje + '%';
+
+    // Puntos, cards, embudo y sidebar
+    refrescarUI();
+  });
+}
+
+// ═══════════════════════════════════════
+//  4 · VIDEO SLOT (localStorage por tarea)
+// ═══════════════════════════════════════
+function videoKey(id) { return 'klynea_vid_' + id; }
+
+// Convierte un link de YouTube/Vimeo a su URL embebible. Devuelve null si no es válido.
+// Soporta: youtube.com/watch?v=ID(&params), youtu.be/ID, youtube.com/embed|shorts/ID y vimeo.com/ID
+function parseVideoUrl(url) {
+  url = (url || '').trim();
+  let m = url.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([\w-]{11})/);
+  // Embed estándar de YouTube con ?rel=0 (el dominio nocookie da Error 153 en localhost)
+  if (m) return 'https://www.youtube.com/embed/' + m[1] + '?rel=0';
+  m = url.match(/vimeo\.com\/(?:video\/)?(\d+)/);
+  if (m) return 'https://player.vimeo.com/video/' + m[1];
+  return null;
+}
+
+// Muestra el iframe y oculta el input
+function mostrarEmbed(id, embedUrl) {
+  document.getElementById('vif-' + id).src = embedUrl;
+  document.getElementById('vem-' + id).classList.add('show');
+  document.getElementById('vph-' + id).style.display = 'none';
+}
+
+function guardarVideo(id) {
+  const input = document.getElementById('vin-' + id);
+  const embed = parseVideoUrl(input.value);
+  if (!embed) {
+    input.style.borderColor = '#ef4444';
+    input.placeholder = 'Link no válido. Usa YouTube o Vimeo.';
+    input.value = '';
+    return;
+  }
+  localStorage.setItem(videoKey(id), input.value.trim());
+  mostrarEmbed(id, embed);
+}
+
+// Vuelve a mostrar el input para cambiar el link
+function cambiarVideo(id) {
+  document.getElementById('vem-' + id).classList.remove('show');
+  document.getElementById('vif-' + id).src = '';
+  const ph = document.getElementById('vph-' + id);
+  ph.style.display = 'block';
+  document.getElementById('vin-' + id).value = localStorage.getItem(videoKey(id)) || '';
+}
+
+// Al cargar la página: pinta los videos ya guardados
+function cargarVideos() {
+  TAREAS.forEach(t => {
+    const guardado = localStorage.getItem(videoKey(t.id));
+    if (!guardado) return;
+    const embed = parseVideoUrl(guardado);
+    if (embed) mostrarEmbed(t.id, embed);
+  });
+}
+
+// ═══════════════════════════════════════
+//  5 · SIDEBAR · TABS
+// ═══════════════════════════════════════
+const TAB_KEY = 'klynea_tab';
+
+function cambiarTab(tab) {
+  document.querySelectorAll('.cap-sidebar-tab').forEach(b =>
+    b.classList.toggle('active', b.dataset.tab === tab));
+  document.querySelectorAll('.tab-pane').forEach(p =>
+    p.classList.toggle('active', p.id === 'pane-' + tab));
+  localStorage.setItem(TAB_KEY, tab);
+}
+
+// Click en una tarea del sidebar → scroll a la card y la expande
+function irATarea(id) {
+  const row = document.getElementById('row-' + id);
+  if (!row) return;
+  row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  const exp = document.getElementById('exp-' + id);
+  if (!exp.classList.contains('open')) toggleCard(id);
+}
+
+// ═══════════════════════════════════════
+//  6 · EMBUDO DE PRIORIDADES
+// ═══════════════════════════════════════
+const NIVELES = [
+  { clave: 'alta',  cls: 'f-alta',  lbl: 'Crítico' },
+  { clave: 'media', cls: 'f-media', lbl: 'Importante' },
+  { clave: 'baja',  cls: 'f-baja',  lbl: 'Regular' },
+];
+
+function actualizarEmbudo() {
+  const funnel = document.getElementById('funnel');
+  funnel.innerHTML = NIVELES.map(n => {
+    // Pendientes = tareas de esa prioridad que aún no están completadas
+    const pend = TAREAS.filter(t => t.prioridad === n.clave && !COMPLETADAS.has(t.id));
+    const vacio = pend.length === 0;
+    const texto = vacio ? '✓ Sin pendientes' : pend.map(t => t.nombre).join(' · ');
+    return `
+      <div class="funnel-row ${n.cls} ${vacio ? 'vacio' : ''}">
+        <span class="f-dot"></span>
+        <span class="f-lbl">${n.lbl}</span>
+        <span class="f-tasks">${texto}</span>
+        <span class="f-count">${pend.length}</span>
+      </div>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════
+//  SIDEBAR · ALERTA (turno + mini-lista)
+// ═══════════════════════════════════════
+function actualizarAlerta(simMins) {
+  const { activo, proximo } = calcularTurno(simMins);
+  const box = document.getElementById('sbAlertBox');
+
+  // Caja de turno: activo si existe, si no el próximo
+  const turno = activo || proximo;
+  if (turno) {
+    const esActivo = !!activo;
+    box.innerHTML = `
+      <div class="sb-alert ${esActivo ? 'hi' : ''}">
+        <div class="sb-section-label">${esActivo ? 'Turno activo' : 'Próximo turno'}</div>
+        <div class="sb-atime">${turno.hora}</div>
+        <div class="sb-aname">${turno.nombre}</div>
+        <div class="sb-ameta"><span class="pdot ${turno.prioridad}"></span> Prioridad ${turno.prioridad}</div>
+      </div>`;
+  } else {
+    box.innerHTML = '';
+  }
+
+  // Mini-lista de todas las tareas con su estado
+  const activoId = activo ? activo.id : null;
+  const lista = document.getElementById('sbMiniList');
+  lista.innerHTML = TAREAS_ORD.map(t => {
+    let estado = 'pending';
+    if (COMPLETADAS.has(t.id)) estado = 'done';
+    else if (t.id === activoId) estado = 'active';
+    return `
+      <div class="sb-mini-item ${estado === 'done' ? 'is-done' : ''} ${t.id === activoId ? 'hl' : ''}"
+           onclick="irATarea(${t.id})">
+        <span class="sb-mini-dot ${estado}"></span>
+        <span class="sb-mini-hora">${t.hora}</span>
+        <span class="sb-mini-name">${t.nombre}</span>
+      </div>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════
+//  INICIALIZACIÓN
+// ═══════════════════════════════════════
+(function init() {
+  // Restaurar hora simulada
+  const simGuardado = localStorage.getItem(SIM_KEY);
+  if (simGuardado) simRange.value = simGuardado;
+
+  // Restaurar tab activo
+  const tabGuardado = localStorage.getItem(TAB_KEY);
+  if (tabGuardado) cambiarTab(tabGuardado);
+
+  cargarVideos();
+  refrescarUI();
+
+  // Si llegamos con #row-N (desde el buscador en otra página), abrimos esa tarea
+  const m = location.hash.match(/^#row-(\d+)$/);
+  if (m) setTimeout(() => irATarea(parseInt(m[1])), 200);
+})();
+</script>
+{% endblock %}

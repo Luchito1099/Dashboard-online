@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(./venv/Scripts/python.exe manage.py check)",
+      "Bash(./venv/Scripts/python.exe manage.py makemigrations --check --dry-run)",
+      "Bash(./venv/Scripts/python.exe manage.py makemigrations capacitacion)",
+      "Bash(./venv/Scripts/python.exe manage.py migrate)",
+      "Bash(./venv/Scripts/python.exe manage.py seed_capacitacion)",
+      "Bash(PYTHONIOENCODING=utf-8 ./venv/Scripts/python.exe manage.py seed_capacitacion)",
+      "Bash(./venv/Scripts/python.exe -c ' *)",
+      "Bash(./venv/Scripts/python.exe manage.py makemigrations)",
+      "Bash(PYTHONIOENCODING=utf-8 ./venv/Scripts/python.exe manage.py crear_vendedor)",
+      "Bash(PYTHONIOENCODING=utf-8 ./venv/Scripts/python.exe manage.py seed_productos)",
+      "Bash(PYTHONIOENCODING=utf-8 ./venv/Scripts/python.exe manage.py seed_herramientas)",
+      "Bash(DB_HOST=postgres DB_NAME=klynea DEBUG=False ALLOWED_HOSTS=dashboard.conluismz.com ./venv/Scripts/python.exe -c ' *)",
+      "Bash(./venv/Scripts/python.exe manage.py collectstatic --noinput --dry-run)"
+    ]
+  }
+}

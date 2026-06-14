@@ -1,0 +1,9 @@
+{% comment %} templates/herramientas/_tarjeta.html — Tarjeta de una herramienta externa {% endcomment %}
+<div class="herr-card">
+  <div class="herr-icono">{{ h.icono|default:"🔗" }}</div>
+  <div class="herr-card-body">
+    <div class="herr-card-nombre">{{ h.nombre }}</div>
+    {% if h.descripcion %}<div class="herr-card-desc">{{ h.descripcion }}</div>{% endif %}
+  </div>
+  <a href="{{ h.url }}" target="_blank" rel="noopener" class="herr-abrir">Abrir →</a>
+</div>

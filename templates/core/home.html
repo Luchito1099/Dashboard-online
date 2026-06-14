@@ -1,0 +1,51 @@
+{% extends 'base.html' %}
+
+{% block title %}Inicio · KLYNEA{% endblock %}
+{% block nav_home %}active{% endblock %}
+
+{% block breadcrumb %}
+  <span>›</span><span>Inicio</span>
+{% endblock %}
+
+{% block content %}
+<div class="welcome-banner">
+  <div class="welcome-greeting">Bienvenido, {{ request.user.get_full_name|default:request.user.username }}</div>
+  <h2 class="welcome-title">Tu <span>centro de control</span></h2>
+  <p class="welcome-desc">Aquí vas a ver todo lo que pasa con KLYNEA en tiempo real.</p>
+</div>
+
+<div class="kpi-grid">
+  <div class="kpi-card">
+    <div class="kpi-label">Ventas Hoy</div>
+    <div class="kpi-value">S/ 0</div>
+    <span class="kpi-change">+0% vs ayer</span>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">Pedidos</div>
+    <div class="kpi-value">0</div>
+    <span class="kpi-change">Nuevos hoy</span>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">Stock Total</div>
+    <div class="kpi-value">0</div>
+    <span class="kpi-change">unidades</span>
+  </div>
+</div>
+
+{# Card de progreso de capacitación del día #}
+<a href="{% url 'capacitacion:index' %}" class="cap-card">
+  <div class="cap-card-icon">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+      <path d="M12 20h9M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/>
+    </svg>
+  </div>
+  <div class="cap-card-body">
+    <div class="cap-card-title">Runbook diario</div>
+    <div class="cap-card-text">Completaste <strong>{{ cap_done }} de {{ cap_total }}</strong> tareas hoy</div>
+    <div class="cap-card-bar">
+      <div class="cap-card-fill" style="width: {% if cap_total %}{% widthratio cap_done cap_total 100 %}{% else %}0{% endif %}%"></div>
+    </div>
+  </div>
+  <span class="cap-card-cta">Ir a Capacitación →</span>
+</a>
+{% endblock %}

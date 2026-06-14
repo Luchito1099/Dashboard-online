@@ -1,0 +1,128 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% comment %} templates/productos/ficha_rapida.html — Ficha compacta para llamadas en vivo {% endcomment %}
+
+{% block title %}Ficha · {{ producto.nombre }} · KLYNEA{% endblock %}
+{% block nav_capacitacion %}active{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'core/css/productos.css' %}">
+{% endblock %}
+
+{% block breadcrumb %}
+  <span>›</span><a href="{% url 'productos:catalogo' %}">Productos</a><span>›</span><span>Ficha rápida</span>
+{% endblock %}
+
+{% block content %}
+
+<div class="ficha">
+
+  <a href="{% url 'productos:catalogo' %}" class="ficha-volver">← Volver al catálogo</a>
+
+  <!-- Encabezado: imagen + nombre + precio + copiar link -->
+  <div class="ficha-top">
+    <div class="ficha-img">
+      {% if producto.imagen_url %}<img src="{{ producto.imagen_url }}" alt="{{ producto.nombre }}">{% endif %}
+    </div>
+    <div class="ficha-info">
+      <div class="ficha-nombre">{{ producto.nombre }}</div>
+      <div class="ficha-precio">
+        <span class="precio-actual">S/ {{ producto.precio_mostrar|floatformat:2 }}</span>
+        {% if producto.tiene_oferta %}<span class="precio-tachado">S/ {{ producto.precio|floatformat:2 }}</span>{% endif %}
+      </div>
+      {% if producto.link_pago %}
+      <button class="btn-copiar" id="btnCopiar" data-link="{{ producto.link_pago }}" onclick="copiarLink()">
+        📋 Copiar link de pago
+      </button>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Características clave -->
+  {% if producto.caracteristicas %}
+  <div class="ficha-panel">
+    <div class="ficha-panel-h">Características clave</div>
+    <ul class="ficha-bullets">
+      {% for c in producto.caracteristicas %}<li>{{ c }}</li>{% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  <!-- Enlaces web del producto -->
+  {% if producto.links.all %}
+  <div class="ficha-panel">
+    <div class="ficha-panel-h">Enlaces</div>
+    <div class="det-links">
+      {% for link in producto.links.all %}
+      <a class="det-link" href="{{ link.url }}" target="_blank" rel="noopener">🔗 {{ link.titulo }}</a>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Material para enviar al cliente (imágenes y videos compartibles) -->
+  {% if producto.medios.all %}
+  <div class="ficha-panel">
+    <div class="ficha-panel-h">📤 Material para enviar al cliente</div>
+    <div class="mat-list">
+      {% for medio in producto.medios.all %}
+      <div class="mat-item">
+        {% if medio.tipo == 'imagen' %}
+          <div class="mat-thumb"><img src="{{ medio.url }}" alt=""></div>
+        {% else %}
+          <div class="mat-thumb mat-video">🎬</div>
+        {% endif %}
+        <div class="mat-info">
+          <div class="mat-titulo">{{ medio.titulo|default:medio.get_tipo_display }}</div>
+          <div class="mat-acciones">
+            <button class="btn-share wa" onclick="compartirWhatsApp('{{ medio.url|escapejs }}')">📤 WhatsApp</button>
+            <button class="btn-share" onclick="copiarLinkMedio(this, '{{ medio.url|escapejs }}')">📋 Copiar link</button>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Objeciones frecuentes (colapsables) -->
+  {% if producto.objeciones.all %}
+  <div class="ficha-panel">
+    <div class="ficha-panel-h">🚫 Objeciones frecuentes</div>
+    {% for obj in producto.objeciones.all %}
+    <div class="obj-item" onclick="this.classList.toggle('open')">
+      <div class="obj-q">"{{ obj.objecion }}" <span class="obj-arrow">▾</span></div>
+      <div class="obj-a"><div class="obj-a-inner">{{ obj.respuesta }}</div></div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <!-- Acceso a la ficha completa -->
+  <a href="{% url 'productos:detalle' producto.id %}" class="btn-det btn-det-ghost" style="text-align:center;">
+    Ver ficha completa
+  </a>
+
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'core/js/extras.js' %}"></script>
+<script>
+// Copia el link de pago al portapapeles y da feedback visual
+function copiarLink() {
+  const btn = document.getElementById('btnCopiar');
+  const link = btn.dataset.link;
+  navigator.clipboard.writeText(link).then(() => {
+    btn.textContent = '✓ ¡Copiado!';
+    btn.classList.add('ok');
+    setTimeout(() => {
+      btn.textContent = '📋 Copiar link de pago';
+      btn.classList.remove('ok');
+    }, 1800);
+  });
+}
+</script>
+{% endblock %}

@@ -1,0 +1,138 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% comment %} templates/productos/admin.html — Administración de productos (solo admin)
+   Scroll natural de .page-content (esta página NO tiene .cap-layout ni carga capacitacion.css). {% endcomment %}
+
+{% block title %}Administrar productos · KLYNEA{% endblock %}
+{% block nav_capacitacion %}active{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'core/css/productos.css' %}">
+{% endblock %}
+
+{% block breadcrumb %}
+  <span>›</span><a href="{% url 'productos:catalogo' %}">Productos</a><span>›</span><span>Administrar</span>
+{% endblock %}
+
+{% block content %}
+
+<div class="prod-admin">
+
+  <div class="prod-admin-header">
+    <div>
+      <h2 class="prod-admin-title">Administrar productos</h2>
+      <p class="cat-subtitle">{{ productos|length }} productos</p>
+    </div>
+    <div class="prod-admin-acciones">
+      <a href="{% url 'productos:catalogo' %}" class="btn-volver" style="display:inline-flex;align-items:center;padding:9px 14px;border:1px solid var(--border-dark);border-radius:8px;text-decoration:none;color:var(--text-secondary);font-weight:600;font-size:12.5px;">← Catálogo</a>
+      <form method="post" action="{% url 'productos:crear' %}">
+        {% csrf_token %}
+        <button type="submit" class="btn-crear">+ Nuevo producto</button>
+      </form>
+    </div>
+  </div>
+
+  {# Una card-formulario por producto #}
+  {% for p in productos %}
+  <div class="pa-card" id="producto-{{ p.id }}">
+    <div class="pa-card-head">
+      <span class="pa-card-nombre">{{ p.nombre }}</span>
+      {% if p.tiene_oferta %}<span class="badge-oferta" style="position:static;">OFERTA</span>{% endif %}
+    </div>
+
+    <form method="post" action="{% url 'productos:editar' p.id %}">
+      {% csrf_token %}
+
+      <div class="pa-grid">
+        <label class="pa-field">
+          <span>Nombre</span>
+          <input type="text" name="nombre" value="{{ p.nombre }}" required>
+        </label>
+        <label class="pa-field">
+          <span>SKU</span>
+          <input type="text" name="sku" value="{{ p.sku }}">
+        </label>
+        <label class="pa-field">
+          <span>Categoría</span>
+          <input type="text" name="categoria" value="{{ p.categoria }}">
+        </label>
+        <label class="pa-field">
+          <span>Precio (S/)</span>
+          <input type="text" name="precio" value="{{ p.precio|floatformat:2 }}">
+        </label>
+        <label class="pa-field">
+          <span>Precio oferta (S/)</span>
+          <input type="text" name="precio_oferta" value="{% if p.precio_oferta %}{{ p.precio_oferta|floatformat:2 }}{% endif %}">
+        </label>
+        <label class="pa-check">
+          <input type="checkbox" name="en_oferta" {% if p.en_oferta %}checked{% endif %}>
+          En oferta
+        </label>
+      </div>
+
+      <label class="pa-field full">
+        <span>Descripción</span>
+        <textarea name="descripcion" rows="2">{{ p.descripcion }}</textarea>
+      </label>
+
+      <label class="pa-field full">
+        <span>Características <em>(una por línea)</em></span>
+        <textarea name="caracteristicas" rows="4">{% for c in p.caracteristicas %}{{ c }}
+{% endfor %}</textarea>
+      </label>
+
+      <div class="pa-grid">
+        <label class="pa-field">
+          <span>Imagen (URL)</span>
+          <input type="text" name="imagen_url" value="{{ p.imagen_url }}">
+        </label>
+        <label class="pa-field">
+          <span>Video (URL YouTube/Vimeo)</span>
+          <input type="text" name="video_url" value="{{ p.video_url }}">
+        </label>
+        <label class="pa-field">
+          <span>Link de pago</span>
+          <input type="text" name="link_pago" value="{{ p.link_pago }}">
+        </label>
+      </div>
+
+      <label class="pa-field full">
+        <span>Enlaces web <em>(uno por línea, formato <code>título|url</code>)</em></span>
+        <textarea name="links" rows="3">{% for l in p.links.all %}{{ l.titulo }}|{{ l.url }}
+{% endfor %}</textarea>
+      </label>
+
+      <label class="pa-field full">
+        <span>Material compartible <em>(uno por línea, formato <code>imagen|url|título</code> o <code>video|url|título</code>)</em></span>
+        <textarea name="medios" rows="4">{% for m in p.medios.all %}{{ m.tipo }}|{{ m.url }}|{{ m.titulo }}
+{% endfor %}</textarea>
+      </label>
+
+      <label class="pa-field full">
+        <span>Objeciones <em>(una por línea, formato <code>objeción|respuesta</code>)</em></span>
+        <textarea name="objeciones" rows="4">{% for o in p.objeciones.all %}{{ o.objecion }}|{{ o.respuesta }}
+{% endfor %}</textarea>
+      </label>
+
+      <button type="submit" class="btn-guardar">Guardar cambios</button>
+    </form>
+
+    {# Eliminar va en un formulario aparte (no se pueden anidar formularios) #}
+    <form method="post" action="{% url 'productos:eliminar' p.id %}" style="margin-top:10px;"
+          onsubmit="return confirm('¿Eliminar «{{ p.nombre|escapejs }}»? Esta acción no se puede deshacer.');">
+      {% csrf_token %}
+      <button type="submit" class="btn-eliminar">Eliminar producto</button>
+    </form>
+  </div>
+  {% empty %}
+  <div class="cat-vacio">No hay productos. Crea el primero con «+ Nuevo producto».</div>
+  {% endfor %}
+
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'core/js/extras.js' %}"></script>
+{% endblock %}

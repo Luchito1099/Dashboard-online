@@ -1,0 +1,239 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% comment %} templates/productos/catalogo.html — Catálogo de productos {% endcomment %}
+
+{% block title %}Productos · KLYNEA{% endblock %}
+{% block nav_capacitacion %}active{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'core/css/productos.css' %}">
+{% endblock %}
+
+{% block breadcrumb %}
+  <span>›</span><span>Productos</span>
+{% endblock %}
+
+{% block content %}
+
+{# Datos de productos para el JS (panel de detalle) #}
+{{ productos_data|json_script:"productos-data" }}
+<div id="prod-config" data-inicial="{{ producto_inicial|default:'' }}" hidden></div>
+
+<!-- SELECTOR CENTRAL Capacitación / Productos / Herramientas -->
+<div class="view-selector">
+  <a href="{% url 'capacitacion:index' %}" class="vbtn" data-view="capacitacion">📋 Capacitación</a>
+  <a href="{% url 'productos:catalogo' %}" class="vbtn active" data-view="productos">📦 Productos</a>
+  <a href="{% url 'herramientas:lista' %}" class="vbtn" data-view="herramientas">🔗 Herramientas</a>
+</div>
+
+<div class="cat-header">
+  <h2 class="cat-title">Catálogo de productos</h2>
+  <p class="cat-subtitle">{{ productos|length }} productos · haz click en una tarjeta para ver el detalle</p>
+</div>
+
+<!-- Buscador local + filtros por categoría -->
+<div class="cat-toolbar">
+  <div class="cat-search">
+    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="color:var(--muted)">
+      <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0"/>
+    </svg>
+    <input type="text" id="catSearch" placeholder="Buscar producto…" oninput="filtrar()">
+  </div>
+  <div class="cat-filtros">
+    <button class="chip-filtro active" data-cat="" onclick="filtrarCategoria(this, '')">Todas</button>
+    {% for cat in categorias %}
+    <button class="chip-filtro" data-cat="{{ cat }}" onclick="filtrarCategoria(this, '{{ cat }}')">{{ cat }}</button>
+    {% endfor %}
+  </div>
+  {% if puede_editar %}
+  <a href="{% url 'productos:admin' %}" class="btn-admin-prod">⚙️ Administrar</a>
+  {% endif %}
+</div>
+
+<!-- Grid de tarjetas -->
+<div class="prod-grid" id="prodGrid">
+  {% for p in productos %}
+  <div class="prod-card" data-nombre="{{ p.nombre|lower }}" data-cat="{{ p.categoria }}" onclick="abrirDetalle({{ p.id }})">
+    <div class="prod-img">
+      {% if p.tiene_oferta %}<span class="badge-oferta">OFERTA</span>{% endif %}
+      {% if p.imagen_url %}<img src="{{ p.imagen_url }}" alt="{{ p.nombre }}">{% endif %}
+    </div>
+    <div class="prod-body">
+      {% if p.categoria %}<div class="prod-cat">{{ p.categoria }}</div>{% endif %}
+      <div class="prod-nombre">{{ p.nombre }}</div>
+      <div class="prod-precio">
+        <span class="precio-actual">S/ {{ p.precio_mostrar|floatformat:2 }}</span>
+        {% if p.tiene_oferta %}<span class="precio-tachado">S/ {{ p.precio|floatformat:2 }}</span>{% endif %}
+      </div>
+      <button class="btn-ficha" onclick="event.stopPropagation(); irFicha({{ p.id }})">⚡ Ficha rápida</button>
+    </div>
+  </div>
+  {% empty %}
+  <div class="cat-vacio">No hay productos cargados todavía.</div>
+  {% endfor %}
+</div>
+
+<!-- Panel de detalle (lo rellena el JS) -->
+<div class="detalle-overlay" id="detOverlay" onclick="cerrarDetalle()"></div>
+<aside class="detalle-panel" id="detPanel">
+  <div class="detalle-head">
+    <h3 id="detNombre"></h3>
+    <button class="btn-cerrar" onclick="cerrarDetalle()">×</button>
+  </div>
+  <div class="detalle-body" id="detBody"></div>
+  <div class="detalle-foot">
+    <a href="#" class="btn-det btn-det-primary" id="detFicha">⚡ Ficha rápida</a>
+    <a href="#" class="btn-det btn-det-ghost" id="detWeb" target="_blank" rel="noopener">Ver en la web</a>
+  </div>
+</aside>
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'core/js/extras.js' %}"></script>
+<script>
+localStorage.setItem('klynea_view', 'productos');
+
+const PRODUCTOS = JSON.parse(document.getElementById('productos-data').textContent);
+
+// ── Filtro local (buscador + categoría) ──
+let categoriaActiva = '';
+
+function filtrar() {
+  const q = document.getElementById('catSearch').value.trim().toLowerCase();
+  document.querySelectorAll('.prod-card').forEach(card => {
+    const coincideTexto = card.dataset.nombre.includes(q) || card.dataset.cat.toLowerCase().includes(q);
+    const coincideCat = !categoriaActiva || card.dataset.cat === categoriaActiva;
+    card.style.display = (coincideTexto && coincideCat) ? '' : 'none';
+  });
+}
+
+function filtrarCategoria(btn, cat) {
+  categoriaActiva = cat;
+  document.querySelectorAll('.chip-filtro').forEach(c => c.classList.remove('active'));
+  btn.classList.add('active');
+  filtrar();
+}
+
+// ── Convierte link de YouTube/Vimeo a embed (con ?rel=0 para evitar Error 153) ──
+function parseVideoUrl(url) {
+  url = (url || '').trim();
+  let m = url.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([\w-]{11})/);
+  if (m) return 'https://www.youtube.com/embed/' + m[1] + '?rel=0';
+  m = url.match(/vimeo\.com\/(?:video\/)?(\d+)/);
+  if (m) return 'https://player.vimeo.com/video/' + m[1];
+  return null;
+}
+
+// ── Panel de detalle ──
+function abrirDetalle(id) {
+  const p = PRODUCTOS.find(x => x.id === id);
+  if (!p) return;
+
+  document.getElementById('detNombre').textContent = p.nombre;
+
+  // Galería: imagen principal + miniaturas
+  const imgs = [p.imagen_url, ...p.imagenes].filter(Boolean);
+  const principal = imgs[0] || '';
+  let galeria = `<div class="det-galeria-main"><img id="detMainImg" src="${principal}" alt=""></div>`;
+  if (imgs.length > 1) {
+    galeria += '<div class="det-thumbs">' + imgs.map((u, i) =>
+      `<div class="det-thumb ${i === 0 ? 'active' : ''}" onclick="cambiarImg(this,'${u}')"><img src="${u}" alt=""></div>`
+    ).join('') + '</div>';
+  }
+
+  // Precio
+  let precio = `<div class="det-precio"><span class="precio-actual">S/ ${p.precio_mostrar.toFixed(2)}</span>`;
+  if (p.en_oferta) precio += `<span class="precio-tachado">S/ ${p.precio.toFixed(2)}</span>`;
+  precio += '</div>';
+
+  // Características
+  let caract = '';
+  if (p.caracteristicas.length) {
+    caract = '<div class="det-h">Características</div><ul class="det-bullets">' +
+      p.caracteristicas.map(c => `<li>${escapar(c)}</li>`).join('') + '</ul>';
+  }
+
+  // Descripción
+  const desc = p.descripcion ? `<div class="det-h">Descripción</div><p class="det-desc">${escapar(p.descripcion)}</p>` : '';
+
+  // Video embebido (iframe con atributos correctos para evitar Error 153)
+  let video = '';
+  const embed = parseVideoUrl(p.video_url);
+  if (embed) video = `<div class="det-h">Video</div><div class="det-video"><div class="ratio">
+    <iframe src="${embed}" frameborder="0"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+            referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe></div></div>`;
+
+  // Enlaces web (múltiples)
+  let enlaces = '';
+  if (p.links.length) {
+    enlaces = '<div class="det-h">Enlaces</div><div class="det-links">' +
+      p.links.map(l => `<a class="det-link" href="${l.url}" target="_blank" rel="noopener">🔗 ${escapar(l.titulo)}</a>`).join('') +
+      '</div>';
+  }
+
+  // Material para enviar al cliente (imágenes y videos compartibles)
+  const material = bloqueMaterial(p.medios);
+
+  document.getElementById('detBody').innerHTML = galeria + precio + desc + caract + video + enlaces + material;
+
+  // Botón ficha del pie; el botón "web" apunta al primer enlace si existe
+  document.getElementById('detFicha').href = '/productos/ficha/' + id + '/';
+  const web = document.getElementById('detWeb');
+  if (p.links.length) { web.href = p.links[0].url; web.style.display = ''; }
+  else web.style.display = 'none';
+
+  document.getElementById('detOverlay').classList.add('show');
+  document.getElementById('detPanel').classList.add('show');
+}
+
+// Construye la sección "Material para enviar al cliente" con botones de compartir
+function bloqueMaterial(medios) {
+  if (!medios || !medios.length) return '';
+  const items = medios.map(m => {
+    const titulo = m.titulo || (m.tipo === 'video' ? 'Video' : 'Imagen');
+    const preview = m.tipo === 'imagen'
+      ? `<div class="mat-thumb"><img src="${m.url}" alt=""></div>`
+      : `<div class="mat-thumb mat-video">🎬</div>`;
+    return `<div class="mat-item">
+      ${preview}
+      <div class="mat-info">
+        <div class="mat-titulo">${escapar(titulo)}</div>
+        <div class="mat-acciones">
+          <button class="btn-share wa" onclick="compartirWhatsApp('${m.url}')">📤 WhatsApp</button>
+          <button class="btn-share" onclick="copiarLinkMedio(this, '${m.url}')">📋 Copiar link</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+  return `<div class="det-h">Material para enviar al cliente</div><div class="mat-list">${items}</div>`;
+}
+
+function cambiarImg(thumb, url) {
+  document.getElementById('detMainImg').src = url;
+  document.querySelectorAll('.det-thumb').forEach(t => t.classList.remove('active'));
+  thumb.classList.add('active');
+}
+
+function cerrarDetalle() {
+  document.getElementById('detOverlay').classList.remove('show');
+  document.getElementById('detPanel').classList.remove('show');
+}
+
+function irFicha(id) { window.location.href = '/productos/ficha/' + id + '/'; }
+
+function escapar(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+// Si llegamos a /productos/<id>/ abrimos ese detalle automáticamente
+(function () {
+  const inicial = document.getElementById('prod-config').dataset.inicial;
+  if (inicial) abrirDetalle(parseInt(inicial));
+})();
+</script>
+{% endblock %}

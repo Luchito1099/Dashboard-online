@@ -1,0 +1,69 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% comment %} templates/herramientas/lista.html — Grid de herramientas externas {% endcomment %}
+
+{% block title %}Herramientas · KLYNEA{% endblock %}
+{% block nav_capacitacion %}active{% endblock %}
+
+{% block extra_css %}
+{# productos.css aporta el selector central; herramientas.css el grid #}
+<link rel="stylesheet" href="{% static 'core/css/productos.css' %}">
+<link rel="stylesheet" href="{% static 'core/css/herramientas.css' %}">
+{% endblock %}
+
+{% block breadcrumb %}
+  <span>›</span><span>Herramientas</span>
+{% endblock %}
+
+{% block content %}
+
+<!-- SELECTOR CENTRAL Capacitación / Productos / Herramientas -->
+<div class="view-selector">
+  <a href="{% url 'capacitacion:index' %}" class="vbtn" data-view="capacitacion">📋 Capacitación</a>
+  <a href="{% url 'productos:catalogo' %}" class="vbtn" data-view="productos">📦 Productos</a>
+  <a href="{% url 'herramientas:lista' %}" class="vbtn active" data-view="herramientas">🔗 Herramientas</a>
+</div>
+
+<div class="herr-header">
+  <div>
+    <h2 class="herr-title">Herramientas</h2>
+    <p class="herr-subtitle">Accesos directos a las herramientas externas del stack.</p>
+  </div>
+  {% if puede_editar %}
+  <a href="{% url 'herramientas:admin' %}" class="btn-admin-prod">⚙️ Administrar</a>
+  {% endif %}
+</div>
+
+{# Sin categoría: grid simple. Con categorías: secciones. #}
+{% if categorias %}
+  {% for cat in categorias %}
+  <div class="herr-cat-label">{{ cat }}</div>
+  <div class="herr-grid">
+    {% for h in herramientas %}
+      {% if h.categoria == cat %}{% include 'herramientas/_tarjeta.html' with h=h %}{% endif %}
+    {% endfor %}
+  </div>
+  {% endfor %}
+  {# Herramientas sin categoría #}
+  <div class="herr-grid">
+    {% for h in herramientas %}
+      {% if not h.categoria %}{% include 'herramientas/_tarjeta.html' with h=h %}{% endif %}
+    {% endfor %}
+  </div>
+{% else %}
+  <div class="herr-grid">
+    {% for h in herramientas %}
+      {% include 'herramientas/_tarjeta.html' with h=h %}
+    {% empty %}
+      <div class="cat-vacio">No hay herramientas configuradas todavía.</div>
+    {% endfor %}
+  </div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'core/js/extras.js' %}"></script>
+<script>localStorage.setItem('klynea_view', 'herramientas');</script>
+{% endblock %}

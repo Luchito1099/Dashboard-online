@@ -1,0 +1,6 @@
+Django>=6.0,<6.1
+psycopg2-binary
+whitenoise
+gunicorn
+python-dotenv
+pillow
