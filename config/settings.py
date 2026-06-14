@@ -82,9 +82,14 @@ if os.environ.get('DB_HOST'):
             'PASSWORD': os.environ.get('DB_PASSWORD'),
             'HOST': os.environ.get('DB_HOST'),
             'PORT': os.environ.get('DB_PORT', '5432'),
-            # Conexiones persistentes: reutiliza la conexión hasta 60s en vez de
+            # Conexiones persistentes: reutiliza la conexión hasta 600s en vez de
             # abrir una nueva en cada request (gran parte de los ~3.5s por pestaña).
-            'CONN_MAX_AGE': 60,
+            'CONN_MAX_AGE': 600,
+            'OPTIONS': {
+                # Si la DB no responde el handshake en 3s, fallar rápido en vez
+                # de dejar el request colgado.
+                'connect_timeout': 3,
+            },
         }
     }
 else:
@@ -94,6 +99,19 @@ else:
             'NAME': BASE_DIR / 'db.sqlite3',
         }
     }
+
+# ── Caché en memoria del proceso (sin Redis por ahora) ──
+# Ojo: LocMemCache es por proceso; con varios workers de Gunicorn cada uno
+# tiene su propia caché (no se comparte). Suficiente para sesiones cacheadas.
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+    }
+}
+
+# Sesiones cacheadas + respaldo en BD: lee de caché y solo toca la BD al escribir
+# o si falla la caché. Evita un SELECT de sesión en cada request.
+SESSION_ENGINE = 'django.contrib.sessions.backends.cached_db'
 
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
@@ -131,5 +149,14 @@ if not DEBUG:
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')  # detrás del proxy de Coolify
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
+
+# ── Hashers de contraseña ──
+# Argon2 primero (requiere el paquete argon2-cffi instalado). En local, si quieres
+# logins instantáneos para desarrollo, puedes anteponer MD5PasswordHasher SOLO
+# bajo DEBUG; nunca en producción.
+PASSWORD_HASHERS = [
+    'django.contrib.auth.hashers.Argon2PasswordHasher',
+    'django.contrib.auth.hashers.PBKDF2PasswordHasher',
+]
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
