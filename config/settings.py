@@ -109,9 +109,8 @@ CACHES = {
     }
 }
 
-# Sesiones cacheadas + respaldo en BD: lee de caché y solo toca la BD al escribir
-# o si falla la caché. Evita un SELECT de sesión en cada request.
-SESSION_ENGINE = 'django.contrib.sessions.backends.cached_db'
+# Sesiones en BD (la tabla django_session ya existe vía migraciones).
+SESSION_ENGINE = 'django.contrib.sessions.backends.db'
 
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
@@ -151,11 +150,9 @@ if not DEBUG:
     CSRF_COOKIE_SECURE = True
 
 # ── Hashers de contraseña ──
-# Argon2 primero (requiere el paquete argon2-cffi instalado). En local, si quieres
-# logins instantáneos para desarrollo, puedes anteponer MD5PasswordHasher SOLO
-# bajo DEBUG; nunca en producción.
+# Solo PBKDF2 por ahora (Argon2 requería el paquete argon2-cffi, que no está
+# instalado). Cuando lo añadas a requirements.txt podrás anteponer Argon2.
 PASSWORD_HASHERS = [
-    'django.contrib.auth.hashers.Argon2PasswordHasher',
     'django.contrib.auth.hashers.PBKDF2PasswordHasher',
 ]
 
