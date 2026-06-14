@@ -28,6 +28,90 @@
     <a href="{% url 'capacitacion:index' %}" class="btn-volver">← Volver al runbook</a>
   </div>
 
+  {# ── Gestión de bloques: editar nombres y agregar nuevos ── #}
+  <div class="admin-tarea-card">
+    <div class="admin-tarea-head">
+      <span class="admin-tarea-nombre">Bloques de tareas</span>
+    </div>
+
+    {# Editar el nombre/orden de cada bloque existente #}
+    {% for bloque in bloques %}
+    <form method="post" action="{% url 'capacitacion:editar_bloque' bloque.id %}" class="admin-bloque-row">
+      {% csrf_token %}
+      <label class="admin-field admin-bloque-nombre">
+        <span>Nombre del bloque</span>
+        <input type="text" name="label" value="{{ bloque.label }}" required>
+      </label>
+      <label class="admin-field admin-bloque-orden">
+        <span>Orden</span>
+        <input type="number" name="orden" value="{{ bloque.orden }}" min="0">
+      </label>
+      <button type="submit" class="btn-guardar">Guardar</button>
+    </form>
+    {% endfor %}
+
+    {# Agregar un nuevo bloque #}
+    <form method="post" action="{% url 'capacitacion:crear_bloque' %}" class="admin-bloque-row admin-bloque-nuevo">
+      {% csrf_token %}
+      <label class="admin-field admin-bloque-nombre">
+        <span>Nuevo bloque</span>
+        <input type="text" name="label" placeholder="Ej: Apertura · 08:00–09:00" required>
+      </label>
+      <label class="admin-field admin-bloque-orden">
+        <span>Orden</span>
+        <input type="number" name="orden" value="{{ bloques|length }}" min="0">
+      </label>
+      <button type="submit" class="btn-guardar">+ Agregar bloque</button>
+    </form>
+  </div>
+
+  {# ── Agregar una tarea nueva ── #}
+  <div class="admin-tarea-card">
+    <div class="admin-tarea-head">
+      <span class="admin-tarea-nombre">+ Agregar tarea</span>
+    </div>
+    <form method="post" action="{% url 'capacitacion:crear_tarea' %}">
+      {% csrf_token %}
+      <div class="admin-grid">
+        <label class="admin-field admin-field-wide">
+          <span>Nombre</span>
+          <input type="text" name="nombre" placeholder="Nombre de la tarea" required>
+        </label>
+        <label class="admin-field">
+          <span>Hora (HH:MM)</span>
+          <input type="text" name="hora" value="08:00" pattern="[0-2][0-9]:[0-5][0-9]" required>
+        </label>
+        <label class="admin-field">
+          <span>Prioridad</span>
+          <select name="prioridad">
+            {% for valor, etiqueta in prioridades %}
+            <option value="{{ valor }}" {% if valor == 'media' %}selected{% endif %}>{{ etiqueta }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label class="admin-field">
+          <span>Tipo</span>
+          <select name="tipo">
+            {% for valor, etiqueta in tipos %}
+            <option value="{{ valor }}">{{ etiqueta }}</option>
+            {% endfor %}
+          </select>
+        </label>
+      </div>
+      <label class="admin-field admin-field-wide">
+        <span>Bloque <em>(dónde aparecerá en el runbook)</em></span>
+        <select name="bloque">
+          {% for bloque in bloques %}
+          <option value="{{ bloque.id }}">{{ bloque.label }}</option>
+          {% empty %}
+          <option value="">(crea un bloque primero)</option>
+          {% endfor %}
+        </select>
+      </label>
+      <button type="submit" class="btn-guardar">+ Agregar tarea</button>
+    </form>
+  </div>
+
   {# Lista simple de tareas (no agrupadas por bloque), una card-formulario por tarea #}
   {% for tarea in tareas %}
   <div class="admin-tarea-card" id="tarea-{{ tarea.id }}">

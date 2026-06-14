@@ -113,6 +113,23 @@
 .admin-field textarea:focus { border-color: var(--primary); }
 .admin-field textarea { resize: vertical; line-height: 1.5; }
 
+/* ── Fila de gestión de bloques (nombre + orden + botón en línea) ── */
+.admin-bloque-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.admin-bloque-row .admin-field { margin-bottom: 0; }
+.admin-bloque-nombre { flex: 1; }
+.admin-bloque-orden { width: 80px; flex-shrink: 0; }
+.admin-bloque-row .btn-guardar { flex-shrink: 0; }
+.admin-bloque-nuevo {
+  margin-top: 4px;
+  padding-top: 14px;
+  border-top: 1px dashed var(--border-dark);
+}
+
 /* ── Botón guardar (teal KLYNEA) ── */
 .btn-guardar {
   padding: 9px 18px;

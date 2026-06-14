@@ -3,8 +3,10 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.http import JsonResponse, HttpResponseNotAllowed
+from django.urls import reverse
+from django.db.models import Max
 from django.utils import timezone
-from .models import Tarea, Bloque, ProgresoTarea
+from .models import Tarea, Bloque, BloqueTarea, ProgresoTarea
 
 
 # ───────────────────────── Datos estáticos (no necesitan BD) ─────────────────────────
@@ -148,10 +150,52 @@ def admin_panel(request):
     tareas = Tarea.objects.all().order_by('orden', 'mins')
     context = {
         'tareas': tareas,
+        'bloques': Bloque.objects.order_by('orden'),
         'prioridades': Tarea.PRIORIDAD_CHOICES,
         'tipos': Tarea.TIPO_CHOICES,
     }
     return render(request, 'capacitacion/admin.html', context)
+
+
+@login_required
+def crear_tarea(request):
+    """Crea una tarea nueva con los datos básicos y la vincula a un bloque (para que
+    aparezca en el runbook). Luego redirige al admin para completar el resto. Solo admin (POST)."""
+    if not es_admin(request.user):
+        messages.error(request, 'No tienes permisos para crear tareas.')
+        return redirect('capacitacion:index')
+    if request.method != 'POST':
+        return HttpResponseNotAllowed(['POST'])
+
+    nombre = request.POST.get('nombre', '').strip() or 'Tarea nueva'
+    hora = request.POST.get('hora', '08:00').strip()
+    tipo = request.POST.get('tipo', Tarea.TIPO_CHOICES[0][0])
+    prioridad = request.POST.get('prioridad', 'media')
+
+    # Orden = el siguiente disponible; mins se deriva de la hora
+    siguiente_orden = (Tarea.objects.aggregate(m=Max('orden'))['m'] or 0) + 1
+    tarea = Tarea.objects.create(
+        nombre=nombre,
+        hora=hora,
+        mins=_hora_a_minutos(hora, 480),
+        tipo=tipo,
+        prioridad=prioridad,
+        orden=siguiente_orden,
+        descripcion='',
+        pasos=[],
+        tips=[],
+        habilidades=[],
+    )
+
+    # Vinculamos la tarea al bloque elegido para que se vea en el runbook
+    bloque = Bloque.objects.filter(id=request.POST.get('bloque')).first()
+    if bloque:
+        orden_bt = BloqueTarea.objects.filter(bloque=bloque).count()
+        BloqueTarea.objects.create(bloque=bloque, tarea=tarea, orden=orden_bt)
+
+    messages.success(request, f'Tarea «{nombre}» creada. Completa sus detalles abajo.')
+    # Volvemos al admin con el ancla puesta en la tarea recién creada
+    return redirect(reverse('capacitacion:admin_panel') + f'#tarea-{tarea.id}')
 
 
 @login_required
@@ -190,7 +234,66 @@ def editar_tarea(request, tarea_id):
     return redirect('capacitacion:admin_panel')
 
 
+# ───────────────────────── Bloques (solo admin) ─────────────────────────
+
+@login_required
+def crear_bloque(request):
+    """Crea un nuevo bloque de tareas. Solo admin/superuser (POST)."""
+    if not es_admin(request.user):
+        messages.error(request, 'No tienes permisos para administrar bloques.')
+        return redirect('capacitacion:index')
+    if request.method != 'POST':
+        return HttpResponseNotAllowed(['POST'])
+
+    label = request.POST.get('label', '').strip()
+    if not label:
+        messages.error(request, 'El nombre del bloque es obligatorio.')
+        return redirect('capacitacion:admin_panel')
+    # El label es único: evitamos duplicados
+    if Bloque.objects.filter(label=label).exists():
+        messages.error(request, f'Ya existe un bloque llamado «{label}».')
+        return redirect('capacitacion:admin_panel')
+
+    orden = _a_entero(request.POST.get('orden'), Bloque.objects.count())
+    Bloque.objects.create(label=label, orden=orden)
+    messages.success(request, f'Bloque «{label}» creado.')
+    return redirect('capacitacion:admin_panel')
+
+
+@login_required
+def editar_bloque(request, bloque_id):
+    """Modifica el nombre (label) y el orden de un bloque. Solo admin/superuser (POST)."""
+    if not es_admin(request.user):
+        messages.error(request, 'No tienes permisos para editar bloques.')
+        return redirect('capacitacion:index')
+    if request.method != 'POST':
+        return HttpResponseNotAllowed(['POST'])
+
+    bloque = get_object_or_404(Bloque, id=bloque_id)
+    label = request.POST.get('label', '').strip()
+    if not label:
+        messages.error(request, 'El nombre del bloque es obligatorio.')
+        return redirect('capacitacion:admin_panel')
+    # Validamos unicidad del label contra los demás bloques
+    if Bloque.objects.filter(label=label).exclude(id=bloque.id).exists():
+        messages.error(request, f'Ya existe otro bloque llamado «{label}».')
+        return redirect('capacitacion:admin_panel')
+
+    bloque.label = label
+    bloque.orden = _a_entero(request.POST.get('orden'), bloque.orden)
+    bloque.save()
+    messages.success(request, f'Bloque «{label}» actualizado.')
+    return redirect('capacitacion:admin_panel')
+
+
 # ───────────────────────── Utilidades internas ─────────────────────────
+
+def _a_entero(valor, por_defecto):
+    """Convierte un string a entero; si está vacío o falla, devuelve el valor por defecto."""
+    try:
+        return int(valor)
+    except (ValueError, TypeError):
+        return por_defecto
 
 def _hora_a_minutos(hora, por_defecto):
     """Convierte 'HH:MM' a minutos desde medianoche. Si falla, devuelve el valor previo."""
