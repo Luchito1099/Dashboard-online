@@ -133,28 +133,89 @@ def _parse_link_next(link_header):
 
 
 def _guardar_pedido_shopify(integ, o):
-    """Upsert de un pedido de Shopify en la tabla Pedido."""
-    from .models import Pedido
+    """Upsert de un pedido de Shopify (con sus productos) en la BD.
+    Usa los campos estándar y completa lo que falte con note_attributes (formularios COD)."""
+    from .models import Pedido, PedidoItem
     from django.utils.dateparse import parse_datetime
 
     cliente = o.get('customer') or {}
-    nombre = ' '.join(filter(None, [cliente.get('first_name'), cliente.get('last_name')])).strip()
+    envio = o.get('shipping_address') or o.get('billing_address') or {}
+    # note_attributes → dict {nombre: valor} (datos del formulario EasySell)
+    notas = {a.get('name'): a.get('value') for a in (o.get('note_attributes') or []) if a.get('name')}
 
-    Pedido.objects.update_or_create(
+    def estandar_o_nota(valor_estandar, *claves_nota):
+        if valor_estandar:
+            return valor_estandar
+        for k in claves_nota:
+            if notas.get(k):
+                return notas[k]
+        return ''
+
+    nombre = (envio.get('name')
+              or ' '.join(filter(None, [cliente.get('first_name'), cliente.get('last_name')])).strip()
+              or notas.get('Nombres y Apellidos', ''))
+
+    direccion = ' '.join(filter(None, [envio.get('address1'), envio.get('address2')])).strip()
+    direccion = estandar_o_nota(direccion, 'Dirección')
+
+    # Tipo de envío y si es express (del primer shipping_line)
+    lineas_envio = o.get('shipping_lines') or []
+    tipo_envio = lineas_envio[0].get('title', '') if lineas_envio else ''
+    es_express = 'express' in tipo_envio.lower()
+
+    # Costo de envío
+    costo_envio = 0
+    try:
+        costo_envio = (o.get('total_shipping_price_set') or {}).get('shop_money', {}).get('amount') or 0
+    except AttributeError:
+        pass
+
+    pedido, _creado = Pedido.objects.update_or_create(
         integracion=integ,
         external_id=str(o.get('id')),
         defaults={
             'numero': o.get('name', ''),
             'nombre_cliente': nombre,
-            'email': o.get('email') or cliente.get('email') or '',
+            'telefono': estandar_o_nota(o.get('phone') or envio.get('phone') or cliente.get('phone'), 'Celular', 'Teléfono'),
+            'email': o.get('email') or o.get('contact_email') or cliente.get('email') or '',
+            'direccion': direccion,
+            'distrito': estandar_o_nota(envio.get('city'), 'Distrito'),
+            'provincia': estandar_o_nota(envio.get('province'), 'Provincia'),
+            'pais': envio.get('country') or notas.get('country', ''),
+            'latitud': envio.get('latitude'),
+            'longitud': envio.get('longitude'),
             'total': o.get('total_price') or 0,
+            'subtotal': o.get('subtotal_price') or 0,
+            'descuentos': o.get('total_discounts') or 0,
+            'costo_envio': costo_envio,
             'moneda': o.get('currency', ''),
+            'metodo_pago': ', '.join(o.get('payment_gateway_names') or []),
             'estado_pago': o.get('financial_status') or '',
             'estado_envio': o.get('fulfillment_status') or 'unfulfilled',
+            'tipo_envio': tipo_envio,
+            'es_express': es_express,
+            'tags': o.get('tags', ''),
+            'nota': o.get('note') or notas.get('Confirmación de compra', ''),
+            'order_status_url': o.get('order_status_url', ''),
             'fecha_pedido': parse_datetime(o['created_at']) if o.get('created_at') else None,
             'datos': o,
         },
     )
+
+    # Productos: reemplazamos los items por los actuales del pedido
+    pedido.items.all().delete()
+    for li in o.get('line_items') or []:
+        PedidoItem.objects.create(
+            pedido=pedido,
+            nombre=li.get('title') or li.get('name') or '',
+            variante=li.get('variant_title') or '',
+            sku=li.get('sku') or '',
+            cantidad=li.get('quantity') or 1,
+            precio=li.get('price') or 0,
+            vendor=li.get('vendor') or '',
+            product_id=str(li.get('product_id') or ''),
+            variant_id=str(li.get('variant_id') or ''),
+        )
 
 
 def extraer_pedidos_shopify(integ):

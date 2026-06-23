@@ -29,7 +29,8 @@
     <table class="integ-tabla">
       <thead>
         <tr>
-          <th>Pedido</th><th>Fecha</th><th>Cliente</th><th>Total</th><th>Pago</th><th>Envío</th>
+          <th>Pedido</th><th>Fecha</th><th>Cliente</th><th>Teléfono</th>
+          <th>Ubicación</th><th>Productos</th><th>Total</th><th>Pago</th><th>Envío</th>
         </tr>
       </thead>
       <tbody>
@@ -37,13 +38,26 @@
         <tr>
           <td>{{ p.numero|default:p.external_id }}</td>
           <td>{{ p.fecha_pedido|date:"d/m/Y H:i"|default:"—" }}</td>
-          <td>{{ p.nombre_cliente|default:p.email|default:"—" }}</td>
+          <td>
+            {{ p.nombre_cliente|default:"—" }}
+            {% if p.direccion %}<div class="ped-sub">{{ p.direccion }}</div>{% endif %}
+          </td>
+          <td>{{ p.telefono|default:"—" }}</td>
+          <td>{{ p.ubicacion|default:"—" }}</td>
+          <td>
+            {% for it in p.items.all %}
+            <div>{{ it.cantidad }}× {{ it.nombre }}{% if it.variante %} <span class="ped-sub">({{ it.variante }})</span>{% endif %}</div>
+            {% empty %}—{% endfor %}
+          </td>
           <td>{{ p.total }} {{ p.moneda }}</td>
-          <td>{{ p.estado_pago|default:"—" }}</td>
-          <td>{{ p.estado_envio|default:"—" }}</td>
+          <td>{{ p.metodo_pago|default:p.estado_pago|default:"—" }}<div class="ped-sub">{{ p.estado_pago }}</div></td>
+          <td>
+            {{ p.tipo_envio|default:p.estado_envio|default:"—" }}
+            {% if p.es_express %}<span class="integ-tag">express</span>{% endif %}
+          </td>
         </tr>
         {% empty %}
-        <tr><td colspan="6" class="integ-vacio-cell">Aún no hay pedidos. Usa «Sincronizar pedidos» en la integración.</td></tr>
+        <tr><td colspan="9" class="integ-vacio-cell">Aún no hay pedidos. Usa «Sincronizar pedidos» en la integración.</td></tr>
         {% endfor %}
       </tbody>
     </table>

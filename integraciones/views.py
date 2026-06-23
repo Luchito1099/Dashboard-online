@@ -151,7 +151,7 @@ def pedidos(request, integracion_id):
     integ = get_object_or_404(Integracion, id=integracion_id)
     context = {
         'integ': integ,
-        'pedidos': integ.pedidos.all()[:500],  # límite de seguridad para la tabla
+        'pedidos': integ.pedidos.prefetch_related('items')[:500],  # límite de seguridad
         'total': integ.pedidos.count(),
     }
     return render(request, 'integraciones/pedidos.html', context)
