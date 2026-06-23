@@ -99,6 +99,20 @@
   background: var(--surface); border: 1px dashed var(--border-dark); border-radius: var(--radius);
 }
 
+.integ-pendiente {
+  font-size: 13px; color: var(--muted); background: var(--bg);
+  border: 1px dashed var(--border-dark); border-radius: 8px; padding: 10px 12px;
+}
+
+/* ── Tabla de pedidos ── */
+.integ-tabla { width: 100%; border-collapse: collapse; font-size: 13px; }
+.integ-tabla th, .integ-tabla td {
+  text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--border);
+}
+.integ-tabla th { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+.integ-tabla tbody tr:hover { background: var(--bg); }
+.integ-vacio-cell { text-align: center; color: var(--muted); padding: 20px; }
+
 @media (max-width: 700px) {
   .integ-grid { grid-template-columns: 1fr; }
   .integ-field-wide { grid-column: span 1; }

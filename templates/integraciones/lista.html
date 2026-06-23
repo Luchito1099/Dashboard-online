@@ -111,37 +111,50 @@
             {% endfor %}
           </select>
         </label>
-        <label class="integ-field">
-          <span>Versión API</span>
+        <label class="integ-field prov-shopify">
+          <span>Versión API <em>(Shopify)</em></span>
           <input type="text" name="api_version" value="{{ integ.api_version }}" placeholder="2024-10">
         </label>
 
         <label class="integ-field integ-field-wide">
-          <span>Dominio / URL <em>(ej: mitienda.myshopify.com)</em></span>
-          <input type="text" name="tienda_url" value="{{ integ.tienda_url }}" placeholder="mitienda.myshopify.com">
+          <span class="lbl-tienda">Subdominio / URL del sitio</span>
+          <input type="text" name="tienda_url" value="{{ integ.tienda_url }}" placeholder="a67a2e-68">
         </label>
       </div>
 
       <div class="integ-cred">
         <div class="integ-cred-label">Credenciales <em>(deja en blanco para conservar las actuales)</em></div>
-        <div class="integ-grid">
+
+        {# Shopify (Custom App): Access token de la Admin API #}
+        <div class="integ-grid prov-shopify">
           <label class="integ-field integ-field-wide">
-            <span>Access token {% if integ.token_enmascarado %}<em>· actual: {{ integ.token_enmascarado }}</em>{% endif %}</span>
+            <span>Admin API access token {% if integ.token_enmascarado %}<em>· actual: {{ integ.token_enmascarado }}</em>{% endif %}</span>
             <input type="password" name="token" autocomplete="off" placeholder="{% if integ.token_enmascarado %}(sin cambios){% else %}shpat_…{% endif %}">
           </label>
+        </div>
+
+        {# WooCommerce: consumer key / secret #}
+        <div class="integ-grid prov-woocommerce">
           <label class="integ-field">
-            <span>API key {% if integ.api_key_enmascarado %}<em>· {{ integ.api_key_enmascarado }}</em>{% endif %}</span>
-            <input type="password" name="api_key" autocomplete="off" placeholder="{% if integ.api_key_enmascarado %}(sin cambios){% else %}WooCommerce{% endif %}">
+            <span>Consumer key {% if integ.api_key_enmascarado %}<em>· {{ integ.api_key_enmascarado }}</em>{% endif %}</span>
+            <input type="password" name="api_key" autocomplete="off" placeholder="{% if integ.api_key_enmascarado %}(sin cambios){% else %}ck_…{% endif %}">
           </label>
           <label class="integ-field">
-            <span>API secret {% if integ.api_secret_enmascarado %}<em>· {{ integ.api_secret_enmascarado }}</em>{% endif %}</span>
-            <input type="password" name="api_secret" autocomplete="off" placeholder="{% if integ.api_secret_enmascarado %}(sin cambios){% else %}WooCommerce{% endif %}">
+            <span>Consumer secret {% if integ.api_secret_enmascarado %}<em>· {{ integ.api_secret_enmascarado }}</em>{% endif %}</span>
+            <input type="password" name="api_secret" autocomplete="off" placeholder="{% if integ.api_secret_enmascarado %}(sin cambios){% else %}cs_…{% endif %}">
           </label>
         </div>
+
+        {# Proveedores sin conector aún #}
+        <div class="integ-pendiente prov-pendiente">Conector para este proveedor en preparación.</div>
       </div>
 
       <button type="submit" class="btn-guardar">Guardar cambios</button>
     </form>
+
+    {% if integ.ultimo_sync_msg %}
+    <p class="integ-test-msg">Última sincronización: {{ integ.ultimo_sync_msg }}{% if integ.ultimo_sync_en %} · {{ integ.ultimo_sync_en|date:"d/m/Y H:i" }}{% endif %}</p>
+    {% endif %}
 
     <div class="integ-acciones">
       {# Probar conexión #}
@@ -149,6 +162,14 @@
         {% csrf_token %}
         <button type="submit" class="btn-probar">Probar conexión</button>
       </form>
+      {# Sincronizar pedidos #}
+      <form method="post" action="{% url 'integraciones:sincronizar' integ.id %}">
+        {% csrf_token %}
+        <button type="submit" class="btn-probar">Sincronizar pedidos</button>
+      </form>
+      {% if integ.pedidos_count %}
+      <a href="{% url 'integraciones:pedidos' integ.id %}" class="btn-probar">Ver pedidos ({{ integ.pedidos_count }})</a>
+      {% endif %}
       {# Eliminar (form aparte, no se anidan formularios) #}
       <form method="post" action="{% url 'integraciones:eliminar' integ.id %}"
             onsubmit="return confirm('¿Eliminar la integración «{{ integ.nombre|escapejs }}»?');">
@@ -169,4 +190,30 @@
 
 {% block extra_js %}
 <script src="{% static 'core/js/extras.js' %}"></script>
+<script>
+// Muestra solo los campos del proveedor seleccionado en cada card de integración.
+(function () {
+  function aplicar(card) {
+    const sel = card.querySelector('select[name="proveedor"]');
+    if (!sel) return;
+    const prov = sel.value;
+    // Grupos por proveedor
+    card.querySelectorAll('.prov-shopify').forEach(el => el.style.display = prov === 'shopify' ? '' : 'none');
+    card.querySelectorAll('.prov-woocommerce').forEach(el => el.style.display = prov === 'woocommerce' ? '' : 'none');
+    // "En preparación" para proveedores sin conector
+    const pendiente = (prov !== 'shopify' && prov !== 'woocommerce');
+    card.querySelectorAll('.prov-pendiente').forEach(el => el.style.display = pendiente ? '' : 'none');
+    // Etiqueta del campo dominio según el proveedor
+    const lbl = card.querySelector('.lbl-tienda');
+    if (lbl) lbl.textContent = prov === 'shopify' ? 'Subdominio de la tienda (.myshopify.com)' : 'URL del sitio';
+  }
+
+  document.querySelectorAll('.integ-card').forEach(card => {
+    const sel = card.querySelector('select[name="proveedor"]');
+    if (!sel) return;
+    sel.addEventListener('change', () => aplicar(card));
+    aplicar(card);  // estado inicial
+  });
+})();
+</script>
 {% endblock %}

@@ -65,6 +65,11 @@ class Integracion(models.Model):
     ultimo_test_msg = models.CharField(max_length=255, blank=True)
     ultimo_test_en = models.DateTimeField(null=True, blank=True)
 
+    # Resultado de la última sincronización de pedidos
+    ultimo_sync_ok = models.BooleanField(null=True, blank=True)
+    ultimo_sync_msg = models.CharField(max_length=255, blank=True)
+    ultimo_sync_en = models.DateTimeField(null=True, blank=True)
+
     creado = models.DateTimeField(auto_now_add=True)       # fecha de conexión
     actualizado = models.DateTimeField(auto_now=True)
 
@@ -96,3 +101,34 @@ class Integracion(models.Model):
     @property
     def api_secret_enmascarado(self):
         return self._enmascarar(self.api_secret)
+
+    @property
+    def pedidos_count(self):
+        return self.pedidos.count()
+
+
+class Pedido(models.Model):
+    """Pedido extraído de una integración (ej. Shopify). Guarda los campos clave
+    para mostrar/operar y el JSON completo en 'datos' por si se necesita más."""
+    integracion = models.ForeignKey(Integracion, on_delete=models.CASCADE, related_name='pedidos')
+    external_id = models.CharField(max_length=64)       # id del pedido en el origen
+    numero = models.CharField(max_length=40, blank=True)  # ej. "#1001"
+    nombre_cliente = models.CharField(max_length=200, blank=True)
+    email = models.CharField(max_length=200, blank=True)
+    total = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    moneda = models.CharField(max_length=10, blank=True)
+    estado_pago = models.CharField(max_length=40, blank=True)       # financial_status
+    estado_envio = models.CharField(max_length=40, blank=True)      # fulfillment_status
+    fecha_pedido = models.DateTimeField(null=True, blank=True)
+    datos = models.JSONField(default=dict, blank=True)   # payload completo del origen
+    creado = models.DateTimeField(auto_now_add=True)
+    actualizado = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-fecha_pedido']
+        unique_together = ('integracion', 'external_id')
+        verbose_name = 'Pedido'
+        verbose_name_plural = 'Pedidos'
+
+    def __str__(self):
+        return f'{self.numero or self.external_id} · {self.integracion.nombre}'

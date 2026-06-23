@@ -1,0 +1,53 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% comment %} templates/integraciones/pedidos.html — Pedidos extraídos de una integración {% endcomment %}
+
+{% block title %}Pedidos · {{ integ.nombre }} · KLYNEA{% endblock %}
+{% block nav_integraciones %}active{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'core/css/integraciones.css' %}">
+{% endblock %}
+
+{% block breadcrumb %}
+  <span>›</span><a href="{% url 'integraciones:lista' %}">Integraciones</a><span>›</span><span>{{ integ.nombre }}</span>
+{% endblock %}
+
+{% block content %}
+<div class="integ">
+
+  <div class="integ-header">
+    <div>
+      <h2 class="integ-title">Pedidos · {{ integ.nombre }}</h2>
+      <p class="integ-subtitle">{{ total }} pedido(s){% if total > 500 %} · mostrando los primeros 500{% endif %}</p>
+    </div>
+    <a href="{% url 'integraciones:lista' %}" class="btn-probar">← Volver</a>
+  </div>
+
+  <div class="integ-card">
+    <table class="integ-tabla">
+      <thead>
+        <tr>
+          <th>Pedido</th><th>Fecha</th><th>Cliente</th><th>Total</th><th>Pago</th><th>Envío</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in pedidos %}
+        <tr>
+          <td>{{ p.numero|default:p.external_id }}</td>
+          <td>{{ p.fecha_pedido|date:"d/m/Y H:i"|default:"—" }}</td>
+          <td>{{ p.nombre_cliente|default:p.email|default:"—" }}</td>
+          <td>{{ p.total }} {{ p.moneda }}</td>
+          <td>{{ p.estado_pago|default:"—" }}</td>
+          <td>{{ p.estado_envio|default:"—" }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6" class="integ-vacio-cell">Aún no hay pedidos. Usa «Sincronizar pedidos» en la integración.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+</div>
+{% endblock %}

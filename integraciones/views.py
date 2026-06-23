@@ -120,6 +120,40 @@ def probar(request, integracion_id):
     return redirect(reverse_lista() + f'#integ-{integ.id}')
 
 
+@login_required
+def sincronizar(request, integracion_id):
+    """Extrae los pedidos del proveedor y los guarda. Solo admin (POST)."""
+    if not es_admin(request.user):
+        messages.error(request, 'No tienes permisos para sincronizar integraciones.')
+        return redirect('core:home')
+    if request.method != 'POST':
+        return HttpResponseNotAllowed(['POST'])
+
+    integ = get_object_or_404(Integracion, id=integracion_id)
+    ok, msg, _total = connectors.extraer_pedidos(integ)
+    if ok:
+        messages.success(request, f'«{integ.nombre}»: {msg}')
+    else:
+        messages.error(request, f'«{integ.nombre}»: {msg}')
+    return redirect(reverse_lista() + f'#integ-{integ.id}')
+
+
+@login_required
+def pedidos(request, integracion_id):
+    """Lista los pedidos ya extraídos de una integración. Solo admin."""
+    if not es_admin(request.user):
+        messages.error(request, 'No tienes permisos para ver los pedidos.')
+        return redirect('core:home')
+
+    integ = get_object_or_404(Integracion, id=integracion_id)
+    context = {
+        'integ': integ,
+        'pedidos': integ.pedidos.all()[:500],  # límite de seguridad para la tabla
+        'total': integ.pedidos.count(),
+    }
+    return render(request, 'integraciones/pedidos.html', context)
+
+
 def reverse_lista():
     """URL de la lista (helper para concatenar anclas #integ-<id>)."""
     from django.urls import reverse
