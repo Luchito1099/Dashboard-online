@@ -32,12 +32,16 @@ CSRF_TRUSTED_ORIGINS = [o.strip() for o in _csrf.split(',') if o.strip()]
 # integraciones la deriva del SECRET_KEY (ver integraciones/crypto.py).
 INTEGRACIONES_FERNET_KEY = os.environ.get('INTEGRACIONES_FERNET_KEY', '')
 
+# API key de Anthropic para el proxy de IA del rotulador (alternativa: configurarla en la UI).
+ANTHROPIC_API_KEY = os.environ.get('ANTHROPIC_API_KEY', '')
+
 INSTALLED_APPS = [
     'core',
     'capacitacion',
     'productos',
     'herramientas',
     'integraciones',
+    'rotulador',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',

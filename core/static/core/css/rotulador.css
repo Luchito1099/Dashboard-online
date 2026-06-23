@@ -1,0 +1,14 @@
+/* core/static/core/css/rotulador.css — contenedor del rotulador embebido */
+
+#rot-root {
+  font-family: Inter, system-ui, sans-serif;
+  color: #1c1a17;
+}
+.rot-loading { padding: 40px; text-align: center; color: var(--muted); font-size: 14px; }
+
+@keyframes rot-spin { to { transform: rotate(360deg); } }
+
+/* Impresión: solo el área de impresión generada por doPrint (ventana aparte) */
+@media print {
+  @page { size: 210mm 297mm; margin: 0; }
+}
