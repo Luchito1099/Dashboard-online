@@ -15,4 +15,7 @@ urlpatterns = [
     # OAuth de Shopify
     path('integraciones/oauth/iniciar/<int:integracion_id>/', views.oauth_iniciar, name='oauth_iniciar'),
     path('integraciones/oauth/callback/', views.oauth_callback, name='oauth_callback'),
+    # Webhooks (tiempo real)
+    path('integraciones/webhook/activar/<int:integracion_id>/', views.activar_webhook, name='activar_webhook'),
+    path('integraciones/webhook/shopify/<int:integracion_id>/', views.webhook_shopify, name='webhook'),
 ]

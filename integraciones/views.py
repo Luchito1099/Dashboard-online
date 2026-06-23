@@ -1,11 +1,13 @@
 # integraciones/views.py
+import json
 import secrets
 
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
-from django.http import HttpResponseNotAllowed
+from django.http import HttpResponseNotAllowed, HttpResponse
 from django.urls import reverse
+from django.views.decorators.csrf import csrf_exempt
 
 # Reutilizamos el helper de permisos existente (no lo duplicamos)
 from capacitacion.views import es_admin
@@ -209,6 +211,53 @@ def oauth_callback(request):
     integ.save()
     messages.success(request, f'«{integ.nombre}» conectada con Shopify correctamente.')
     return redirect(reverse_lista() + f'#integ-{integ.id}')
+
+
+# ───────────────────────── Webhooks (tiempo real) ─────────────────────────
+
+@login_required
+def activar_webhook(request, integracion_id):
+    """Registra los webhooks en Shopify para recibir pedidos nuevos en tiempo real. Solo admin (POST)."""
+    if not es_admin(request.user):
+        messages.error(request, 'No tienes permisos.')
+        return redirect('core:home')
+    if request.method != 'POST':
+        return HttpResponseNotAllowed(['POST'])
+
+    integ = get_object_or_404(Integracion, id=integracion_id)
+    if integ.proveedor != 'shopify':
+        messages.error(request, 'Los webhooks solo aplican a Shopify por ahora.')
+        return redirect(reverse_lista() + f'#integ-{integ.id}')
+
+    address = request.build_absolute_uri(reverse('integraciones:webhook', args=[integ.id]))
+    if address.startswith('http://'):
+        messages.error(request, 'Shopify requiere una URL HTTPS pública. Activa esto en producción.')
+        return redirect(reverse_lista() + f'#integ-{integ.id}')
+
+    ok, msg = connectors.registrar_webhooks_shopify(integ, address)
+    (messages.success if ok else messages.error)(request, f'«{integ.nombre}»: {msg}')
+    return redirect(reverse_lista() + f'#integ-{integ.id}')
+
+
+@csrf_exempt
+def webhook_shopify(request, integracion_id):
+    """Receptor de webhooks de Shopify (orders/create, orders/updated).
+    Verifica la firma HMAC y guarda/actualiza el pedido. Sin login: lo autentica la firma."""
+    if request.method != 'POST':
+        return HttpResponseNotAllowed(['POST'])
+
+    integ = get_object_or_404(Integracion, id=integracion_id)
+    firma = request.headers.get('X-Shopify-Hmac-Sha256', '')
+    if not connectors.verificar_webhook(request.body, firma, integ.api_secret):
+        return HttpResponse('firma inválida', status=401)
+
+    try:
+        pedido = json.loads(request.body.decode('utf-8'))
+    except (ValueError, UnicodeDecodeError):
+        return HttpResponse('payload inválido', status=400)
+
+    connectors._guardar_pedido_shopify(integ, pedido)
+    return HttpResponse(status=200)
 
 
 def reverse_lista():

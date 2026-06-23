@@ -4,6 +4,7 @@
 
 Patrón extensible: registrar la función de prueba de cada proveedor en _PROBADORES.
 """
+import base64
 import hashlib
 import hmac
 from urllib.parse import urlencode
@@ -115,6 +116,49 @@ def intercambiar_codigo(integ, code):
     if resp.status_code == 200:
         return resp.json().get('access_token')
     return None
+
+
+# ───────────────────────── Webhooks (tiempo real) ─────────────────────────
+
+def verificar_webhook(body_bytes, hmac_header, secret):
+    """Valida la firma HMAC-SHA256 (base64) que Shopify envía en cada webhook.
+    Se firma con el Client Secret de la app."""
+    if not hmac_header or not secret:
+        return False
+    digest = hmac.new(secret.encode(), body_bytes, hashlib.sha256).digest()
+    calculado = base64.b64encode(digest).decode()
+    return hmac.compare_digest(calculado, hmac_header)
+
+
+def registrar_webhooks_shopify(integ, address):
+    """Registra los webhooks orders/create y orders/updated apuntando a `address`.
+    Devuelve (ok, msg)."""
+    dominio = _normalizar_dominio(integ.tienda_url)
+    if not dominio or not integ.token:
+        return False, 'Falta el subdominio o el access token.'
+    version = integ.api_version or '2024-10'
+    headers = {'X-Shopify-Access-Token': integ.token, 'Content-Type': 'application/json'}
+    creados = 0
+    for topic in ('orders/create', 'orders/updated'):
+        try:
+            resp = requests.post(
+                f'https://{dominio}/admin/api/{version}/webhooks.json',
+                headers=headers,
+                json={'webhook': {'topic': topic, 'address': address, 'format': 'json'}},
+                timeout=TIMEOUT,
+            )
+        except requests.RequestException as e:
+            return False, f'No se pudo conectar: {e}'
+        # 201 creado; 422 suele ser "ya existe" (lo damos por bueno)
+        if resp.status_code == 201:
+            creados += 1
+        elif resp.status_code == 422 and 'taken' in resp.text.lower():
+            creados += 1
+        elif resp.status_code in (401, 403):
+            return False, 'Credenciales inválidas (token rechazado).'
+        else:
+            return False, f'Error al registrar «{topic}» (HTTP {resp.status_code}): {resp.text[:160]}'
+    return True, f'Webhooks activos ({creados}/2). Los pedidos nuevos llegarán solos.'
 
 
 # ───────────────────────── Extracción de pedidos ─────────────────────────

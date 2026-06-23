@@ -169,10 +169,15 @@
         {% csrf_token %}
         <button type="submit" class="btn-probar">Probar conexión</button>
       </form>
-      {# Sincronizar pedidos #}
+      {# Sincronizar pedidos (jala todo) #}
       <form method="post" action="{% url 'integraciones:sincronizar' integ.id %}">
         {% csrf_token %}
         <button type="submit" class="btn-probar">Sincronizar pedidos</button>
+      </form>
+      {# Activar pedidos en tiempo real (webhook) #}
+      <form method="post" action="{% url 'integraciones:activar_webhook' integ.id %}" class="prov-shopify">
+        {% csrf_token %}
+        <button type="submit" class="btn-probar">⚡ Pedidos en tiempo real</button>
       </form>
       {% if integ.pedidos_count %}
       <a href="{% url 'integraciones:pedidos' integ.id %}" class="btn-probar">Ver pedidos ({{ integ.pedidos_count }})</a>

@@ -80,7 +80,7 @@ function buildPrintHtml(orders,page,all,totalPages,cfg,logoUrl){
           <div style="padding:2mm 3mm"><div style="font-size:5.5pt;text-transform:uppercase;color:#999;margin-bottom:1mm;font-family:monospace;font-weight:600">Celular</div><div style="font-size:8pt;font-weight:700;font-family:monospace">${o.celular||"—"}</div></div>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr">
-          <div style="padding:2mm 3mm;border-right:1px dashed #ccc"><div style="font-size:5.5pt;text-transform:uppercase;color:#999;margin-bottom:1mm;font-family:monospace;font-weight:600">Producto</div><div style="font-size:7.5pt;font-weight:500;color:#4a4845">${o.producto||"—"}</div></div>
+          <div style="padding:2mm 3mm;border-right:1px dashed #ccc"><div style="font-size:5.5pt;text-transform:uppercase;color:#999;margin-bottom:1mm;font-family:monospace;font-weight:600">Producto</div><div style="font-size:7.5pt;font-weight:500;color:#4a4845"><span style="font-size:12pt;font-weight:800;color:#1c1a17">(${o.cantidad||1})</span> ${o.producto||"—"}</div></div>
           <div style="padding:2mm 3mm"><div style="font-size:5.5pt;text-transform:uppercase;color:#999;margin-bottom:1mm;font-family:monospace;font-weight:600">DNI</div><div style="font-size:8pt;font-weight:700;font-family:monospace">${o.dni||"—"}</div></div>
         </div>
         <div style="padding:1.5mm 3mm;border-top:1.5px solid ${cfg.labelStyle==="minimal"?"#d0ccc4":"#1c1a17"};display:flex;align-items:center;justify-content:space-between;font-size:5.5pt;font-family:monospace;background:${cfg.labelStyle==="bold"?cfg.accent:(cfg.footerBg||"#fdfcfa")}">
