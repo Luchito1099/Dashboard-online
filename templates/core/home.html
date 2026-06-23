@@ -1,7 +1,12 @@
 {% extends 'base.html' %}
+{% load static %}
 
 {% block title %}Inicio · KLYNEA{% endblock %}
 {% block nav_home %}active{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'core/css/home.css' %}">
+{% endblock %}
 
 {% block breadcrumb %}
   <span>›</span><span>Inicio</span>
@@ -14,22 +19,61 @@
   <p class="welcome-desc">Aquí vas a ver todo lo que pasa con KLYNEA en tiempo real.</p>
 </div>
 
-<div class="kpi-grid">
-  <div class="kpi-card">
-    <div class="kpi-label">Ventas Hoy</div>
-    <div class="kpi-value">S/ 0</div>
-    <span class="kpi-change">+0% vs ayer</span>
+<div class="pedidos-resumen" id="pedidosResumen" data-modo="hoy">
+  <div class="pr-head">
+    <h3 class="pr-title">Pedidos</h3>
+    <div class="pr-filtro">
+      <button type="button" class="pr-pill active" data-modo="hoy">Hoy</button>
+      <button type="button" class="pr-pill" data-modo="acum">Acumulado</button>
+    </div>
   </div>
-  <div class="kpi-card">
-    <div class="kpi-label">Pedidos</div>
-    <div class="kpi-value">0</div>
-    <span class="kpi-change">Nuevos hoy</span>
+
+  <div class="kpi-grid">
+    <div class="kpi-card">
+      <div class="kpi-label">Total de pedidos</div>
+      <div class="kpi-value">
+        <span class="val-hoy">{{ ped_hoy_c }}</span>
+        <span class="val-acum" hidden>{{ ped_tot_c }}</span>
+      </div>
+      <span class="kpi-change pr-modo-label">hoy</span>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Monto total</div>
+      <div class="kpi-value">
+        {{ ped_moneda }}
+        <span class="val-hoy">{{ ped_hoy_m|floatformat:2 }}</span>
+        <span class="val-acum" hidden>{{ ped_tot_m|floatformat:2 }}</span>
+      </div>
+      <span class="kpi-change pr-modo-label">hoy · todas las fuentes</span>
+    </div>
   </div>
-  <div class="kpi-card">
-    <div class="kpi-label">Stock Total</div>
-    <div class="kpi-value">0</div>
-    <span class="kpi-change">unidades</span>
+
+  {% if ped_fuentes %}
+  <div class="pr-fuentes">
+    <div class="pr-fuentes-title">Por fuente</div>
+    <table class="pr-tabla">
+      <thead>
+        <tr><th>Fuente</th><th>Pedidos</th><th>Monto</th></tr>
+      </thead>
+      <tbody>
+        {% for f in ped_fuentes %}
+        <tr>
+          <td>{{ f.nombre }}</td>
+          <td>
+            <span class="val-hoy">{{ f.d_hoy_c|default:0 }}</span>
+            <span class="val-acum" hidden>{{ f.d_tot_c|default:0 }}</span>
+          </td>
+          <td>
+            {{ ped_moneda }}
+            <span class="val-hoy">{{ f.d_hoy_m|default:0|floatformat:2 }}</span>
+            <span class="val-acum" hidden>{{ f.d_tot_m|default:0|floatformat:2 }}</span>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
   </div>
+  {% endif %}
 </div>
 
 {# Card de progreso de capacitación del día #}
@@ -48,4 +92,27 @@
   </div>
   <span class="cap-card-cta">Ir a Capacitación →</span>
 </a>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Filtro Hoy / Acumulado del resumen de pedidos
+(function () {
+  const cont = document.getElementById('pedidosResumen');
+  if (!cont) return;
+  const pills = cont.querySelectorAll('.pr-pill');
+
+  function aplicar(modo) {
+    const esHoy = modo === 'hoy';
+    cont.querySelectorAll('.val-hoy').forEach(el => el.hidden = !esHoy);
+    cont.querySelectorAll('.val-acum').forEach(el => el.hidden = esHoy);
+    cont.querySelectorAll('.pr-modo-label').forEach(el => {
+      el.textContent = esHoy ? 'hoy' : 'acumulado';
+    });
+    pills.forEach(p => p.classList.toggle('active', p.dataset.modo === modo));
+  }
+
+  pills.forEach(p => p.addEventListener('click', () => aplicar(p.dataset.modo)));
+})();
+</script>
 {% endblock %}

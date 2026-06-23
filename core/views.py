@@ -16,20 +16,48 @@ from .permisos import puede_ver, destino_vendedor
 
 @login_required
 def home(request):
-    """Inicio: KPIs del negocio + resumen del progreso de capacitación de hoy."""
+    """Inicio: KPIs de pedidos (hoy/acumulado) + resumen del progreso de capacitación."""
     if not puede_ver(request.user, 'vendedor_puede_ver_inicio'):
         return redirect(destino_vendedor(request.user))
 
-    hoy = timezone.now().date()
+    from django.db.models import Sum, Count, Q
+    from integraciones.models import Pedido, Integracion
+
+    hoy = timezone.localdate()
 
     total = Tarea.objects.filter(activo=True).count()
     done = ProgresoTarea.objects.filter(
         usuario=request.user, fecha=hoy, completada=True
     ).count()
 
+    # ── Pedidos: totales globales (todas las fuentes) ──
+    pedidos = Pedido.objects.all()
+    glob = pedidos.aggregate(
+        tot_c=Count('id'), tot_m=Sum('total'),
+        hoy_c=Count('id', filter=Q(fecha_pedido__date=hoy)),
+        hoy_m=Sum('total', filter=Q(fecha_pedido__date=hoy)),
+    )
+    moneda = pedidos.values_list('moneda', flat=True).first() or 'S/'
+
+    # ── Desglose por fuente de pedidos ──
+    fuentes = Integracion.objects.filter(
+        categoria=Integracion.CATEGORIA_FUENTE
+    ).annotate(
+        d_tot_c=Count('pedidos'),
+        d_tot_m=Sum('pedidos__total'),
+        d_hoy_c=Count('pedidos', filter=Q(pedidos__fecha_pedido__date=hoy)),
+        d_hoy_m=Sum('pedidos__total', filter=Q(pedidos__fecha_pedido__date=hoy)),
+    )
+
     context = {
         'cap_total': total,
         'cap_done': done,
+        'ped_hoy_c': glob['hoy_c'] or 0,
+        'ped_hoy_m': glob['hoy_m'] or 0,
+        'ped_tot_c': glob['tot_c'] or 0,
+        'ped_tot_m': glob['tot_m'] or 0,
+        'ped_moneda': moneda,
+        'ped_fuentes': fuentes,
     }
     return render(request, 'core/home.html', context)
 

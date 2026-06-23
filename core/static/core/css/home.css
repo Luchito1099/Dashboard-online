@@ -1,0 +1,35 @@
+/* core/static/core/css/home.css — resumen de pedidos en el Inicio */
+
+.pedidos-resumen { margin-bottom: 22px; }
+
+.pr-head {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 12px; flex-wrap: wrap; gap: 10px;
+}
+.pr-title { font-size: 16px; font-weight: 700; color: var(--text); }
+
+.pr-filtro {
+  display: inline-flex; background: var(--surface); border: 1px solid var(--border);
+  border-radius: 999px; padding: 3px;
+}
+.pr-pill {
+  border: none; background: transparent; cursor: pointer; font-family: inherit;
+  font-size: 13px; font-weight: 600; color: var(--text-secondary);
+  padding: 6px 16px; border-radius: 999px; transition: background .15s, color .15s;
+}
+.pr-pill.active { background: var(--primary); color: #fff; }
+
+.pr-fuentes {
+  margin-top: 14px; background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 14px 16px; box-shadow: var(--shadow);
+}
+.pr-fuentes-title {
+  font-size: 11px; text-transform: uppercase; letter-spacing: .05em;
+  color: var(--muted); font-weight: 700; margin-bottom: 8px;
+}
+.pr-tabla { width: 100%; border-collapse: collapse; font-size: 13px; }
+.pr-tabla th, .pr-tabla td {
+  text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border);
+}
+.pr-tabla th { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+.pr-tabla tbody tr:last-child td { border-bottom: none; }
