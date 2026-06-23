@@ -8,6 +8,28 @@
 
 @keyframes rot-spin { to { transform: rotate(360deg); } }
 
+/* Layout principal (2 columnas → 1 en mobile) */
+.rot-layout { display: grid; grid-template-columns: minmax(320px, 380px) 1fr; gap: 18px; align-items: start; }
+.rot-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px; box-shadow: var(--shadow); }
+@media (max-width: 860px) { .rot-layout { grid-template-columns: 1fr; } }
+
+/* Lista de rótulos colapsable (acordeón) */
+.rot-cards { display: flex; flex-direction: column; gap: 10px; }
+.rot-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; box-shadow: var(--shadow); }
+.rot-card-head { display: flex; align-items: center; gap: 10px; padding: 12px 14px; cursor: pointer; min-height: 44px; }
+.rot-card-head:hover { background: var(--bg); }
+.rot-origen { font-size: 10px; font-weight: 700; text-transform: uppercase; color: #fff; padding: 3px 8px; border-radius: 6px; flex-shrink: 0; }
+.rot-card-body { max-height: 0; overflow: hidden; transition: max-height .28s ease; }
+.rot-card.open .rot-card-body { max-height: 760px; }
+.rot-card-inner { padding: 0 14px 14px; }
+.rot-empty { padding: 40px; text-align: center; color: var(--muted); font-size: 14px; background: var(--surface); border-radius: 12px; border: 1px dashed var(--border-dark); }
+
+/* Mobile: áreas táctiles e inputs sin zoom en iOS */
+@media (max-width: 768px) {
+  #rot-root button { min-height: 44px; }
+  #rot-root input, #rot-root select, #rot-root textarea { font-size: 16px; }
+}
+
 /* Impresión: solo el área de impresión generada por doPrint (ventana aparte) */
 @media print {
   @page { size: 210mm 297mm; margin: 0; }

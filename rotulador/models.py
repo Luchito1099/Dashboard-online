@@ -111,4 +111,6 @@ class Rotulo(models.Model):
             'cantidad': self.cantidad,
             'origen': self.origen,
             'pedido_id': self.pedido_id,
+            'creado_por': (self.creado_por.get_full_name() or self.creado_por.username) if self.creado_por else '',
+            'creado': self.creado.strftime('%d/%m/%Y %H:%M') if self.creado else '',
         }

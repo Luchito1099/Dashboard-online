@@ -371,6 +371,39 @@ function LabelCard({order,cfg,logoUrl}){
   </div>);
 }
 
+// Card colapsable de un rótulo (acordeón): resumen + detalle expandible
+const ORIGEN_COLOR={shopify:"var(--primary)",mensaje:"#6a3b7a",manual:"#7a6a5a"};
+function RotuloCard({order,cfg,logoUrl,open,onToggle,onEdit,onDelete}){
+  const col=ORIGEN_COLOR[order.origen]||"#7a6a5a";
+  const row=(k,v)=>(v!==""&&v!==null&&v!==undefined)?<div style={{display:"flex",gap:8,fontSize:12.5,padding:"3px 0"}}><span style={{color:"var(--muted)",minWidth:82,fontWeight:600}}>{k}</span><span style={{color:"var(--text)",flex:1}}>{v}</span></div>:null;
+  return(<div className={"rot-card"+(open?" open":"")}>
+    <div className="rot-card-head" onClick={onToggle}>
+      <span className="rot-origen" style={{background:col}}>{order.origen}</span>
+      <div style={{flex:1,minWidth:0}}>
+        <div style={{fontWeight:700,fontSize:14,color:"var(--text)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{order.nombres||"(sin nombre)"}</div>
+        <div style={{fontSize:12,color:"var(--muted)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{(order.agencia||order.destino||"—")} · {order.celular||"—"}</div>
+      </div>
+      <span style={{color:"var(--muted)",fontSize:11,transition:"transform .2s",transform:open?"rotate(180deg)":"none",flexShrink:0}}>▼</span>
+    </div>
+    <div className="rot-card-body"><div className="rot-card-inner">
+      <LabelCard order={order} cfg={cfg} logoUrl={logoUrl}/>
+      <div style={{marginTop:10}}>
+        {row("Producto",order.producto||"—")}
+        {row("Cantidad",order.cantidad)}
+        {row("DNI",order.dni)}
+        {row("Dirección",order.destino)}
+        {row("Agencia",order.agencia)}
+        {row("Creado por",order.creado_por)}
+        {row("Fecha",order.creado)}
+      </div>
+      <div style={{display:"flex",gap:8,marginTop:12}}>
+        <button onClick={onEdit} style={{...BTN_SEC,flex:1}}>✎ Editar</button>
+        <button onClick={onDelete} style={{...BTN_SEC,color:"var(--error)",borderColor:"var(--error)"}}>🗑 Eliminar</button>
+      </div>
+    </div></div>
+  </div>);
+}
+
 // ── App ──
 function App(){
   const[cfg,setCfg]=useState(null);          // config flat (incl. visual)
@@ -384,6 +417,7 @@ function App(){
   const[showSettings,setShowSettings]=useState(false);
   const[printOpen,setPrintOpen]=useState(false);
   const[shalomOpen,setShalomOpen]=useState(false);
+  const[openId,setOpenId]=useState(null);
 
   useEffect(()=>{(async()=>{
     try{
@@ -416,9 +450,9 @@ function App(){
   if(!cfg)return<div className="rot-loading">Cargando rotulador…</div>;
 
   const tabs=[["import","📥 Importar"],["paste","📋 Mensaje"],["foto","📷 Foto"],["form","✍ Manual"]];
-  return(<div style={{display:"grid",gridTemplateColumns:"minmax(320px,380px) 1fr",gap:18,alignItems:"start"}}>
+  return(<div className="rot-layout">
     {/* Panel izquierdo: entradas */}
-    <div style={{background:"#fff",border:"1px solid var(--border)",borderRadius:12,padding:16,boxShadow:"var(--shadow)"}}>
+    <div className="rot-panel">
       <div style={{display:"flex",gap:6,marginBottom:12,flexWrap:"wrap"}}>{tabs.map(([id,l])=><button key={id} onClick={()=>setTab(id)} style={{padding:"7px 11px",border:`1.5px solid ${tab===id?"var(--primary)":"var(--border-dark)"}`,borderRadius:8,background:tab===id?"var(--primary-bg)":"var(--surface)",fontSize:12.5,fontWeight:tab===id?700:500,color:tab===id?"var(--primary-dark)":"var(--text-secondary)",cursor:"pointer"}}>{l}</button>)}</div>
       {tab==="import"&&<ImportTab onImport={addOrder}/>}
       {tab==="paste"&&<PasteTab onAdd={addOrder} products={products}/>}
@@ -436,15 +470,9 @@ function App(){
           <button onClick={()=>setPrintOpen(true)} disabled={!orders.length} style={{...BTN,opacity:!orders.length?.55:1}}>🖨 Imprimir</button>
         </div>
       </div>
-      {orders.length===0?<div style={{padding:40,textAlign:"center",color:"#aaa",fontSize:14,background:"#fff",borderRadius:12,border:"1px dashed #d0ccc4"}}>Sin rótulos. Importa pedidos o agrega uno por mensaje/manual.</div>:
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))",gap:12}}>
-        {orders.map(o=><div key={o.id} style={{position:"relative"}}>
-          <LabelCard order={o} cfg={cfg} logoUrl={logoUrl}/>
-          <div style={{display:"flex",gap:6,marginTop:6}}>
-            <button onClick={()=>setEditing(o)} style={{...BTN_SEC,flex:1,padding:"6px"}}>✎ Editar</button>
-            <button onClick={()=>delOrder(o.id)} style={{...BTN_SEC,color:"#c04040",padding:"6px 10px"}}>🗑</button>
-          </div>
-        </div>)}
+      {orders.length===0?<div className="rot-empty">Sin rótulos. Importa pedidos o agrega uno por mensaje/manual.</div>:
+      <div className="rot-cards">
+        {orders.map(o=><RotuloCard key={o.id} order={o} cfg={cfg} logoUrl={logoUrl} open={openId===o.id} onToggle={()=>setOpenId(openId===o.id?null:o.id)} onEdit={()=>setEditing(o)} onDelete={()=>delOrder(o.id)}/>)}
       </div>}
     </div>
 

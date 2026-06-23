@@ -76,6 +76,7 @@ def editar(request, integracion_id):
     integ.proveedor = request.POST.get('proveedor', integ.proveedor)
     integ.tienda_url = request.POST.get('tienda_url', integ.tienda_url).strip()
     integ.api_version = request.POST.get('api_version', integ.api_version).strip()
+    integ.scopes = request.POST.get('scopes', integ.scopes).strip()
     integ.activo = request.POST.get('activo') == 'on'
 
     # Credenciales: solo se actualizan si el campo viene con contenido nuevo

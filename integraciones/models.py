@@ -57,8 +57,9 @@ class Integracion(models.Model):
     api_key = EncryptedTextField(blank=True, default='', help_text='Client ID (Shopify OAuth) / Consumer key (WooCommerce)')
     api_secret = EncryptedTextField(blank=True, default='', help_text='Client Secret (Shopify OAuth) / Consumer secret (WooCommerce)')
 
-    # Permisos solicitados en el OAuth de Shopify
-    scopes = models.CharField(max_length=255, blank=True, default='read_orders')
+    # Permisos solicitados en el OAuth de Shopify.
+    # read_all_orders es necesario para acceder a pedidos de más de 60 días (historial completo).
+    scopes = models.CharField(max_length=255, blank=True, default='read_orders,read_all_orders')
 
     activo = models.BooleanField(default=True)
     orden = models.PositiveSmallIntegerField(default=0)
