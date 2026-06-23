@@ -234,6 +234,23 @@ def editar_tarea(request, tarea_id):
     return redirect('capacitacion:admin_panel')
 
 
+@login_required
+def eliminar_tarea(request, tarea_id):
+    """Elimina una tarea del runbook. Solo admin/superuser (POST).
+    Los vínculos a bloques (BloqueTarea) y el progreso (ProgresoTarea) se borran en cascada."""
+    if not es_admin(request.user):
+        messages.error(request, 'No tienes permisos para eliminar tareas.')
+        return redirect('capacitacion:index')
+    if request.method != 'POST':
+        return HttpResponseNotAllowed(['POST'])
+
+    tarea = get_object_or_404(Tarea, id=tarea_id)
+    nombre = tarea.nombre
+    tarea.delete()
+    messages.success(request, f'Tarea «{nombre}» eliminada.')
+    return redirect('capacitacion:admin_panel')
+
+
 # ───────────────────────── Bloques (solo admin) ─────────────────────────
 
 @login_required

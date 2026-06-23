@@ -173,6 +173,13 @@
 
       <button type="submit" class="btn-guardar">Guardar cambios</button>
     </form>
+
+    {# Eliminar en formulario aparte (no se anidan formularios) #}
+    <form method="post" action="{% url 'capacitacion:eliminar_tarea' tarea.id %}" class="admin-eliminar-form"
+          onsubmit="return confirm('¿Eliminar la tarea «{{ tarea.nombre|escapejs }}»? Esta acción no se puede deshacer.');">
+      {% csrf_token %}
+      <button type="submit" class="btn-eliminar">Eliminar tarea</button>
+    </form>
   </div>
   {% endfor %}
 

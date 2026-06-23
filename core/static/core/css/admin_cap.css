@@ -144,3 +144,23 @@
   transition: background .15s;
 }
 .btn-guardar:hover { background: var(--primary-dark); }
+
+/* ── Botón eliminar tarea ── */
+.admin-eliminar-form {
+  margin-top: 10px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--border-dark);
+}
+.btn-eliminar {
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--error);
+  background: transparent;
+  color: var(--error);
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background .15s, color .15s;
+}
+.btn-eliminar:hover { background: var(--error); color: #fff; }
