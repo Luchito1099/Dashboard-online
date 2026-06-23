@@ -13,7 +13,12 @@
       "Bash(PYTHONIOENCODING=utf-8 ./venv/Scripts/python.exe manage.py seed_productos)",
       "Bash(PYTHONIOENCODING=utf-8 ./venv/Scripts/python.exe manage.py seed_herramientas)",
       "Bash(DB_HOST=postgres DB_NAME=klynea DEBUG=False ALLOWED_HOSTS=dashboard.conluismz.com ./venv/Scripts/python.exe -c ' *)",
-      "Bash(./venv/Scripts/python.exe manage.py collectstatic --noinput --dry-run)"
+      "Bash(./venv/Scripts/python.exe manage.py collectstatic --noinput --dry-run)",
+      "Bash(venv/Scripts/python.exe -m pip install cryptography requests)",
+      "Bash(venv/Scripts/python.exe manage.py makemigrations integraciones)",
+      "Bash(venv/Scripts/python.exe manage.py migrate)",
+      "Bash(venv/Scripts/python.exe manage.py check)",
+      "Bash(venv/Scripts/python.exe manage.py shell -c ' *)"
     ]
   }
 }

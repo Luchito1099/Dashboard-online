@@ -7,5 +7,6 @@ urlpatterns = [
     path('', include('capacitacion.urls')),
     path('', include('productos.urls')),
     path('', include('herramientas.urls')),
+    path('', include('integraciones.urls')),
     path('accounts/', include('django.contrib.auth.urls')),
 ]

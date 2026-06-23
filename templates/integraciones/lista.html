@@ -1,0 +1,172 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% comment %} templates/integraciones/lista.html — Gestión de integraciones (solo admin) {% endcomment %}
+
+{% block title %}Integraciones · KLYNEA{% endblock %}
+{% block nav_integraciones %}active{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'core/css/integraciones.css' %}">
+{% endblock %}
+
+{% block breadcrumb %}
+  <span>›</span><span>Integraciones</span>
+{% endblock %}
+
+{% block content %}
+
+<div class="integ">
+
+  <div class="integ-header">
+    <div>
+      <h2 class="integ-title">Integraciones</h2>
+      <p class="integ-subtitle">{{ total }} conexión{{ total|pluralize:"es" }} · fuentes de pedidos y empresas de logística</p>
+    </div>
+  </div>
+
+  {# ── Crear nueva integración ── #}
+  <div class="integ-card integ-nueva">
+    <div class="integ-card-head"><span class="integ-card-titulo">+ Nueva integración</span></div>
+    <form method="post" action="{% url 'integraciones:crear' %}">
+      {% csrf_token %}
+      <div class="integ-grid">
+        <label class="integ-field integ-field-wide">
+          <span>Nombre / alias</span>
+          <input type="text" name="nombre" placeholder="Ej: Tienda principal PE" required>
+        </label>
+        <label class="integ-field">
+          <span>Categoría</span>
+          <select name="categoria">
+            {% for valor, etiqueta in categorias %}
+            <option value="{{ valor }}">{{ etiqueta }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label class="integ-field">
+          <span>Proveedor</span>
+          <select name="proveedor">
+            {% for valor, etiqueta in proveedores %}
+            <option value="{{ valor }}">{{ etiqueta }}</option>
+            {% endfor %}
+          </select>
+        </label>
+      </div>
+      <button type="submit" class="btn-guardar">+ Agregar integración</button>
+    </form>
+  </div>
+
+  {# ── Secciones por categoría ── #}
+  {% for seccion_titulo, items in lista_secciones %}
+  <h3 class="integ-seccion">{{ seccion_titulo }} <span>({{ items|length }})</span></h3>
+
+  {% for integ in items %}
+  <div class="integ-card" id="integ-{{ integ.id }}">
+
+    <div class="integ-card-head">
+      <span class="integ-badge badge-{{ integ.proveedor }}">{{ integ.get_proveedor_display }}</span>
+      <span class="integ-card-titulo">{{ integ.nombre }}</span>
+      {% if integ.etiqueta %}<span class="integ-tag">{{ integ.etiqueta }}</span>{% endif %}
+      {% if not integ.activo %}<span class="integ-tag integ-tag-off">inactiva</span>{% endif %}
+      {% if integ.ultimo_test_ok is not None %}
+        <span class="integ-estado {% if integ.ultimo_test_ok %}ok{% else %}fail{% endif %}">
+          {% if integ.ultimo_test_ok %}✓ Conectada{% else %}✕ Error{% endif %}
+        </span>
+      {% endif %}
+    </div>
+
+    {% if integ.ultimo_test_msg %}
+    <p class="integ-test-msg">{{ integ.ultimo_test_msg }}{% if integ.ultimo_test_en %} · {{ integ.ultimo_test_en|date:"d/m/Y H:i" }}{% endif %}</p>
+    {% endif %}
+
+    <form method="post" action="{% url 'integraciones:editar' integ.id %}">
+      {% csrf_token %}
+      <div class="integ-grid">
+        <label class="integ-field integ-field-wide">
+          <span>Nombre / alias</span>
+          <input type="text" name="nombre" value="{{ integ.nombre }}" required>
+        </label>
+        <label class="integ-field">
+          <span>Etiqueta</span>
+          <input type="text" name="etiqueta" value="{{ integ.etiqueta }}" placeholder="opcional">
+        </label>
+        <label class="integ-check">
+          <input type="checkbox" name="activo" {% if integ.activo %}checked{% endif %}>
+          Activa
+        </label>
+
+        <label class="integ-field">
+          <span>Categoría</span>
+          <select name="categoria">
+            {% for valor, etiqueta in categorias %}
+            <option value="{{ valor }}" {% if integ.categoria == valor %}selected{% endif %}>{{ etiqueta }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label class="integ-field">
+          <span>Proveedor</span>
+          <select name="proveedor">
+            {% for valor, etiqueta in proveedores %}
+            <option value="{{ valor }}" {% if integ.proveedor == valor %}selected{% endif %}>{{ etiqueta }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label class="integ-field">
+          <span>Versión API</span>
+          <input type="text" name="api_version" value="{{ integ.api_version }}" placeholder="2024-10">
+        </label>
+
+        <label class="integ-field integ-field-wide">
+          <span>Dominio / URL <em>(ej: mitienda.myshopify.com)</em></span>
+          <input type="text" name="tienda_url" value="{{ integ.tienda_url }}" placeholder="mitienda.myshopify.com">
+        </label>
+      </div>
+
+      <div class="integ-cred">
+        <div class="integ-cred-label">Credenciales <em>(deja en blanco para conservar las actuales)</em></div>
+        <div class="integ-grid">
+          <label class="integ-field integ-field-wide">
+            <span>Access token {% if integ.token_enmascarado %}<em>· actual: {{ integ.token_enmascarado }}</em>{% endif %}</span>
+            <input type="password" name="token" autocomplete="off" placeholder="{% if integ.token_enmascarado %}(sin cambios){% else %}shpat_…{% endif %}">
+          </label>
+          <label class="integ-field">
+            <span>API key {% if integ.api_key_enmascarado %}<em>· {{ integ.api_key_enmascarado }}</em>{% endif %}</span>
+            <input type="password" name="api_key" autocomplete="off" placeholder="{% if integ.api_key_enmascarado %}(sin cambios){% else %}WooCommerce{% endif %}">
+          </label>
+          <label class="integ-field">
+            <span>API secret {% if integ.api_secret_enmascarado %}<em>· {{ integ.api_secret_enmascarado }}</em>{% endif %}</span>
+            <input type="password" name="api_secret" autocomplete="off" placeholder="{% if integ.api_secret_enmascarado %}(sin cambios){% else %}WooCommerce{% endif %}">
+          </label>
+        </div>
+      </div>
+
+      <button type="submit" class="btn-guardar">Guardar cambios</button>
+    </form>
+
+    <div class="integ-acciones">
+      {# Probar conexión #}
+      <form method="post" action="{% url 'integraciones:probar' integ.id %}">
+        {% csrf_token %}
+        <button type="submit" class="btn-probar">Probar conexión</button>
+      </form>
+      {# Eliminar (form aparte, no se anidan formularios) #}
+      <form method="post" action="{% url 'integraciones:eliminar' integ.id %}"
+            onsubmit="return confirm('¿Eliminar la integración «{{ integ.nombre|escapejs }}»?');">
+        {% csrf_token %}
+        <button type="submit" class="btn-eliminar">Eliminar</button>
+      </form>
+    </div>
+
+  </div>
+  {% empty %}
+  <div class="integ-vacio">Sin integraciones en esta categoría todavía.</div>
+  {% endfor %}
+  {% endfor %}
+
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'core/js/extras.js' %}"></script>
+{% endblock %}

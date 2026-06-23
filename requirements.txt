@@ -4,3 +4,5 @@ whitenoise
 gunicorn
 python-dotenv
 pillow
+cryptography
+requests

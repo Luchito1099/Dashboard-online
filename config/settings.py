@@ -28,11 +28,16 @@ ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '*').split(',')
 _csrf = os.environ.get('CSRF_TRUSTED_ORIGINS', '')
 CSRF_TRUSTED_ORIGINS = [o.strip() for o in _csrf.split(',') if o.strip()]
 
+# Clave Fernet para cifrar credenciales de integraciones. Si está vacía, el módulo
+# integraciones la deriva del SECRET_KEY (ver integraciones/crypto.py).
+INTEGRACIONES_FERNET_KEY = os.environ.get('INTEGRACIONES_FERNET_KEY', '')
+
 INSTALLED_APPS = [
     'core',
     'capacitacion',
     'productos',
     'herramientas',
+    'integraciones',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',

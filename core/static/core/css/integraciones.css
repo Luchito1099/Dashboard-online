@@ -1,0 +1,105 @@
+/* core/static/core/css/integraciones.css — Gestión de integraciones (solo admin) */
+
+.integ { max-width: 980px; }
+
+.integ-header { margin-bottom: 18px; }
+.integ-title { font-size: 22px; font-weight: 700; color: var(--text); }
+.integ-subtitle { font-size: 13px; color: var(--muted); margin-top: 2px; }
+
+.integ-seccion {
+  margin: 26px 0 12px; font-size: 13px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .05em; color: var(--text-secondary);
+}
+.integ-seccion span { color: var(--muted); font-weight: 500; }
+
+/* ── Cards ── */
+.integ-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 18px; margin-bottom: 14px;
+  box-shadow: var(--shadow);
+}
+.integ-nueva { border-style: dashed; border-color: var(--border-dark); }
+
+.integ-card-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+.integ-card-titulo { font-size: 15px; font-weight: 600; color: var(--text); }
+
+.integ-badge {
+  font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 6px;
+  background: var(--primary-bg); color: var(--primary-dark);
+}
+.badge-shopify { background: oklch(62% 0.18 145 / .12); color: oklch(45% 0.18 145); }
+.badge-woocommerce { background: oklch(55% 0.18 300 / .12); color: oklch(45% 0.18 300); }
+.badge-wordpress { background: oklch(60% 0.15 240 / .12); color: oklch(45% 0.15 240); }
+
+.integ-tag {
+  font-size: 11px; padding: 2px 8px; border-radius: 6px;
+  background: var(--bg); color: var(--text-secondary); border: 1px solid var(--border);
+}
+.integ-tag-off { color: var(--error); border-color: var(--error); }
+
+.integ-estado { font-size: 12px; font-weight: 600; margin-left: auto; }
+.integ-estado.ok { color: var(--success); }
+.integ-estado.fail { color: var(--error); }
+
+.integ-test-msg { font-size: 12px; color: var(--muted); margin: -4px 0 12px; }
+
+/* ── Formulario ── */
+.integ-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 12px;
+}
+.integ-field { display: flex; flex-direction: column; gap: 4px; }
+.integ-field-wide { grid-column: span 2; }
+.integ-field > span { font-size: 12px; font-weight: 600; color: var(--text-secondary); }
+.integ-field > span em { font-weight: 400; color: var(--muted); font-style: normal; }
+.integ-field input, .integ-field select {
+  padding: 8px 10px; border: 1px solid var(--border-dark); border-radius: 8px;
+  font-size: 13px; font-family: inherit; background: var(--surface); color: var(--text);
+}
+.integ-field input:focus, .integ-field select:focus {
+  outline: none; border-color: var(--primary);
+}
+.integ-check {
+  display: flex; align-items: center; gap: 7px; align-self: end;
+  font-size: 13px; color: var(--text-secondary); padding-bottom: 9px;
+}
+
+.integ-cred {
+  border-top: 1px dashed var(--border-dark); margin-top: 6px; padding-top: 14px;
+}
+.integ-cred-label { font-size: 12px; font-weight: 700; color: var(--text-secondary); margin-bottom: 10px; }
+.integ-cred-label em { font-weight: 400; color: var(--muted); font-style: normal; }
+
+/* ── Botones ── */
+.btn-guardar {
+  padding: 9px 18px; border-radius: 8px; border: none; background: var(--primary);
+  color: #fff; font-size: 13px; font-weight: 600; font-family: inherit; cursor: pointer;
+  transition: background .15s;
+}
+.btn-guardar:hover { background: var(--primary-dark); }
+
+.integ-acciones {
+  display: flex; gap: 10px; margin-top: 12px; padding-top: 12px;
+  border-top: 1px dashed var(--border-dark);
+}
+.btn-probar {
+  padding: 8px 16px; border-radius: 8px; border: 1px solid var(--primary);
+  background: transparent; color: var(--primary-dark); font-size: 13px; font-weight: 600;
+  font-family: inherit; cursor: pointer; transition: background .15s, color .15s;
+}
+.btn-probar:hover { background: var(--primary); color: #fff; }
+.btn-eliminar {
+  padding: 8px 16px; border-radius: 8px; border: 1px solid var(--error);
+  background: transparent; color: var(--error); font-size: 13px; font-weight: 600;
+  font-family: inherit; cursor: pointer; transition: background .15s, color .15s;
+}
+.btn-eliminar:hover { background: var(--error); color: #fff; }
+
+.integ-vacio {
+  padding: 16px; text-align: center; color: var(--muted); font-size: 13px;
+  background: var(--surface); border: 1px dashed var(--border-dark); border-radius: var(--radius);
+}
+
+@media (max-width: 700px) {
+  .integ-grid { grid-template-columns: 1fr; }
+  .integ-field-wide { grid-column: span 1; }
+}
