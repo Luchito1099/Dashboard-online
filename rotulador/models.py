@@ -42,8 +42,9 @@ class RotuladorConfig(models.Model):
     active_logo = models.BigIntegerField(null=True, blank=True)
     productos = models.JSONField(default=list, blank=True)   # [{nombre,mercaderia}]
 
-    # IA (proxy en el servidor)
+    # IA (proxy en el servidor; compatible con Anthropic y APIs estilo OpenAI)
     ai_provider = models.CharField(max_length=30, default='anthropic')
+    ai_base_url = models.CharField(max_length=200, blank=True, default='')
     ai_model = models.CharField(max_length=80, default='claude-haiku-4-5-20251001')
     ai_api_key = EncryptedTextField(blank=True, default='')
     prompt = models.TextField(blank=True, default=DEFAULT_PROMPT)

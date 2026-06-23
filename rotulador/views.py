@@ -27,6 +27,7 @@ def _cfg_publica(cfg):
         'active_logo': cfg.active_logo,
         'productos': cfg.productos or [],
         'ai_provider': cfg.ai_provider,
+        'ai_base_url': cfg.ai_base_url,
         'ai_model': cfg.ai_model,
         'ai_key_set': bool(key),
         'ai_key_mask': (f'••••{key[-4:]}' if len(key) > 4 else ('••••' if key else '')),
@@ -134,7 +135,7 @@ def api_config(request):
         return JsonResponse(_cfg_publica(cfg))
 
     datos = json.loads(request.body or '{}')
-    for campo in ('brand', 'initial', 'accent', 'label_style', 'ai_provider', 'ai_model', 'prompt'):
+    for campo in ('brand', 'initial', 'accent', 'label_style', 'ai_provider', 'ai_base_url', 'ai_model', 'prompt'):
         if campo in datos and datos[campo] is not None:
             setattr(cfg, campo, datos[campo])
     for campo in ('visual', 'logos', 'productos'):
@@ -167,8 +168,28 @@ def api_extraer(request):
     imagen = datos.get('image_base64')
     media_type = datos.get('media_type', 'image/jpeg')
     prompt = cfg.prompt or DEFAULT_PROMPT
+    provider = (cfg.ai_provider or 'anthropic').lower()
 
-    # Construcción del contenido (texto o imagen)
+    try:
+        if provider == 'anthropic':
+            texto_ia = _llamar_anthropic(cfg, api_key, prompt, texto, imagen, media_type)
+        else:
+            texto_ia = _llamar_openai_compat(cfg, api_key, prompt, texto, imagen, media_type)
+    except _IAError as e:
+        return JsonResponse({'error': str(e)}, status=502)
+
+    extraido = _extraer_json(texto_ia)
+    if extraido is None:
+        return JsonResponse({'error': 'La IA no devolvió datos válidos.'}, status=422)
+    return JsonResponse({'data': extraido})
+
+
+class _IAError(Exception):
+    pass
+
+
+def _llamar_anthropic(cfg, api_key, prompt, texto, imagen, media_type):
+    """Llama a la API de Anthropic (Claude)."""
     if imagen:
         content = [
             {'type': 'image', 'source': {'type': 'base64', 'media_type': media_type, 'data': imagen}},
@@ -177,38 +198,62 @@ def api_extraer(request):
     else:
         content = f'{prompt}\n\nTEXTO:\n{texto}'
 
+    base = (cfg.ai_base_url or 'https://api.anthropic.com').rstrip('/')
     try:
         resp = requests.post(
-            'https://api.anthropic.com/v1/messages',
-            headers={
-                'x-api-key': api_key,
-                'anthropic-version': '2023-06-01',
-                'content-type': 'application/json',
-            },
-            json={
-                'model': cfg.ai_model or 'claude-haiku-4-5-20251001',
-                'max_tokens': 1024,
-                'messages': [{'role': 'user', 'content': content}],
-            },
+            f'{base}/v1/messages',
+            headers={'x-api-key': api_key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json'},
+            json={'model': cfg.ai_model or 'claude-haiku-4-5-20251001', 'max_tokens': 1024,
+                  'messages': [{'role': 'user', 'content': content}]},
             timeout=40,
         )
     except requests.RequestException as e:
-        return JsonResponse({'error': f'No se pudo conectar con la IA: {e}'}, status=502)
-
+        raise _IAError(f'No se pudo conectar con la IA: {e}')
     if resp.status_code != 200:
-        return JsonResponse({'error': f'IA respondió HTTP {resp.status_code}: {resp.text[:300]}'}, status=502)
+        raise _IAError(f'IA respondió HTTP {resp.status_code}: {resp.text[:300]}')
+    partes = resp.json().get('content', [])
+    return ''.join(p.get('text', '') for p in partes if p.get('type') == 'text')
 
-    # Texto de la respuesta → JSON
+
+# Base URL por defecto para proveedores estilo OpenAI
+_OPENAI_BASES = {
+    'openai': 'https://api.openai.com/v1',
+    'deepseek': 'https://api.deepseek.com/v1',
+    'openrouter': 'https://openrouter.ai/api/v1',
+}
+
+
+def _llamar_openai_compat(cfg, api_key, prompt, texto, imagen, media_type):
+    """Llama a cualquier API compatible con OpenAI (DeepSeek, OpenAI, OpenRouter, personalizada)."""
+    provider = (cfg.ai_provider or 'openai').lower()
+    base = (cfg.ai_base_url or _OPENAI_BASES.get(provider) or '').rstrip('/')
+    if not base:
+        raise _IAError('Configura la URL base de la API en la pestaña IA.')
+
+    if imagen:
+        content = [
+            {'type': 'text', 'text': f'{prompt}\n\nAnaliza la imagen y extrae los datos del pedido.'},
+            {'type': 'image_url', 'image_url': {'url': f'data:{media_type};base64,{imagen}'}},
+        ]
+    else:
+        content = f'{prompt}\n\nTEXTO:\n{texto}'
+
     try:
-        partes = resp.json().get('content', [])
-        texto_ia = ''.join(p.get('text', '') for p in partes if p.get('type') == 'text')
-    except (ValueError, AttributeError):
-        return JsonResponse({'error': 'Respuesta de IA no válida.'}, status=502)
-
-    extraido = _extraer_json(texto_ia)
-    if extraido is None:
-        return JsonResponse({'error': 'No se pudo extraer datos del texto.'}, status=422)
-    return JsonResponse({'data': extraido})
+        resp = requests.post(
+            f'{base}/chat/completions',
+            headers={'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'},
+            json={'model': cfg.ai_model or 'deepseek-chat', 'max_tokens': 1024,
+                  'messages': [{'role': 'user', 'content': content}]},
+            timeout=40,
+        )
+    except requests.RequestException as e:
+        raise _IAError(f'No se pudo conectar con la IA: {e}')
+    if resp.status_code != 200:
+        raise _IAError(f'IA respondió HTTP {resp.status_code}: {resp.text[:300]}')
+    try:
+        return resp.json()['choices'][0]['message']['content']
+    except (KeyError, IndexError, ValueError):
+        raise _IAError('Respuesta de IA no válida.')
 
 
 def _extraer_json(texto):

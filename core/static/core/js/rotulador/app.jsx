@@ -158,8 +158,8 @@ function CamposPedido({f,set,products}){
 
 function PreviewCard({data,onConfirm,onCancel,products}){
   const[f,setF]=useState({cantidad:1,...data});const set=(k,v)=>setF(p=>({...p,[k]:v}));
-  return(<div style={{border:"2px solid #c0532a",borderRadius:10,padding:14,background:"#fff8f4",display:"flex",flexDirection:"column",gap:10}}>
-    <div style={{fontSize:13,fontWeight:700,color:"#c0532a"}}>✓ Revisa y confirma</div>
+  return(<div style={{border:"2px solid var(--primary)",borderRadius:10,padding:14,background:"var(--primary-bg)",display:"flex",flexDirection:"column",gap:10}}>
+    <div style={{fontSize:13,fontWeight:700,color:"var(--primary-dark)"}}>✓ Revisa y confirma</div>
     <CamposPedido f={f} set={set} products={products}/>
     <div style={{display:"flex",gap:8}}>
       <button onClick={()=>onConfirm(f)} style={{...BTN,flex:1}}>Agregar pedido</button>
@@ -168,8 +168,10 @@ function PreviewCard({data,onConfirm,onCancel,products}){
   </div>);
 }
 
-const BTN={padding:"11px",background:"#c0532a",color:"#fff",border:"none",borderRadius:8,fontSize:14,fontWeight:700,cursor:"pointer"};
-const BTN_SEC={padding:"11px 14px",background:"#fff",border:"1.5px solid #ccc",borderRadius:8,fontSize:13,cursor:"pointer",color:"#666",fontWeight:600};
+// Botones alineados a la paleta del dashboard (base.css)
+const BTN={padding:"11px",background:"var(--primary)",color:"#fff",border:"none",borderRadius:8,fontSize:14,fontWeight:700,cursor:"pointer"};
+const BTN_SEC={padding:"11px 14px",background:"var(--surface)",border:"1.5px solid var(--border-dark)",borderRadius:8,fontSize:13,cursor:"pointer",color:"var(--text-secondary)",fontWeight:600};
+const BTN_OK={...BTN,background:"var(--success)"};
 
 function FormTab({onAdd,products}){
   const E={nombres:"",destino:"",agencia:"",celular:"",dni:"",producto:"",cantidad:1};
@@ -186,7 +188,7 @@ function PasteTab({onAdd,products}){
     <textarea value={text} onChange={e=>setText(e.target.value)} placeholder={"Ej:\nCliente: Juan Pérez\nDirección: Av. Larco 1450\nCelular: 987654321\nProducto: TOBILLERA NOVAFIT\nDNI: 72345678"} style={{...I,minHeight:120,fontFamily:"monospace",resize:"vertical"}}/>
     {loading&&<div style={{padding:"10px 12px",background:"#fffbf5",borderRadius:8,fontSize:13,color:"#7a5a3a",border:"1px solid #e8d8c0"}}><Spin/>IA analizando…</div>}
     {err&&<div style={{padding:"10px 12px",borderRadius:8,fontSize:13,background:"#fef2f2",border:"1.5px solid #f5b8b8",color:"#9b2020"}}>{err}</div>}
-    {!preview&&<button onClick={analyze} disabled={loading||!text.trim()} style={{...BTN,background:loading||!text.trim()?"#c8a090":"#c0532a"}}>✦ Analizar con IA</button>}
+    {!preview&&<button onClick={analyze} disabled={loading||!text.trim()} style={{...BTN,opacity:loading||!text.trim()?.55:1}}>✦ Analizar con IA</button>}
     {preview&&<PreviewCard data={preview} products={products} onConfirm={o=>{onAdd({...o,origen:"mensaje"});setPreview(null);setText("");}} onCancel={()=>setPreview(null)}/>}
   </div>);
 }
@@ -203,25 +205,28 @@ function FotoTab({onAdd,products}){
     {url&&<img src={url} style={{width:"100%",maxHeight:160,objectFit:"cover",borderRadius:8,border:"2px solid #d0c8bc"}}/>}
     {loading&&<div style={{padding:"10px",background:"#fffbf5",borderRadius:8,fontSize:13,color:"#7a5a3a",border:"1px solid #e8d8c0"}}><Spin/>Analizando imagen…</div>}
     {err&&<div style={{padding:"10px",borderRadius:8,fontSize:13,background:"#fef2f2",border:"1.5px solid #f5b8b8",color:"#9b2020"}}>{err}</div>}
-    {!preview&&<button onClick={extract} disabled={!file||loading} style={{...BTN,background:!file||loading?"#c8a090":"#c0532a"}}>✦ Extraer con IA</button>}
+    {!preview&&<button onClick={extract} disabled={!file||loading} style={{...BTN,opacity:!file||loading?.55:1}}>✦ Extraer con IA</button>}
     {preview&&<PreviewCard data={preview} products={products} onConfirm={o=>{onAdd({...o,origen:"mensaje"});setPreview(null);setFile(null);setUrl(null);}} onCancel={()=>setPreview(null)}/>}
   </div>);
 }
 
 function ImportTab({onImport}){
-  const[pedidos,setPedidos]=useState(null);const[loading,setLoading]=useState(false);const[err,setErr]=useState("");
+  const[pedidos,setPedidos]=useState(null);const[loading,setLoading]=useState(false);const[err,setErr]=useState("");const[q,setQ]=useState("");
   const cargar=async()=>{setLoading(true);setErr("");try{const r=await API.pedidos();setPedidos(r.pedidos);}catch(e){setErr(e.message);}finally{setLoading(false);}};
   useEffect(()=>{cargar();},[]);
   const importar=p=>{onImport({nombres:p.nombres,destino:p.destino,celular:p.celular,dni:p.dni,producto:p.producto,cantidad:p.cantidad,agencia:buscarDestinoShalom(p.distrito||p.provincia||""),origen:"shopify",pedido_id:p.pedido_id});setPedidos(prev=>prev.filter(x=>x.pedido_id!==p.pedido_id));};
+  const term=q.trim().toLowerCase();
+  const filtrados=(pedidos||[]).filter(p=>!term||[p.nombres,p.destino,p.celular,p.numero].some(v=>String(v||"").toLowerCase().includes(term)));
   return(<div style={{display:"flex",flexDirection:"column",gap:10}}>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
       <div style={{fontSize:13,color:"#6a5a4a"}}>Pedidos sincronizados sin rótulo</div>
       <button onClick={cargar} style={BTN_SEC}>↻ Recargar</button>
     </div>
+    <input value={q} onChange={e=>setQ(e.target.value)} placeholder="🔎 Buscar por nombre, destino o celular…" style={I}/>
     {loading&&<div style={{padding:10,fontSize:13,color:"#7a5a3a"}}><Spin/>Cargando…</div>}
     {err&&<div style={{padding:"10px",borderRadius:8,fontSize:13,background:"#fef2f2",border:"1.5px solid #f5b8b8",color:"#9b2020"}}>{err}</div>}
-    {pedidos&&pedidos.length===0&&<div style={{padding:16,textAlign:"center",color:"#aaa",fontSize:13}}>No hay pedidos pendientes de importar.</div>}
-    {pedidos&&pedidos.map(p=><div key={p.pedido_id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,padding:"10px 12px",border:"1.5px solid #e0d8cc",borderRadius:8,background:"#fff"}}>
+    {pedidos&&filtrados.length===0&&<div style={{padding:16,textAlign:"center",color:"#aaa",fontSize:13}}>{term?"Sin coincidencias.":"No hay pedidos pendientes de importar."}</div>}
+    {filtrados.map(p=><div key={p.pedido_id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,padding:"10px 12px",border:"1.5px solid #e0d8cc",borderRadius:8,background:"#fff"}}>
       <div style={{minWidth:0}}>
         <div style={{fontWeight:700,fontSize:13,color:"#1c1a17",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{p.numero} · {p.nombres||"(sin nombre)"}</div>
         <div style={{fontSize:11,color:"#7a6a5a",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{p.destino||"—"} · {p.celular||"—"}</div>
@@ -267,10 +272,19 @@ function ShalomModal({orders,products,onClose}){
     <div onClick={e=>e.stopPropagation()} style={{...MODAL_BOX,maxWidth:420}}>
       <div style={MODAL_HEAD}><span style={MODAL_TITLE}>📦 Exportar Shalom</span><button onClick={onClose} style={X}>×</button></div>
       <div style={{padding:"16px 18px",fontSize:13,color:"#5a4a3a"}}>Se exportarán <strong>{orders.length}</strong> pedido(s) al formato Shalom (.xlsx), mapeando destino y mercadería automáticamente.</div>
-      <div style={MODAL_FOOT}><button onClick={onClose} style={BTN_SEC}>Cancelar</button><button onClick={go} disabled={!orders.length} style={{...BTN,background:!orders.length?"#c8a090":"#d4820a"}}>📦 Exportar .xlsx</button></div>
+      <div style={MODAL_FOOT}><button onClick={onClose} style={BTN_SEC}>Cancelar</button><button onClick={go} disabled={!orders.length} style={{...BTN_OK,opacity:!orders.length?.55:1}}>📦 Exportar .xlsx</button></div>
     </div>
   </div>);
 }
+
+// Presets de proveedores de IA (base URL y modelo sugerido)
+const AI_PRESETS={
+  anthropic:{label:"Anthropic (Claude)",base:"https://api.anthropic.com",model:"claude-haiku-4-5-20251001"},
+  deepseek:{label:"DeepSeek",base:"https://api.deepseek.com/v1",model:"deepseek-chat"},
+  openai:{label:"OpenAI (GPT)",base:"https://api.openai.com/v1",model:"gpt-4o"},
+  openrouter:{label:"OpenRouter",base:"https://openrouter.ai/api/v1",model:"deepseek/deepseek-chat"},
+  custom:{label:"Personalizada (compatible OpenAI)",base:"",model:""},
+};
 
 const MERCS=["PAQUETE XXS","SOBRE","PAQUETE XS","PAQUETE S","PAQUETE M","PAQUETE L"];
 function SettingsModal({cfg,setCfg,logos,setLogos,activeLogo,setActiveLogo,products,setProducts,ai,setAi,onSave,onClose}){
@@ -283,7 +297,7 @@ function SettingsModal({cfg,setCfg,logos,setLogos,activeLogo,setActiveLogo,produ
   const Slider=({label,k,min,max})=>(<div><div style={{display:"flex",justifyContent:"space-between"}}><span style={{fontSize:13,fontWeight:600,color:"#5a4a3a"}}>{label}</span><span style={{fontSize:12,fontFamily:"monospace",color:"#9a8070"}}>{cfg[k]}</span></div><input type="range" min={min} max={max} value={cfg[k]} onChange={e=>set(k,Number(e.target.value))} style={{width:"100%",accentColor:"#c0532a"}}/></div>);
   return(<div style={{position:"fixed",inset:0,background:"#fdfaf6",zIndex:120,display:"flex",flexDirection:"column"}}>
     <div style={MODAL_HEAD}><span style={MODAL_TITLE}>⚙ Configuración</span><div style={{display:"flex",gap:8}}><button onClick={onSave} style={BTN}>Guardar</button><button onClick={onClose} style={BTN_SEC}>← Volver</button></div></div>
-    <div style={{display:"flex",borderBottom:"1px solid #e0d8cc",background:"#f5f0e8",overflowX:"auto"}}>{TABS.map(([id,l])=><button key={id} onClick={()=>setTab(id)} style={{padding:"10px 14px",border:"none",borderBottom:`3px solid ${tab===id?"#c0532a":"transparent"}`,background:"transparent",fontSize:12,fontWeight:tab===id?700:500,color:tab===id?"#c0532a":"#7a6a5a",cursor:"pointer",whiteSpace:"nowrap"}}>{l}</button>)}</div>
+    <div style={{display:"flex",borderBottom:"1px solid #e0d8cc",background:"#f5f0e8",overflowX:"auto"}}>{TABS.map(([id,l])=><button key={id} onClick={()=>setTab(id)} style={{padding:"10px 14px",border:"none",borderBottom:`3px solid ${tab===id?"var(--primary)":"transparent"}`,background:"transparent",fontSize:12,fontWeight:tab===id?700:500,color:tab===id?"var(--primary-dark)":"#7a6a5a",cursor:"pointer",whiteSpace:"nowrap"}}>{l}</button>)}</div>
     <div style={{flex:1,overflowY:"auto",padding:"16px 18px",maxWidth:620,width:"100%",margin:"0 auto",display:"flex",flexDirection:"column",gap:14}}>
       {tab==="marca"&&<>
         <div style={{display:"grid",gridTemplateColumns:"1fr 72px",gap:10}}>
@@ -313,13 +327,19 @@ function SettingsModal({cfg,setCfg,logos,setLogos,activeLogo,setActiveLogo,produ
         <div style={{display:"grid",gridTemplateColumns:"1fr auto auto",gap:8}}>
           <input value={newNombre} onChange={e=>setNewNombre(e.target.value)} placeholder="Nuevo producto" style={I}/>
           <select value={newMerc} onChange={e=>setNewMerc(e.target.value)} style={{...I,width:"auto"}}>{MERCS.map(m=><option key={m}>{m}</option>)}</select>
-          <button onClick={()=>{if(!newNombre.trim())return;setProducts([...products,{nombre:newNombre.trim().toUpperCase(),mercaderia:newMerc}]);setNewNombre("");}} style={{...BTN,background:"#2f6b3b"}}>+</button>
+          <button onClick={()=>{if(!newNombre.trim())return;setProducts([...products,{nombre:newNombre.trim().toUpperCase(),mercaderia:newMerc}]);setNewNombre("");}} style={BTN_OK}>+</button>
         </div>
       </>}
       {tab==="ai"&&<>
         <div style={{fontSize:12,color:"#1a4a7a",background:"#f0f8ff",padding:"9px 11px",borderRadius:8,border:"1px solid #b0d0f0"}}>🔒 La API key se guarda cifrada en el servidor; no se expone en el navegador.</div>
-        <div>{LBL("Modelo")}<input value={ai.ai_model} onChange={e=>setAi(p=>({...p,ai_model:e.target.value}))} placeholder="claude-haiku-4-5-20251001" style={I}/></div>
-        <div>{LBL(ai.ai_key_set?`API key (actual: ${ai.ai_key_mask})`:"API key")}<input type="password" value={ai.ai_api_key||""} onChange={e=>setAi(p=>({...p,ai_api_key:e.target.value}))} placeholder={ai.ai_key_set?"(sin cambios)":"sk-ant-…"} style={I}/></div>
+        <div>{LBL("Proveedor de IA")}
+          <select value={ai.ai_provider} onChange={e=>{const p=e.target.value;const pre=AI_PRESETS[p]||{};setAi(s=>({...s,ai_provider:p,ai_base_url:pre.base||"",ai_model:pre.model||s.ai_model}));}} style={I}>
+            {Object.entries(AI_PRESETS).map(([id,v])=><option key={id} value={id}>{v.label}</option>)}
+          </select>
+        </div>
+        <div>{LBL("URL base de la API")}<input value={ai.ai_base_url||""} onChange={e=>setAi(p=>({...p,ai_base_url:e.target.value}))} placeholder={(AI_PRESETS[ai.ai_provider]||{}).base||"https://…"} style={I}/></div>
+        <div>{LBL("Modelo")}<input value={ai.ai_model} onChange={e=>setAi(p=>({...p,ai_model:e.target.value}))} placeholder={(AI_PRESETS[ai.ai_provider]||{}).model||""} style={I}/></div>
+        <div>{LBL(ai.ai_key_set?`API key (actual: ${ai.ai_key_mask})`:"API key")}<input type="password" value={ai.ai_api_key||""} onChange={e=>setAi(p=>({...p,ai_api_key:e.target.value}))} placeholder={ai.ai_key_set?"(sin cambios)":"sk-…"} style={I}/></div>
         <div>{LBL("Prompt de extracción")}<textarea value={ai.prompt} onChange={e=>setAi(p=>({...p,prompt:e.target.value}))} style={{...I,minHeight:120,fontFamily:"monospace",resize:"vertical"}}/></div>
       </>}
     </div>
@@ -357,7 +377,7 @@ function App(){
   const[logos,setLogos]=useState([]);
   const[activeLogo,setActiveLogo]=useState(null);
   const[products,setProducts]=useState([]);
-  const[ai,setAi]=useState({ai_provider:"anthropic",ai_model:"",ai_api_key:"",ai_key_set:false,ai_key_mask:"",prompt:""});
+  const[ai,setAi]=useState({ai_provider:"anthropic",ai_base_url:"",ai_model:"",ai_api_key:"",ai_key_set:false,ai_key_mask:"",prompt:""});
   const[orders,setOrders]=useState([]);
   const[tab,setTab]=useState("import");
   const[editing,setEditing]=useState(null);
@@ -370,7 +390,7 @@ function App(){
       const c=await API.config();
       setCfg({brand:c.brand,initial:c.initial,accent:c.accent,labelStyle:c.label_style,...c.visual});
       setLogos(c.logos||[]);setActiveLogo(c.active_logo);setProducts(c.productos||[]);
-      setAi({ai_provider:c.ai_provider,ai_model:c.ai_model,ai_api_key:"",ai_key_set:c.ai_key_set,ai_key_mask:c.ai_key_mask,prompt:c.prompt});
+      setAi({ai_provider:c.ai_provider,ai_base_url:c.ai_base_url,ai_model:c.ai_model,ai_api_key:"",ai_key_set:c.ai_key_set,ai_key_mask:c.ai_key_mask,prompt:c.prompt});
       const r=await API.rotulos();setOrders(r.rotulos);
     }catch(e){alert("Error cargando: "+e.message);}
   })();},[]);
@@ -385,7 +405,7 @@ function App(){
   const saveSettings=async()=>{
     try{
       const visual={headerBg:cfg.headerBg,footerBg:cfg.footerBg,bodyBg:cfg.bodyBg,nameFontSize:cfg.nameFontSize,accentBarHeight:cfg.accentBarHeight,borderRadius:cfg.borderRadius,showBarcode:cfg.showBarcode,showCutMarks:cfg.showCutMarks,showFragile:cfg.showFragile,showCounter:cfg.showCounter};
-      const payload={brand:cfg.brand,initial:cfg.initial,accent:cfg.accent,label_style:cfg.labelStyle,visual,logos,active_logo:activeLogo,productos:products,ai_provider:ai.ai_provider,ai_model:ai.ai_model,prompt:ai.prompt};
+      const payload={brand:cfg.brand,initial:cfg.initial,accent:cfg.accent,label_style:cfg.labelStyle,visual,logos,active_logo:activeLogo,productos:products,ai_provider:ai.ai_provider,ai_base_url:ai.ai_base_url,ai_model:ai.ai_model,prompt:ai.prompt};
       if((ai.ai_api_key||"").trim())payload.ai_api_key=ai.ai_api_key.trim();
       const c=await API.saveConfig(payload);
       setAi(p=>({...p,ai_api_key:"",ai_key_set:c.ai_key_set,ai_key_mask:c.ai_key_mask}));
@@ -399,7 +419,7 @@ function App(){
   return(<div style={{display:"grid",gridTemplateColumns:"minmax(320px,380px) 1fr",gap:18,alignItems:"start"}}>
     {/* Panel izquierdo: entradas */}
     <div style={{background:"#fff",border:"1px solid var(--border)",borderRadius:12,padding:16,boxShadow:"var(--shadow)"}}>
-      <div style={{display:"flex",gap:6,marginBottom:12,flexWrap:"wrap"}}>{tabs.map(([id,l])=><button key={id} onClick={()=>setTab(id)} style={{padding:"7px 11px",border:`1.5px solid ${tab===id?"#c0532a":"#e0d8cc"}`,borderRadius:8,background:tab===id?"#fff7ef":"#fff",fontSize:12.5,fontWeight:tab===id?700:500,color:tab===id?"#c0532a":"#6a5a4a",cursor:"pointer"}}>{l}</button>)}</div>
+      <div style={{display:"flex",gap:6,marginBottom:12,flexWrap:"wrap"}}>{tabs.map(([id,l])=><button key={id} onClick={()=>setTab(id)} style={{padding:"7px 11px",border:`1.5px solid ${tab===id?"var(--primary)":"var(--border-dark)"}`,borderRadius:8,background:tab===id?"var(--primary-bg)":"var(--surface)",fontSize:12.5,fontWeight:tab===id?700:500,color:tab===id?"var(--primary-dark)":"var(--text-secondary)",cursor:"pointer"}}>{l}</button>)}</div>
       {tab==="import"&&<ImportTab onImport={addOrder}/>}
       {tab==="paste"&&<PasteTab onAdd={addOrder} products={products}/>}
       {tab==="foto"&&<FotoTab onAdd={addOrder} products={products}/>}
@@ -412,8 +432,8 @@ function App(){
         <div style={{fontSize:14,fontWeight:700,color:"var(--text)"}}>Rótulos ({orders.length}) · {totalPages} hoja(s)</div>
         <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
           <button onClick={()=>setShowSettings(true)} style={BTN_SEC}>⚙ Configuración</button>
-          <button onClick={()=>setShalomOpen(true)} disabled={!orders.length} style={{...BTN,background:!orders.length?"#c8a090":"#d4820a"}}>📦 Shalom</button>
-          <button onClick={()=>setPrintOpen(true)} disabled={!orders.length} style={{...BTN,background:!orders.length?"#c8a090":"#c0532a"}}>🖨 Imprimir</button>
+          <button onClick={()=>setShalomOpen(true)} disabled={!orders.length} style={{...BTN_OK,opacity:!orders.length?.55:1}}>📦 Shalom</button>
+          <button onClick={()=>setPrintOpen(true)} disabled={!orders.length} style={{...BTN,opacity:!orders.length?.55:1}}>🖨 Imprimir</button>
         </div>
       </div>
       {orders.length===0?<div style={{padding:40,textAlign:"center",color:"#aaa",fontSize:14,background:"#fff",borderRadius:12,border:"1px dashed #d0ccc4"}}>Sin rótulos. Importa pedidos o agrega uno por mensaje/manual.</div>:
