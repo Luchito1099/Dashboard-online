@@ -10,6 +10,8 @@ urlpatterns = [
     path('logout/', views.logout_view, name='logout'),
     # Configuración de usuarios y del sistema (solo admin)
     path('configuracion/', views.configuracion, name='configuracion'),
+    # Página de respaldo cuando el vendedor no tiene módulos habilitados
+    path('sin-acceso/', views.sin_acceso, name='sin_acceso'),
     # Buscador global del topbar (devuelve JSON)
     path('buscar/', views.api_buscar, name='buscar'),
 ]

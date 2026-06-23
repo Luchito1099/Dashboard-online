@@ -63,6 +63,12 @@ def calcular_porcentaje(done, total):
 @login_required
 def index(request):
     """Runbook diario: embudo, timeline de bloques y sidebar con tabs."""
+    # Permiso configurable: el vendedor solo entra si está habilitado (admin siempre)
+    from core.permisos import puede_ver, destino_vendedor
+    if not puede_ver(request.user, 'vendedor_puede_ver_capacitacion'):
+        messages.error(request, 'No tienes permisos para ver la capacitación.')
+        return redirect(destino_vendedor(request.user))
+
     # Bloques con sus tareas en una sola consulta (evita N+1)
     bloques = (
         Bloque.objects

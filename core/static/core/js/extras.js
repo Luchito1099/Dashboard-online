@@ -27,11 +27,7 @@
   style.textContent = css;
   document.head.appendChild(style);
 
-  // ── 1. Enlace "Configuración" del sidebar (en base.html apunta a "#") ──
-  const linkConfig = document.querySelector('.sidebar-bottom a[href="#"]');
-  if (linkConfig) linkConfig.setAttribute('href', '/configuracion/');
-
-  // ── 2. Buscador del topbar ──
+  // ── Buscador del topbar ──
   const input = document.querySelector('.topbar-search input');
   if (!input) return;
 

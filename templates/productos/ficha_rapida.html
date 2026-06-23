@@ -75,10 +75,12 @@
         {% endif %}
         <div class="mat-info">
           <div class="mat-titulo">{{ medio.titulo|default:medio.get_tipo_display }}</div>
+          {% if puede_editar or cfg.vendedor_puede_compartir %}
           <div class="mat-acciones">
             <button class="btn-share wa" onclick="compartirWhatsApp('{{ medio.url|escapejs }}')">📤 WhatsApp</button>
             <button class="btn-share" onclick="copiarLinkMedio(this, '{{ medio.url|escapejs }}')">📋 Copiar link</button>
           </div>
+          {% endif %}
         </div>
       </div>
       {% endfor %}

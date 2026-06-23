@@ -189,6 +189,9 @@ function abrirDetalle(id) {
   document.getElementById('detPanel').classList.add('show');
 }
 
+// Permiso de compartir (admin siempre; vendedor según configuración)
+const PUEDE_COMPARTIR = {{ puede_editar|yesno:"true,false" }} || {{ cfg.vendedor_puede_compartir|yesno:"true,false" }};
+
 // Construye la sección "Material para enviar al cliente" con botones de compartir
 function bloqueMaterial(medios) {
   if (!medios || !medios.length) return '';
@@ -197,14 +200,15 @@ function bloqueMaterial(medios) {
     const preview = m.tipo === 'imagen'
       ? `<div class="mat-thumb"><img src="${m.url}" alt=""></div>`
       : `<div class="mat-thumb mat-video">🎬</div>`;
+    const acciones = PUEDE_COMPARTIR ? `<div class="mat-acciones">
+          <button class="btn-share wa" onclick="compartirWhatsApp('${m.url}')">📤 WhatsApp</button>
+          <button class="btn-share" onclick="copiarLinkMedio(this, '${m.url}')">📋 Copiar link</button>
+        </div>` : '';
     return `<div class="mat-item">
       ${preview}
       <div class="mat-info">
         <div class="mat-titulo">${escapar(titulo)}</div>
-        <div class="mat-acciones">
-          <button class="btn-share wa" onclick="compartirWhatsApp('${m.url}')">📤 WhatsApp</button>
-          <button class="btn-share" onclick="copiarLinkMedio(this, '${m.url}')">📋 Copiar link</button>
-        </div>
+        ${acciones}
       </div>
     </div>`;
   }).join('');

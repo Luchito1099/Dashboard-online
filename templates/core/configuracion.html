@@ -127,6 +127,50 @@
         </label>
       </div>
 
+      <div class="cfg-toggle">
+        <div>
+          <div class="cfg-toggle-label">Puede ver el Inicio / KPIs</div>
+          <div class="cfg-toggle-desc">Acceso al dashboard de inicio con los indicadores del negocio.</div>
+        </div>
+        <label class="switch">
+          <input type="checkbox" name="vendedor_puede_ver_inicio" {% if config.vendedor_puede_ver_inicio %}checked{% endif %}>
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="cfg-toggle">
+        <div>
+          <div class="cfg-toggle-label">Puede ver Capacitación (runbook)</div>
+          <div class="cfg-toggle-desc">Acceso al runbook diario de tareas.</div>
+        </div>
+        <label class="switch">
+          <input type="checkbox" name="vendedor_puede_ver_capacitacion" {% if config.vendedor_puede_ver_capacitacion %}checked{% endif %}>
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="cfg-toggle">
+        <div>
+          <div class="cfg-toggle-label">Puede ver Herramientas</div>
+          <div class="cfg-toggle-desc">Acceso al módulo de herramientas externas.</div>
+        </div>
+        <label class="switch">
+          <input type="checkbox" name="vendedor_puede_ver_herramientas" {% if config.vendedor_puede_ver_herramientas %}checked{% endif %}>
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="cfg-toggle">
+        <div>
+          <div class="cfg-toggle-label">Puede compartir material por WhatsApp</div>
+          <div class="cfg-toggle-desc">Muestra los botones de compartir/copiar link en productos y fichas.</div>
+        </div>
+        <label class="switch">
+          <input type="checkbox" name="vendedor_puede_compartir" {% if config.vendedor_puede_compartir %}checked{% endif %}>
+          <span class="slider"></span>
+        </label>
+      </div>
+
       <div style="margin-top:14px;">
         <button type="submit" class="btn-primary">Guardar configuración</button>
       </div>
@@ -141,9 +185,12 @@
         <tr><th>Acción</th><th>Vendedor</th><th>Admin</th></tr>
       </thead>
       <tbody>
-        <tr><td>Ver runbook y marcar tareas</td><td class="si">Sí</td><td class="si">Sí</td></tr>
-        <tr><td>Simular hora / guardar videos</td><td class="si">Sí</td><td class="si">Sí</td></tr>
+        <tr><td>Ver Inicio / KPIs</td><td class="{% if config.vendedor_puede_ver_inicio %}si{% else %}no{% endif %}">{% if config.vendedor_puede_ver_inicio %}Sí{% else %}No{% endif %}</td><td class="si">Sí</td></tr>
+        <tr><td>Ver runbook y marcar tareas</td><td class="{% if config.vendedor_puede_ver_capacitacion %}si{% else %}no{% endif %}">{% if config.vendedor_puede_ver_capacitacion %}Sí{% else %}No{% endif %}</td><td class="si">Sí</td></tr>
         <tr><td>Ver catálogo y fichas rápidas</td><td class="{% if config.vendedor_puede_ver_productos %}si{% else %}no{% endif %}">{% if config.vendedor_puede_ver_productos %}Sí{% else %}No{% endif %}</td><td class="si">Sí</td></tr>
+        <tr><td>Ver Herramientas</td><td class="{% if config.vendedor_puede_ver_herramientas %}si{% else %}no{% endif %}">{% if config.vendedor_puede_ver_herramientas %}Sí{% else %}No{% endif %}</td><td class="si">Sí</td></tr>
+        <tr><td>Compartir material por WhatsApp</td><td class="{% if config.vendedor_puede_compartir %}si{% else %}no{% endif %}">{% if config.vendedor_puede_compartir %}Sí{% else %}No{% endif %}</td><td class="si">Sí</td></tr>
+        <tr><td>Simular hora / guardar videos</td><td class="si">Sí</td><td class="si">Sí</td></tr>
         <tr><td>Editar tareas del runbook</td><td class="no">No</td><td class="si">Sí</td></tr>
         <tr><td>Administrar productos</td><td class="no">No</td><td class="si">Sí</td></tr>
         <tr><td>Gestionar usuarios y configuración</td><td class="no">No</td><td class="si">Sí</td></tr>

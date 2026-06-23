@@ -5,6 +5,7 @@ from django.utils import timezone
 
 from capacitacion.models import Tarea, ProgresoTarea
 from capacitacion.views import es_admin
+from .models import ConfiguracionSistema
 
 
 def runbook(request):
@@ -31,4 +32,6 @@ def runbook(request):
         'rb_done': done,
         'rb_proxima': proxima,
         'puede_editar': es_admin(request.user),
+        # Permisos del rol vendedor, disponibles en toda plantilla para ocultar UI
+        'cfg': ConfiguracionSistema.get_solo(),
     }

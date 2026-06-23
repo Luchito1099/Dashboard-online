@@ -31,6 +31,10 @@ class ConfiguracionSistema(models.Model):
     Controla qué puede hacer el rol vendedor."""
     vendedor_puede_editar_videos = models.BooleanField(default=True)
     vendedor_puede_ver_productos = models.BooleanField(default=True)
+    vendedor_puede_ver_inicio = models.BooleanField(default=True)
+    vendedor_puede_ver_capacitacion = models.BooleanField(default=True)
+    vendedor_puede_ver_herramientas = models.BooleanField(default=True)
+    vendedor_puede_compartir = models.BooleanField(default=True)
 
     class Meta:
         verbose_name = 'Configuración del sistema'

@@ -11,11 +11,15 @@ from django.utils import timezone
 from capacitacion.models import Tarea, ProgresoTarea
 from capacitacion.views import es_admin  # reutilizamos el helper de permisos
 from .models import Perfil, ConfiguracionSistema
+from .permisos import puede_ver, destino_vendedor
 
 
 @login_required
 def home(request):
     """Inicio: KPIs del negocio + resumen del progreso de capacitación de hoy."""
+    if not puede_ver(request.user, 'vendedor_puede_ver_inicio'):
+        return redirect(destino_vendedor(request.user))
+
     hoy = timezone.now().date()
 
     total = Tarea.objects.filter(activo=True).count()
@@ -54,6 +58,12 @@ def logout_view(request):
     return redirect('core:login')
 
 
+@login_required
+def sin_acceso(request):
+    """Página de respaldo cuando un vendedor no tiene ningún módulo habilitado."""
+    return render(request, 'core/sin_acceso.html')
+
+
 # ───────────────────────── Configuración (solo admin) ─────────────────────────
 
 @login_required
@@ -82,6 +92,10 @@ def configuracion(request):
             # Los checkboxes solo llegan si están marcados
             config.vendedor_puede_editar_videos = request.POST.get('vendedor_puede_editar_videos') == 'on'
             config.vendedor_puede_ver_productos = request.POST.get('vendedor_puede_ver_productos') == 'on'
+            config.vendedor_puede_ver_inicio = request.POST.get('vendedor_puede_ver_inicio') == 'on'
+            config.vendedor_puede_ver_capacitacion = request.POST.get('vendedor_puede_ver_capacitacion') == 'on'
+            config.vendedor_puede_ver_herramientas = request.POST.get('vendedor_puede_ver_herramientas') == 'on'
+            config.vendedor_puede_compartir = request.POST.get('vendedor_puede_compartir') == 'on'
             config.save()
             messages.success(request, 'Configuración guardada.')
 

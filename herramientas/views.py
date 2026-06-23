@@ -11,7 +11,12 @@ from .models import HerramientaExterna
 
 @login_required
 def lista(request):
-    """Grid de herramientas externas (todos los usuarios autenticados)."""
+    """Grid de herramientas externas (acceso configurable para el vendedor)."""
+    from core.permisos import puede_ver, destino_vendedor
+    if not puede_ver(request.user, 'vendedor_puede_ver_herramientas'):
+        messages.error(request, 'No tienes permisos para ver las herramientas.')
+        return redirect(destino_vendedor(request.user))
+
     herramientas = HerramientaExterna.objects.filter(activo=True)
     # Agrupamos por categoría para mostrarlas en secciones
     categorias = sorted({h.categoria for h in herramientas if h.categoria})
