@@ -125,24 +125,29 @@
       <div class="integ-cred">
         <div class="integ-cred-label">Credenciales <em>(deja en blanco para conservar las actuales)</em></div>
 
-        {# Shopify (Custom App): Access token de la Admin API #}
-        <div class="integ-grid prov-shopify">
-          <label class="integ-field integ-field-wide">
-            <span>Admin API access token {% if integ.token_enmascarado %}<em>· actual: {{ integ.token_enmascarado }}</em>{% endif %}</span>
-            <input type="password" name="token" autocomplete="off" placeholder="{% if integ.token_enmascarado %}(sin cambios){% else %}shpat_…{% endif %}">
+        {# Claves de API: Shopify (Client ID/Secret) o WooCommerce (consumer key/secret) #}
+        <div class="integ-grid cred-keys">
+          <label class="integ-field">
+            <span><span class="lbl-key">API key</span>{% if integ.api_key_enmascarado %} <em>· {{ integ.api_key_enmascarado }}</em>{% endif %}</span>
+            <input type="password" name="api_key" autocomplete="off" placeholder="{% if integ.api_key_enmascarado %}(sin cambios){% else %}…{% endif %}">
+          </label>
+          <label class="integ-field">
+            <span><span class="lbl-secret">API secret</span>{% if integ.api_secret_enmascarado %} <em>· {{ integ.api_secret_enmascarado }}</em>{% endif %}</span>
+            <input type="password" name="api_secret" autocomplete="off" placeholder="{% if integ.api_secret_enmascarado %}(sin cambios){% else %}…{% endif %}">
+          </label>
+          <label class="integ-field prov-shopify">
+            <span>Permisos (scopes)</span>
+            <input type="text" name="scopes" value="{{ integ.scopes }}" placeholder="read_orders">
           </label>
         </div>
 
-        {# WooCommerce: consumer key / secret #}
-        <div class="integ-grid prov-woocommerce">
-          <label class="integ-field">
-            <span>Consumer key {% if integ.api_key_enmascarado %}<em>· {{ integ.api_key_enmascarado }}</em>{% endif %}</span>
-            <input type="password" name="api_key" autocomplete="off" placeholder="{% if integ.api_key_enmascarado %}(sin cambios){% else %}ck_…{% endif %}">
-          </label>
-          <label class="integ-field">
-            <span>Consumer secret {% if integ.api_secret_enmascarado %}<em>· {{ integ.api_secret_enmascarado }}</em>{% endif %}</span>
-            <input type="password" name="api_secret" autocomplete="off" placeholder="{% if integ.api_secret_enmascarado %}(sin cambios){% else %}cs_…{% endif %}">
-          </label>
+        {# Estado de la conexión OAuth (solo Shopify) #}
+        <div class="prov-shopify integ-oauth">
+          {% if integ.token_enmascarado %}
+            <span class="integ-estado ok">✓ Conectado con Shopify (token {{ integ.token_enmascarado }})</span>
+          {% else %}
+            <span class="integ-estado fail">✕ No conectado · guarda las claves y pulsa «Conectar con Shopify»</span>
+          {% endif %}
         </div>
 
         {# Proveedores sin conector aún #}
@@ -157,6 +162,8 @@
     {% endif %}
 
     <div class="integ-acciones">
+      {# Conectar con Shopify (OAuth) — solo proveedor shopify #}
+      <a href="{% url 'integraciones:oauth_iniciar' integ.id %}" class="btn-guardar prov-shopify">Conectar con Shopify</a>
       {# Probar conexión #}
       <form method="post" action="{% url 'integraciones:probar' integ.id %}">
         {% csrf_token %}
@@ -197,15 +204,24 @@
     const sel = card.querySelector('select[name="proveedor"]');
     if (!sel) return;
     const prov = sel.value;
-    // Grupos por proveedor
-    card.querySelectorAll('.prov-shopify').forEach(el => el.style.display = prov === 'shopify' ? '' : 'none');
-    card.querySelectorAll('.prov-woocommerce').forEach(el => el.style.display = prov === 'woocommerce' ? '' : 'none');
+    const esShopify = prov === 'shopify';
+    const esWoo = prov === 'woocommerce';
+    const pendiente = !esShopify && !esWoo;
+
+    // Elementos solo de Shopify (scopes, estado OAuth, versión API, botón conectar)
+    card.querySelectorAll('.prov-shopify').forEach(el => el.style.display = esShopify ? '' : 'none');
+    // Bloque de claves de API (Shopify y WooCommerce); oculto si no hay conector
+    card.querySelectorAll('.cred-keys').forEach(el => el.style.display = pendiente ? 'none' : '');
     // "En preparación" para proveedores sin conector
-    const pendiente = (prov !== 'shopify' && prov !== 'woocommerce');
     card.querySelectorAll('.prov-pendiente').forEach(el => el.style.display = pendiente ? '' : 'none');
-    // Etiqueta del campo dominio según el proveedor
-    const lbl = card.querySelector('.lbl-tienda');
-    if (lbl) lbl.textContent = prov === 'shopify' ? 'Subdominio de la tienda (.myshopify.com)' : 'URL del sitio';
+
+    // Etiquetas según el proveedor
+    const lblT = card.querySelector('.lbl-tienda');
+    if (lblT) lblT.textContent = esShopify ? 'Subdominio de la tienda (.myshopify.com)' : 'URL del sitio';
+    const lblK = card.querySelector('.lbl-key');
+    if (lblK) lblK.textContent = esShopify ? 'Client ID (API key)' : 'Consumer key';
+    const lblS = card.querySelector('.lbl-secret');
+    if (lblS) lblS.textContent = esShopify ? 'Client Secret' : 'Consumer secret';
   }
 
   document.querySelectorAll('.integ-card').forEach(card => {

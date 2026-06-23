@@ -12,4 +12,7 @@ urlpatterns = [
     path('integraciones/probar/<int:integracion_id>/', views.probar, name='probar'),
     path('integraciones/sincronizar/<int:integracion_id>/', views.sincronizar, name='sincronizar'),
     path('integraciones/pedidos/<int:integracion_id>/', views.pedidos, name='pedidos'),
+    # OAuth de Shopify
+    path('integraciones/oauth/iniciar/<int:integracion_id>/', views.oauth_iniciar, name='oauth_iniciar'),
+    path('integraciones/oauth/callback/', views.oauth_callback, name='oauth_callback'),
 ]

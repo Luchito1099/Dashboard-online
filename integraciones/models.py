@@ -53,9 +53,12 @@ class Integracion(models.Model):
                                    help_text='Versión de la API (Shopify)')
 
     # Credenciales (cifradas en BD; las vistas las manejan en texto plano)
-    token = EncryptedTextField(blank=True, default='', help_text='Admin API access token (Shopify)')
-    api_key = EncryptedTextField(blank=True, default='', help_text='Consumer key (WooCommerce)')
-    api_secret = EncryptedTextField(blank=True, default='', help_text='Consumer secret (WooCommerce)')
+    token = EncryptedTextField(blank=True, default='', help_text='Access token obtenido por OAuth o Custom App (Shopify)')
+    api_key = EncryptedTextField(blank=True, default='', help_text='Client ID (Shopify OAuth) / Consumer key (WooCommerce)')
+    api_secret = EncryptedTextField(blank=True, default='', help_text='Client Secret (Shopify OAuth) / Consumer secret (WooCommerce)')
+
+    # Permisos solicitados en el OAuth de Shopify
+    scopes = models.CharField(max_length=255, blank=True, default='read_orders')
 
     activo = models.BooleanField(default=True)
     orden = models.PositiveSmallIntegerField(default=0)

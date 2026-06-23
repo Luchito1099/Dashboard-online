@@ -1,8 +1,11 @@
 # integraciones/views.py
+import secrets
+
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.http import HttpResponseNotAllowed
+from django.urls import reverse
 
 # Reutilizamos el helper de permisos existente (no lo duplicamos)
 from capacitacion.views import es_admin
@@ -154,7 +157,59 @@ def pedidos(request, integracion_id):
     return render(request, 'integraciones/pedidos.html', context)
 
 
+# ───────────────────────── OAuth de Shopify ─────────────────────────
+
+@login_required
+def oauth_iniciar(request, integracion_id):
+    """Inicia el flujo OAuth: redirige al usuario a Shopify para autorizar la app. Solo admin."""
+    if not es_admin(request.user):
+        messages.error(request, 'No tienes permisos.')
+        return redirect('core:home')
+
+    integ = get_object_or_404(Integracion, id=integracion_id)
+    if integ.proveedor != 'shopify':
+        messages.error(request, 'El OAuth solo aplica a integraciones Shopify.')
+        return redirect(reverse_lista() + f'#integ-{integ.id}')
+    if not (integ.api_key and integ.api_secret and integ.tienda_url):
+        messages.error(request, 'Guarda primero el Client ID, Client Secret y subdominio antes de conectar.')
+        return redirect(reverse_lista() + f'#integ-{integ.id}')
+
+    state = secrets.token_urlsafe(24)
+    request.session['shopify_oauth'] = {'state': state, 'integ_id': integ.id}
+    redirect_uri = request.build_absolute_uri(reverse('integraciones:oauth_callback'))
+    return redirect(connectors.construir_url_autorizacion(integ, redirect_uri, state))
+
+
+@login_required
+def oauth_callback(request):
+    """Recibe la respuesta de Shopify, valida y guarda el access token. Solo admin."""
+    if not es_admin(request.user):
+        messages.error(request, 'No tienes permisos.')
+        return redirect('core:home')
+
+    datos = request.session.get('shopify_oauth') or {}
+    integ = get_object_or_404(Integracion, id=datos.get('integ_id'))
+
+    # Validación de seguridad: state (anti-CSRF) y hmac (firma de Shopify)
+    if not datos.get('state') or request.GET.get('state') != datos.get('state'):
+        messages.error(request, 'Validación de seguridad fallida (state). Intenta de nuevo.')
+        return redirect(reverse_lista() + f'#integ-{integ.id}')
+    if not connectors.verificar_hmac(request.GET.dict(), integ.api_secret):
+        messages.error(request, 'Validación de seguridad fallida (hmac). Revisa el Client Secret.')
+        return redirect(reverse_lista() + f'#integ-{integ.id}')
+
+    token = connectors.intercambiar_codigo(integ, request.GET.get('code'))
+    request.session.pop('shopify_oauth', None)
+    if not token:
+        messages.error(request, 'No se pudo obtener el access token de Shopify.')
+        return redirect(reverse_lista() + f'#integ-{integ.id}')
+
+    integ.token = token
+    integ.save()
+    messages.success(request, f'«{integ.nombre}» conectada con Shopify correctamente.')
+    return redirect(reverse_lista() + f'#integ-{integ.id}')
+
+
 def reverse_lista():
     """URL de la lista (helper para concatenar anclas #integ-<id>)."""
-    from django.urls import reverse
     return reverse('integraciones:lista')

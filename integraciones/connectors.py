@@ -4,6 +4,10 @@
 
 Patrón extensible: registrar la función de prueba de cada proveedor en _PROBADORES.
 """
+import hashlib
+import hmac
+from urllib.parse import urlencode
+
 import requests
 from django.utils import timezone
 
@@ -69,6 +73,48 @@ def probar_conexion(integ):
     integ.ultimo_test_en = timezone.now()
     integ.save(update_fields=['ultimo_test_ok', 'ultimo_test_msg', 'ultimo_test_en'])
     return ok, msg
+
+
+# ───────────────────────── OAuth de Shopify ─────────────────────────
+
+def construir_url_autorizacion(integ, redirect_uri, state):
+    """URL a la que se redirige al usuario para que autorice la app en Shopify."""
+    dominio = _normalizar_dominio(integ.tienda_url)
+    params = {
+        'client_id': integ.api_key,
+        'scope': integ.scopes or 'read_orders',
+        'redirect_uri': redirect_uri,
+        'state': state,
+    }
+    return f'https://{dominio}/admin/oauth/authorize?{urlencode(params)}'
+
+
+def verificar_hmac(get_params, client_secret):
+    """Valida el hmac que Shopify envía en el callback (firma con el client_secret)."""
+    recibido = get_params.get('hmac', '')
+    if not recibido or not client_secret:
+        return False
+    partes = sorted(f'{k}={v}' for k, v in get_params.items() if k != 'hmac')
+    mensaje = '&'.join(partes)
+    calculado = hmac.new(client_secret.encode(), mensaje.encode(), hashlib.sha256).hexdigest()
+    return hmac.compare_digest(calculado, recibido)
+
+
+def intercambiar_codigo(integ, code):
+    """Cambia el 'code' del callback por un access token permanente. Devuelve el token o None."""
+    dominio = _normalizar_dominio(integ.tienda_url)
+    url = f'https://{dominio}/admin/oauth/access_token'
+    try:
+        resp = requests.post(url, json={
+            'client_id': integ.api_key,
+            'client_secret': integ.api_secret,
+            'code': code,
+        }, timeout=TIMEOUT)
+    except requests.RequestException:
+        return None
+    if resp.status_code == 200:
+        return resp.json().get('access_token')
+    return None
 
 
 # ───────────────────────── Extracción de pedidos ─────────────────────────
