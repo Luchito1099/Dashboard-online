@@ -365,12 +365,19 @@ def api_shalom_estado(request, integracion_id):
     """Estado de la corrida (para polling)."""
     if not es_admin(request.user):
         return JsonResponse({'error': 'sin permiso'}, status=403)
+    from datetime import timedelta
+    from django.utils import timezone
     from .models import ConfigShalom
     integ = get_object_or_404(Integracion, id=integracion_id, proveedor='shalom')
     cfg, _ = ConfigShalom.objects.get_or_create(integracion=integ)
+    # Una corrida sin latido reciente está muerta (redeploy/crash): la reportamos
+    # como detenida para que la UI no se quede en "Corriendo…" para siempre.
+    vivo = cfg.latido and (timezone.now() - cfg.latido) < timedelta(minutes=5)
+    corriendo = cfg.corriendo and vivo
     return JsonResponse({
-        'corriendo': cfg.corriendo,
+        'corriendo': corriendo,
         'progreso': cfg.progreso,
+        'zombie': bool(cfg.corriendo and not vivo),
         'ultima_corrida': cfg.ultima_corrida.strftime('%d/%m/%Y %H:%M') if cfg.ultima_corrida else '',
         'ultimo_resultado': cfg.ultimo_resultado,
     })

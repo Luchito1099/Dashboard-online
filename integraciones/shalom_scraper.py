@@ -242,11 +242,17 @@ def _necesita_login_rastreo(page, sel):
     return page.locator(sel['rastrea_email_sel']).count() > 0
 
 
-def asegurar_sesion_rastreo(page, sel, usuario, password):
+def _noop(_):
+    pass
+
+
+def asegurar_sesion_rastreo(page, sel, usuario, password, log=_noop):
+    log('Conectando a la página de rastreo…')
     ir_a(page, sel['rastrea_url'])
     espera_humana(1, 2)
     movimiento_humano(page)
     if _necesita_login_rastreo(page, sel):
+        log('Sesión no activa → iniciando sesión…')
         page.fill(sel['rastrea_email_sel'], usuario)
         espera_humana(0.5, 1)
         page.fill(sel['rastrea_pass_sel'], password)
@@ -254,20 +260,26 @@ def asegurar_sesion_rastreo(page, sel, usuario, password):
         page.click(sel['rastrea_submit_sel'])
         esperar_carga(page)
         espera_humana(1.5, 2.5)
+        log('Login enviado, formulario de búsqueda listo.')
+    else:
+        log('Sesión ya activa, formulario de búsqueda listo.')
 
 
-def validar_envio(page, sel, orden, codigo):
+def validar_envio(page, sel, orden, codigo, log=_noop):
     """Busca un envío y devuelve su estado real (o None)."""
     movimiento_humano(page)
     in_orden = page.locator(sel['rastrea_orden_sel'])
     in_codigo = page.locator(sel['rastrea_codigo_sel'])
     if in_orden.count() == 0:
+        log('⚠ No se encontró el formulario de búsqueda en la página.')
         return None
+    log(f'Escribiendo orden {orden} y código {codigo}…')
     in_orden.first.click(); espera_humana(0.3, 0.6)
     in_orden.first.fill(''); in_orden.first.fill(orden); espera_humana(0.5, 1)
     in_codigo.first.click(); espera_humana(0.3, 0.6)
     in_codigo.first.fill(''); in_codigo.first.fill(codigo); espera_humana(0.5, 1)
     movimiento_humano(page)
+    log('Enviando consulta y esperando resultado…')
     page.click(sel['rastrea_submit_sel'])
     esperar_carga(page)
     espera_humana(1.5, 2.5)
@@ -276,5 +288,6 @@ def validar_envio(page, sel, orden, codigo):
     if loc.count() == 0:
         loc = page.locator(sel['rastrea_estado_sel_fallback']).first
     if loc.count() == 0:
+        log('⚠ No se encontró el estado en la página de resultado.')
         return None
     return loc.inner_text().strip()

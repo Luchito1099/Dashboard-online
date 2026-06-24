@@ -192,12 +192,29 @@
     if(r.ok)cargar();
   }
 
+  // Al cargar la página: si ya hay una corrida viva, engancha el poll y muestra logs.
+  async function revisarEstadoInicial(){
+    try{
+      const r=await fetch(`/integraciones/shalom/${ID}/estado/`);
+      const d=await r.json();
+      if(d.corriendo){
+        btn.disabled=true;btn.textContent='⏳ Corriendo…';
+        btnStop.style.display='';
+        if(d.progreso)agregarLog(d.progreso);
+        iniciarPoll();
+      } else if(d.zombie){
+        agregarLog('⚠ La corrida anterior se interrumpió (servidor reiniciado). Pulsa «Actualizar ahora» para reanudar.');
+      }
+    }catch(e){}
+  }
+
   btn.addEventListener('click',actualizar);
   btnStop.addEventListener('click',detener);
   archivo.addEventListener('change',e=>{importar(e.target.files[0]);e.target.value='';});
   filtro.addEventListener('change',cargar);
   q.addEventListener('input',()=>{clearTimeout(timer);timer=setTimeout(cargar,300);});
   cargar();
+  revisarEstadoInicial();
 })();
 </script>
 {% endblock %}

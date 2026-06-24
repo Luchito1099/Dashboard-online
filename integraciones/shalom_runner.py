@@ -21,9 +21,11 @@ def _config(integ):
 
 
 def _progreso(cfg, texto):
-    """Actualiza el texto de avance en vivo (lo lee el panel por polling)."""
+    """Actualiza el texto de avance en vivo (lo lee el panel por polling) y el
+    latido, para que una corrida muerta no deje el flag 'corriendo' trabado."""
     cfg.progreso = texto[:255]
-    cfg.save(update_fields=['progreso'])
+    cfg.latido = timezone.now()
+    cfg.save(update_fields=['progreso', 'latido'])
 
 
 def arreglar_mojibake(s):
@@ -113,7 +115,12 @@ def correr(integ, tipo='manual', user=None, solo=None, orden=None, codigo=None):
 
     cfg = _config(integ)
     if cfg.corriendo:
-        return False, 'Ya hay una corrida en curso.'
+        # Auto-destrabe: si no hay latido reciente, la corrida anterior murió
+        # (redeploy, crash, servidor reiniciado) y dejó el flag trabado.
+        vivo = cfg.latido and (timezone.now() - cfg.latido) < timedelta(minutes=5)
+        if vivo:
+            return False, 'Ya hay una corrida en curso.'
+        # corrida zombie: la damos por muerta y continuamos
     # Limpiar bandera de cancelación de corridas previas
     cfg.cancelar = False
 
@@ -142,11 +149,12 @@ def correr(integ, tipo='manual', user=None, solo=None, orden=None, codigo=None):
                     corte = {'orden': cfg.corte_orden, 'codigo': cfg.corte_codigo, 'fecha': cfg.corte_fecha}
 
                     def _on_pagina(pagina, filas):
-                        _progreso(cfg, f'Etapa 1: página {pagina} · {len(filas)} envíos leídos…')
+                        _progreso(cfg, f'Etapa 1: página {pagina} leída · {len(filas)} envíos en esta página…')
 
                     filas, alcanzo = sc.importar_listado(
                         page, sel, usuario, password, corte, cfg.max_paginas, on_pagina=_on_pagina
                     )
+                    _progreso(cfg, f'Etapa 1: guardando {len(filas)} envíos leídos en la base…')
                     for f in filas:
                         _, creado = _upsert_envio(integ, f)
                         if creado:
@@ -159,7 +167,8 @@ def correr(integ, tipo='manual', user=None, solo=None, orden=None, codigo=None):
                     # Pestaña limpia para rastrea: evita que el estado de pro.shalom
                     # (diálogos, beforeunload) bloquee la navegación entre dominios.
                     pv = ctx.new_page()
-                    sc.asegurar_sesion_rastreo(pv, sel, usuario, password)
+                    log2 = lambda m: _progreso(cfg, f'Etapa 2: {m}')
+                    sc.asegurar_sesion_rastreo(pv, sel, usuario, password, log=log2)
                     if orden and codigo:
                         qs = EnvioShalom.objects.filter(integracion=integ, orden=orden, codigo=codigo)
                     else:
@@ -172,9 +181,10 @@ def correr(integ, tipo='manual', user=None, solo=None, orden=None, codigo=None):
                         if ConfigShalom.objects.filter(pk=cfg.pk, cancelar=True).exists():
                             mensaje = 'Detenido por el usuario. '
                             break
-                        _progreso(cfg, f'[{i}/{total_val}] Consultando {envio.orden}/{envio.codigo}…')
+                        _progreso(cfg, f'[{i}/{total_val}] Consultando {envio.orden}/{envio.codigo} ({envio.nombre or "sin nombre"})…')
                         try:
-                            estado_real = sc.validar_envio(pv, sel, envio.orden, envio.codigo)
+                            log_envio = lambda m, _i=i: _progreso(cfg, f'[{_i}/{total_val}] {m}')
+                            estado_real = sc.validar_envio(pv, sel, envio.orden, envio.codigo, log=log_envio)
                             envio.estado_real = estado_real or 'NO_ENCONTRADO'
                             envio.ultima_validacion = timezone.now()
                             _aplicar_estado(envio, estado_real)
@@ -188,7 +198,7 @@ def correr(integ, tipo='manual', user=None, solo=None, orden=None, codigo=None):
                             envio.save()
                             _progreso(cfg, f'[{i}/{total_val}] {envio.orden}/{envio.codigo} → ERROR (reconectando…)')
                             try:
-                                sc.asegurar_sesion_rastreo(pv, sel, usuario, password)
+                                sc.asegurar_sesion_rastreo(pv, sel, usuario, password, log=log2)
                             except Exception:
                                 pass
                         cont += 1
