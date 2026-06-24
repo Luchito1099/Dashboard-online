@@ -78,7 +78,25 @@ def nuevo_contexto(playwright, integracion):
         timezone_id='America/Lima',
     )
     ctx.add_init_script(_STEALTH_JS)
+    # Timeouts amplios: rastrea.shalom es lento y networkidle no aplica
+    ctx.set_default_navigation_timeout(60000)
+    ctx.set_default_timeout(30000)
     return ctx
+
+
+def ir_a(page, url):
+    """Navega de forma robusta: 'commit' (no espera carga completa) + reintento.
+    Evita los timeouts de páginas lentas/con conexiones persistentes."""
+    for _ in range(2):
+        try:
+            page.goto(url, wait_until='commit', timeout=60000)
+            esperar_carga(page)
+            return True
+        except Exception:
+            espera_humana(2, 4)
+    page.goto(url, wait_until='commit', timeout=60000)
+    esperar_carga(page)
+    return True
 
 
 # ───────────────────────── Utilidades ─────────────────────────
@@ -113,8 +131,21 @@ def parse_fecha(texto):
 # ───────────────────────── Etapa 1: listado ─────────────────────────
 
 def _login_listado(page, sel, usuario, password):
-    page.goto(sel['login_url'], wait_until='domcontentloaded')
+    ir_a(page, sel['login_url'])
     espera_humana(1.5, 3)
+
+    # Con contexto persistente puede que YA haya sesión: si no aparece el formulario
+    # de login (o ya no estamos en /login), saltamos el login.
+    hay_form = False
+    try:
+        page.wait_for_selector(sel['login_email_sel'], timeout=8000)
+        hay_form = True
+    except Exception:
+        hay_form = page.locator(sel['login_email_sel']).count() > 0
+
+    if not hay_form:
+        return '/login' not in page.url  # ya estaba logueado
+
     page.fill(sel['login_email_sel'], usuario)
     espera_humana(0.5, 1.2)
     page.fill(sel['login_pass_sel'], password)
@@ -212,7 +243,7 @@ def _necesita_login_rastreo(page, sel):
 
 
 def asegurar_sesion_rastreo(page, sel, usuario, password):
-    page.goto(sel['rastrea_url'], wait_until='domcontentloaded')
+    ir_a(page, sel['rastrea_url'])
     espera_humana(1, 2)
     movimiento_humano(page)
     if _necesita_login_rastreo(page, sel):

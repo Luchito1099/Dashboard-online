@@ -332,12 +332,15 @@ def api_shalom_envios(request, integracion_id):
     if not es_admin(request.user):
         return JsonResponse({'error': 'sin permiso'}, status=403)
     integ = get_object_or_404(Integracion, id=integracion_id, proveedor='shalom')
+    from .shalom_runner import TERMINAL_REGEX
     qs = integ.envios.all()
     filtro = request.GET.get('estado', '')
     if filtro == 'pendiente':
-        qs = qs.filter(entregado=False)
+        qs = qs.filter(entregado=False).exclude(estado_real__iregex=TERMINAL_REGEX)
     elif filtro == 'entregado':
         qs = qs.filter(entregado=True)
+    elif filtro == 'cerrado':
+        qs = qs.filter(estado_real__iregex=TERMINAL_REGEX)
     elif filtro == 'alerta':
         qs = qs.filter(en_alerta=True)
     q = request.GET.get('q', '').strip()

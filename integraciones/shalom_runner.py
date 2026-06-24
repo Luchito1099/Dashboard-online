@@ -36,16 +36,37 @@ def arreglar_mojibake(s):
     return s
 
 
+# Estados terminales que NO son "entregado" pero ya no deben re-validarse ni mover el corte
+TERMINAL_REGEX = r'retorn|cambio de destino|cambió de destino|descart|devuel|rechaz'
+
+
+def _es_terminal(estado_real):
+    e = (estado_real or '').lower()
+    if 'entregado' in e:
+        return True
+    return any(t in e for t in ('retorn', 'cambio de destino', 'cambió de destino', 'descart', 'devuel', 'rechaz'))
+
+
 def _aplicar_estado(envio, estado_real):
-    """Aplica la semántica de estado:
+    """Semántica de estado:
     - 'entregado' → entregado=True (ya lo recogió el cliente; sin alerta).
-    - 'destino'   → llegó a la agencia: alerta para avisar al cliente (si no notificado)."""
+    - terminal (retornó/cambió de destino/etc) → cerrado: no se re-valida ni alerta.
+    - 'en destino' → llegó a la agencia: alerta para avisar al cliente (si no notificado)."""
     estado_l = (estado_real or '').lower()
     envio.entregado = 'entregado' in estado_l
-    if envio.entregado:
+    if _es_terminal(estado_real):
         envio.en_alerta = False
-    elif 'destino' in estado_l and not envio.notificado:
+    elif 'en destino' in estado_l and not envio.notificado:
         envio.en_alerta = True
+
+
+def _abiertos(integ):
+    """Envíos 'abiertos' = no entregados y sin estado terminal. Son los que se
+    revalidan y los que definen el corte. Excluye retornos/cambios de destino/etc."""
+    from .models import EnvioShalom
+    return (EnvioShalom.objects
+            .filter(integracion=integ, entregado=False)
+            .exclude(estado_real__iregex=TERMINAL_REGEX))
 
 
 def _upsert_envio(integ, f):
@@ -71,8 +92,8 @@ def _upsert_envio(integ, f):
 def _recalcular_corte(integ, cfg):
     """El corte = el envío PENDIENTE (no entregado) más antiguo. De ahí hacia atrás,
     todo está entregado, así que la próxima etapa 1 se detiene en ese punto."""
-    pendiente = (EnvioShalom.objects
-                 .filter(integracion=integ, entregado=False, fecha_pedido__isnull=False)
+    pendiente = (_abiertos(integ)
+                 .filter(fecha_pedido__isnull=False)
                  .order_by('fecha_pedido').first())
     if pendiente:
         cfg.corte_orden = pendiente.orden
@@ -139,7 +160,7 @@ def correr(integ, tipo='manual', user=None, solo=None, orden=None, codigo=None):
                     if orden and codigo:
                         qs = EnvioShalom.objects.filter(integracion=integ, orden=orden, codigo=codigo)
                     else:
-                        qs = EnvioShalom.objects.filter(integracion=integ, entregado=False)
+                        qs = _abiertos(integ)
                     total_val = qs.count()
                     bloque = sc.random.randint(5, 15)
                     cont = 0
