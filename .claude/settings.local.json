@@ -25,7 +25,8 @@
       "Bash(venv/Scripts/python.exe -m playwright install chromium)",
       "Bash(venv/Scripts/python.exe manage.py shalom_actualizar --help)",
       "Bash(venv/Scripts/python.exe -c \"import os,django; os.environ.setdefault\\('DJANGO_SETTINGS_MODULE','config.settings'\\); django.setup\\(\\); from integraciones import shalom_scraper, shalom_runner; print\\('imports OK'\\); print\\('esperar_carga' in dir\\(shalom_scraper\\)\\); print\\('_progreso' in dir\\(shalom_runner\\)\\)\")",
-      "Bash(venv/Scripts/python.exe -c \"import os,django; os.environ.setdefault\\('DJANGO_SETTINGS_MODULE','config.settings'\\); django.setup\\(\\); from integraciones import shalom_scraper; print\\('scraper OK'\\)\")"
+      "Bash(venv/Scripts/python.exe -c \"import os,django; os.environ.setdefault\\('DJANGO_SETTINGS_MODULE','config.settings'\\); django.setup\\(\\); from integraciones import shalom_scraper; print\\('scraper OK'\\)\")",
+      "Bash(venv/Scripts/python.exe -c \"import os,django; os.environ.setdefault\\('DJANGO_SETTINGS_MODULE','config.settings'\\); django.setup\\(\\); from integraciones import shalom_runner; print\\('runner OK'\\)\")"
     ]
   }
 }

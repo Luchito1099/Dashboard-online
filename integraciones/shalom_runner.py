@@ -153,10 +153,13 @@ def correr(integ, tipo='manual', user=None, solo=None, orden=None, codigo=None):
                             nuevos += 1
                     _progreso(cfg, f'Etapa 1 lista: {len(filas)} leídos, {nuevos} nuevos.')
 
-                # ── Etapa 2: validar pendientes ──
+                # ── Etapa 2: validar pendientes (en una PESTAÑA NUEVA) ──
                 if solo != 'importar':
                     _progreso(cfg, 'Etapa 2: preparando rastreo…')
-                    sc.asegurar_sesion_rastreo(page, sel, usuario, password)
+                    # Pestaña limpia para rastrea: evita que el estado de pro.shalom
+                    # (diálogos, beforeunload) bloquee la navegación entre dominios.
+                    pv = ctx.new_page()
+                    sc.asegurar_sesion_rastreo(pv, sel, usuario, password)
                     if orden and codigo:
                         qs = EnvioShalom.objects.filter(integracion=integ, orden=orden, codigo=codigo)
                     else:
@@ -170,7 +173,7 @@ def correr(integ, tipo='manual', user=None, solo=None, orden=None, codigo=None):
                             mensaje = 'Detenido por el usuario. '
                             break
                         try:
-                            estado_real = sc.validar_envio(page, sel, envio.orden, envio.codigo)
+                            estado_real = sc.validar_envio(pv, sel, envio.orden, envio.codigo)
                             envio.estado_real = estado_real or 'NO_ENCONTRADO'
                             envio.ultima_validacion = timezone.now()
                             _aplicar_estado(envio, estado_real)
@@ -183,12 +186,12 @@ def correr(integ, tipo='manual', user=None, solo=None, orden=None, codigo=None):
                             envio.estado_real = 'ERROR'
                             envio.save()
                             try:
-                                sc.asegurar_sesion_rastreo(page, sel, usuario, password)
+                                sc.asegurar_sesion_rastreo(pv, sel, usuario, password)
                             except Exception:
                                 pass
                         cont += 1
                         if cont >= bloque:
-                            sc.pausa_larga_con_actividad(page)
+                            sc.pausa_larga_con_actividad(pv)
                             bloque = sc.random.randint(5, 15)
                             cont = 0
                         else:
