@@ -1,0 +1,55 @@
+/* core/static/core/css/dark.css — Modo oscuro.
+   Sobrescribe las variables de base.css cuando <html data-theme="dark">.
+   No toca base.css; solo redefine los colores. */
+
+html[data-theme="dark"] {
+  /* Fondos y superficies */
+  --bg:          #0b1520;
+  --surface:     #14212f;
+  --border:      #233649;
+  --border-dark: #33485f;
+
+  /* Texto */
+  --text:           #e6eef7;
+  --text-secondary: #aebfd2;
+  --muted:          #7790a8;
+
+  /* Sidebar (un poco más oscuro que las superficies para distinguirlo) */
+  --sidebar-bg:     #0a1320;
+  --sidebar-hover:  #16263a;
+  --sidebar-active: #1d3450;
+  --sidebar-text:   #9ab4cc;
+
+  /* Acento (el teal funciona bien; subimos la opacidad del fondo suave) */
+  --primary-bg: oklch(62% 0.18 195 / 0.16);
+
+  /* Sombras más marcadas sobre fondo oscuro */
+  --shadow:    0 1px 3px rgba(0,0,0,.5), 0 1px 2px rgba(0,0,0,.4);
+  --shadow-md: 0 6px 18px rgba(0,0,0,.55);
+
+  color-scheme: dark;
+}
+
+/* Ajustes puntuales para elementos que en base.css usan blancos/fijos */
+html[data-theme="dark"] input,
+html[data-theme="dark"] select,
+html[data-theme="dark"] textarea {
+  background: var(--surface);
+  color: var(--text);
+  border-color: var(--border-dark);
+}
+html[data-theme="dark"] input::placeholder,
+html[data-theme="dark"] textarea::placeholder { color: var(--muted); }
+
+/* Tarjetas/alertas claras que pudieran venir con fondo fijo */
+html[data-theme="dark"] .alert { filter: brightness(.92); }
+
+/* Botón del switch de tema en el sidebar */
+.theme-toggle {
+  display: flex; align-items: center; gap: 12px; width: 100%;
+  background: transparent; border: none; cursor: pointer;
+  color: var(--sidebar-text); font-family: inherit; font-size: 14px;
+  padding: 10px 14px; border-radius: 10px; transition: background .15s;
+}
+.theme-toggle:hover { background: var(--sidebar-hover); }
+.theme-toggle svg { width: 20px; height: 20px; flex-shrink: 0; }
