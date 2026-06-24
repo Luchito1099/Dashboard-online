@@ -393,6 +393,81 @@ def api_shalom_validar(request, envio_id):
 
 
 @login_required
+def api_shalom_detener(request, integracion_id):
+    """Marca la bandera para detener una corrida en curso. Solo admin (POST)."""
+    if not es_admin(request.user):
+        return JsonResponse({'error': 'sin permiso'}, status=403)
+    if request.method != 'POST':
+        return HttpResponseNotAllowed(['POST'])
+    from .models import ConfigShalom
+    integ = get_object_or_404(Integracion, id=integracion_id, proveedor='shalom')
+    cfg, _ = ConfigShalom.objects.get_or_create(integracion=integ)
+    cfg.cancelar = True
+    cfg.save(update_fields=['cancelar'])
+    return JsonResponse({'ok': True, 'mensaje': 'Se detendrá tras el envío en curso.'})
+
+
+@login_required
+def api_shalom_importar(request, integracion_id):
+    """Importa envíos desde un JSON (lista de objetos del scraper). Solo admin (POST, multipart)."""
+    if not es_admin(request.user):
+        return JsonResponse({'error': 'sin permiso'}, status=403)
+    if request.method != 'POST':
+        return HttpResponseNotAllowed(['POST'])
+    from .models import EnvioShalom, ConfigShalom
+    from . import shalom_runner as runner
+    from .shalom_scraper import parse_fecha
+
+    integ = get_object_or_404(Integracion, id=integracion_id, proveedor='shalom')
+    archivo = request.FILES.get('archivo')
+    if not archivo:
+        return JsonResponse({'error': 'No se envió ningún archivo.'}, status=400)
+    try:
+        datos = json.loads(archivo.read().decode('utf-8'))
+    except (ValueError, UnicodeDecodeError) as e:
+        return JsonResponse({'error': f'JSON inválido: {e}'}, status=400)
+    if not isinstance(datos, list):
+        return JsonResponse({'error': 'El JSON debe ser una lista de envíos.'}, status=400)
+
+    fix = runner.arreglar_mojibake
+    nuevos = actualizados = 0
+    for d in datos:
+        orden = str(d.get('orden', '')).strip()
+        codigo = str(d.get('codigo', '')).strip()
+        if not orden or not codigo:
+            continue
+        envio, creado = EnvioShalom.objects.update_or_create(
+            integracion=integ, orden=orden, codigo=codigo,
+            defaults={
+                'estado': fix(d.get('estado', '')),
+                'estado_real': fix(d.get('estado_real', '')),
+                'producto': fix(d.get('producto', '')),
+                'nombre': fix(d.get('nombre', '')),
+                'dni': d.get('dni', ''),
+                'monto': d.get('monto', ''),
+                'lugar_entrega': fix(d.get('lugar_entrega', '')),
+                'tipo_envio': fix(d.get('tipo_envio', '')),
+                'fecha_texto': d.get('fecha', ''),
+                'fecha_pedido': parse_fecha(d.get('fecha', '')),
+            },
+        )
+        # Respetar entregado del JSON; calcular alerta por estado_real
+        envio.entregado = bool(d.get('entregado'))
+        runner._aplicar_estado(envio, envio.estado_real)
+        if d.get('entregado'):
+            envio.entregado = True
+            envio.en_alerta = False
+        envio.save()
+        nuevos += 1 if creado else 0
+        actualizados += 0 if creado else 1
+
+    # Recalcular corte tras importar
+    cfg, _ = ConfigShalom.objects.get_or_create(integracion=integ)
+    runner._recalcular_corte(integ, cfg)
+    return JsonResponse({'ok': True, 'mensaje': f'{nuevos} nuevos, {actualizados} actualizados.'})
+
+
+@login_required
 def api_shalom_notificar(request, envio_id):
     """Marca un envío como notificado (baja la alerta). Solo admin (POST)."""
     if not es_admin(request.user):

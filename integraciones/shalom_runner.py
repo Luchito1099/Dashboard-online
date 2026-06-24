@@ -1,6 +1,12 @@
 # integraciones/shalom_runner.py
 """Orquesta una corrida de Shalom: etapa 1 (importar) → etapa 2 (validar),
 con marca de agua de corte para no recorrer envíos ya entregados."""
+import os
+
+# Playwright (sync) crea un event loop en el hilo; sin esto, Django bloquea el ORM
+# con SynchronousOnlyOperation. Es seguro aquí porque no hay concurrencia real.
+os.environ.setdefault('DJANGO_ALLOW_ASYNC_UNSAFE', 'true')
+
 from datetime import timedelta
 
 from django.utils import timezone
@@ -12,6 +18,28 @@ from .models import ConfigShalom, EnvioShalom, CorridaShalom
 def _config(integ):
     cfg, _ = ConfigShalom.objects.get_or_create(integracion=integ)
     return cfg
+
+
+def arreglar_mojibake(s):
+    """Corrige texto UTF-8 mal decodificado como latin-1 (ej. 'AÃ©reo' → 'Aéreo')."""
+    if s and 'Ã' in s:
+        try:
+            return s.encode('latin-1').decode('utf-8')
+        except (UnicodeDecodeError, UnicodeEncodeError):
+            return s
+    return s
+
+
+def _aplicar_estado(envio, estado_real):
+    """Aplica la semántica de estado:
+    - 'entregado' → entregado=True (ya lo recogió el cliente; sin alerta).
+    - 'destino'   → llegó a la agencia: alerta para avisar al cliente (si no notificado)."""
+    estado_l = (estado_real or '').lower()
+    envio.entregado = 'entregado' in estado_l
+    if envio.entregado:
+        envio.en_alerta = False
+    elif 'destino' in estado_l and not envio.notificado:
+        envio.en_alerta = True
 
 
 def _upsert_envio(integ, f):
@@ -59,6 +87,8 @@ def correr(integ, tipo='manual', user=None, solo=None, orden=None, codigo=None):
     cfg = _config(integ)
     if cfg.corriendo:
         return False, 'Ya hay una corrida en curso.'
+    # Limpiar bandera de cancelación de corridas previas
+    cfg.cancelar = False
 
     usuario = integ.api_key      # api_key = usuario Shalom
     password = integ.token       # token   = contraseña Shalom
@@ -67,7 +97,7 @@ def correr(integ, tipo='manual', user=None, solo=None, orden=None, codigo=None):
 
     sel = cfg.selectores()
     cfg.corriendo = True
-    cfg.save(update_fields=['corriendo'])
+    cfg.save(update_fields=['corriendo', 'cancelar'])
     corrida = CorridaShalom.objects.create(integracion=integ, tipo=tipo, por=user)
     nuevos = validados = entregados = 0
     ok = True
@@ -96,25 +126,25 @@ def correr(integ, tipo='manual', user=None, solo=None, orden=None, codigo=None):
                         qs = EnvioShalom.objects.filter(integracion=integ, orden=orden, codigo=codigo)
                     else:
                         qs = EnvioShalom.objects.filter(integracion=integ, entregado=False)
-                    palabra = (sel.get('palabra_entregado') or 'entregado').lower()
                     bloque = sc.random.randint(5, 15)
                     cont = 0
                     for envio in qs:
+                        # Botón Detener: revisamos la bandera en BD cada iteración
+                        if ConfigShalom.objects.filter(pk=cfg.pk, cancelar=True).exists():
+                            mensaje = 'Detenido por el usuario. '
+                            break
                         try:
                             estado_real = sc.validar_envio(page, sel, envio.orden, envio.codigo)
                             envio.estado_real = estado_real or 'NO_ENCONTRADO'
                             envio.ultima_validacion = timezone.now()
-                            if estado_real and palabra in estado_real.lower():
-                                envio.entregado = True
+                            _aplicar_estado(envio, estado_real)
+                            if envio.entregado:
                                 entregados += 1
-                                if not envio.notificado:
-                                    envio.en_alerta = True
                             envio.save()
                             validados += 1
-                        except Exception as e:
+                        except Exception:
                             envio.estado_real = 'ERROR'
                             envio.save()
-                            # Si cayó la sesión, re-login
                             try:
                                 sc.asegurar_sesion_rastreo(page, sel, usuario, password)
                             except Exception:
@@ -129,7 +159,7 @@ def correr(integ, tipo='manual', user=None, solo=None, orden=None, codigo=None):
 
                 # ── Recalcular corte ──
                 _recalcular_corte(integ, cfg)
-                mensaje = f'{nuevos} nuevos · {validados} validados · {entregados} entregados.'
+                mensaje += f'{nuevos} nuevos · {validados} validados · {entregados} entregados.'
             finally:
                 ctx.close()
     except Exception as e:
@@ -137,9 +167,10 @@ def correr(integ, tipo='manual', user=None, solo=None, orden=None, codigo=None):
         mensaje = f'Error: {e}'
     finally:
         cfg.corriendo = False
+        cfg.cancelar = False
         cfg.ultima_corrida = timezone.now()
         cfg.ultimo_resultado = mensaje
-        cfg.save(update_fields=['corriendo', 'ultima_corrida', 'ultimo_resultado'])
+        cfg.save(update_fields=['corriendo', 'cancelar', 'ultima_corrida', 'ultimo_resultado'])
         corrida.fin = timezone.now()
         corrida.ok = ok
         corrida.nuevos = nuevos

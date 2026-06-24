@@ -28,6 +28,10 @@
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
       <a href="{% url 'integraciones:lista' %}" class="btn-probar">← Volver</a>
       <button id="sh-actualizar" class="btn-guardar">⚡ Actualizar ahora</button>
+      <button id="sh-detener" class="btn-eliminar" style="display:none;">⏹ Detener</button>
+      <label class="btn-probar" style="cursor:pointer;">⬆ Importar JSON
+        <input id="sh-archivo" type="file" accept="application/json" style="display:none;">
+      </label>
     </div>
   </div>
 
@@ -57,6 +61,8 @@
   const filtro=document.getElementById('sh-filtro');
   const estado=document.getElementById('sh-estado');
   const btn=document.getElementById('sh-actualizar');
+  const btnStop=document.getElementById('sh-detener');
+  const archivo=document.getElementById('sh-archivo');
   let timer=null, poll=null;
 
   function esc(s){const d=document.createElement('div');d.textContent=s==null?'':s;return d.innerHTML;}
@@ -119,12 +125,28 @@
     poll=setInterval(async()=>{
       const r=await fetch(`/integraciones/shalom/${ID}/estado/`);
       const d=await r.json();
-      if(d.corriendo){btn.disabled=true;btn.textContent='⏳ Corriendo…';estado.textContent='Corriendo…';}
-      else{btn.disabled=false;btn.textContent='⚡ Actualizar ahora';estado.textContent='Última corrida: '+(d.ultima_corrida||'—')+' · '+(d.ultimo_resultado||'');clearInterval(poll);poll=null;cargar();}
+      if(d.corriendo){btn.disabled=true;btn.textContent='⏳ Corriendo…';btnStop.style.display='';estado.textContent='Corriendo…';}
+      else{btn.disabled=false;btn.textContent='⚡ Actualizar ahora';btnStop.style.display='none';estado.textContent='Última corrida: '+(d.ultima_corrida||'—')+' · '+(d.ultimo_resultado||'');clearInterval(poll);poll=null;cargar();}
     },4000);
   }
 
+  async function detener(){
+    btnStop.disabled=true;btnStop.textContent='⏹ Deteniendo…';
+    await fetch(`/integraciones/shalom/${ID}/detener/`,{method:'POST',headers:{'X-CSRFToken':CSRF}});
+  }
+
+  async function importar(file){
+    if(!file)return;
+    const fd=new FormData();fd.append('archivo',file);
+    const r=await fetch(`/integraciones/shalom/${ID}/importar/`,{method:'POST',headers:{'X-CSRFToken':CSRF},body:fd});
+    const d=await r.json();
+    alert(r.ok?('Importado: '+d.mensaje):('Error: '+(d.error||'')));
+    if(r.ok)cargar();
+  }
+
   btn.addEventListener('click',actualizar);
+  btnStop.addEventListener('click',detener);
+  archivo.addEventListener('change',e=>{importar(e.target.files[0]);e.target.value='';});
   filtro.addEventListener('change',cargar);
   q.addEventListener('input',()=>{clearTimeout(timer);timer=setTimeout(cargar,300);});
   cargar();
