@@ -68,14 +68,14 @@
       <span class="integ-card-titulo">{{ integ.nombre }}</span>
       {% if integ.etiqueta %}<span class="integ-tag">{{ integ.etiqueta }}</span>{% endif %}
       {% if not integ.activo %}<span class="integ-tag integ-tag-off">inactiva</span>{% endif %}
-      {% if integ.ultimo_test_ok is not None %}
+      {% if integ.proveedor != 'shalom' and integ.ultimo_test_ok is not None %}
         <span class="integ-estado {% if integ.ultimo_test_ok %}ok{% else %}fail{% endif %}">
           {% if integ.ultimo_test_ok %}✓ Conectada{% else %}✕ Error{% endif %}
         </span>
       {% endif %}
     </div>
 
-    {% if integ.ultimo_test_msg %}
+    {% if integ.proveedor != 'shalom' and integ.ultimo_test_msg %}
     <p class="integ-test-msg">{{ integ.ultimo_test_msg }}{% if integ.ultimo_test_en %} · {{ integ.ultimo_test_en|date:"d/m/Y H:i" }}{% endif %}</p>
     {% endif %}
 
@@ -217,13 +217,13 @@
       <a href="{% url 'integraciones:oauth_iniciar' integ.id %}" class="btn-guardar prov-shopify">Conectar con Shopify</a>
       {# Ver envíos / rastreo — solo proveedor shalom #}
       <a href="{% url 'integraciones:shalom_envios' integ.id %}" class="btn-guardar prov-shalom">📦 Ver envíos / rastreo</a>
-      {# Probar conexión #}
-      <form method="post" action="{% url 'integraciones:probar' integ.id %}">
+      {# Probar conexión — acciones de fuente de pedidos (no aplican a Shalom) #}
+      <form method="post" action="{% url 'integraciones:probar' integ.id %}" class="accion-pedidos">
         {% csrf_token %}
         <button type="submit" class="btn-probar">Probar conexión</button>
       </form>
       {# Sincronizar pedidos (jala todo) #}
-      <form method="post" action="{% url 'integraciones:sincronizar' integ.id %}">
+      <form method="post" action="{% url 'integraciones:sincronizar' integ.id %}" class="accion-pedidos">
         {% csrf_token %}
         <button type="submit" class="btn-probar">Sincronizar pedidos</button>
       </form>
@@ -233,7 +233,7 @@
         <button type="submit" class="btn-probar">⚡ Pedidos en tiempo real</button>
       </form>
       {% if integ.pedidos_count %}
-      <a href="{% url 'integraciones:pedidos' integ.id %}" class="btn-probar">Ver pedidos ({{ integ.pedidos_count }})</a>
+      <a href="{% url 'integraciones:pedidos' integ.id %}" class="btn-probar accion-pedidos">Ver pedidos ({{ integ.pedidos_count }})</a>
       {% endif %}
       {# Eliminar (form aparte, no se anidan formularios) #}
       <form method="post" action="{% url 'integraciones:eliminar' integ.id %}"
@@ -271,6 +271,8 @@
     card.querySelectorAll('.prov-shopify').forEach(el => el.style.display = esShopify ? '' : 'none');
     // Elementos solo de Shalom (credenciales + ajustes scraper + ver envíos)
     card.querySelectorAll('.prov-shalom').forEach(el => el.style.display = esShalom ? '' : 'none');
+    // Acciones de fuente de pedidos (probar/sincronizar/ver pedidos): no aplican a Shalom
+    card.querySelectorAll('.accion-pedidos').forEach(el => el.style.display = esShalom ? 'none' : '');
     // Bloque de claves de API (Shopify y WooCommerce); oculto en Shalom y sin conector
     card.querySelectorAll('.cred-keys').forEach(el => el.style.display = (esShopify || esWoo) ? '' : 'none');
     // "En preparación" para proveedores sin conector
