@@ -361,6 +361,7 @@ def api_shalom_estado(request, integracion_id):
     cfg, _ = ConfigShalom.objects.get_or_create(integracion=integ)
     return JsonResponse({
         'corriendo': cfg.corriendo,
+        'progreso': cfg.progreso,
         'ultima_corrida': cfg.ultima_corrida.strftime('%d/%m/%Y %H:%M') if cfg.ultima_corrida else '',
         'ultimo_resultado': cfg.ultimo_resultado,
     })

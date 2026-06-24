@@ -31,6 +31,16 @@ def espera_humana(minimo=1.0, maximo=2.5):
     time.sleep(random.uniform(minimo, maximo))
 
 
+def esperar_carga(page):
+    """Espera tolerante: 'networkidle' suele colgarse en sitios con conexiones
+    persistentes. Usamos 'domcontentloaded' y damos un margen sin reventar si falla."""
+    try:
+        page.wait_for_load_state('domcontentloaded', timeout=20000)
+    except Exception:
+        pass
+    espera_humana(0.5, 1.2)
+
+
 def movimiento_humano(page):
     try:
         page.mouse.move(random.randint(100, 900), random.randint(100, 600), steps=random.randint(5, 15))
@@ -103,7 +113,7 @@ def parse_fecha(texto):
 # ───────────────────────── Etapa 1: listado ─────────────────────────
 
 def _login_listado(page, sel, usuario, password):
-    page.goto(sel['login_url'], wait_until='networkidle')
+    page.goto(sel['login_url'], wait_until='domcontentloaded')
     espera_humana(1.5, 3)
     page.fill(sel['login_email_sel'], usuario)
     espera_humana(0.5, 1.2)
@@ -115,7 +125,7 @@ def _login_listado(page, sel, usuario, password):
         pass
     espera_humana(0.5, 1)
     page.click(sel['login_submit_sel'])
-    page.wait_for_load_state('networkidle')
+    esperar_carga(page)
     espera_humana(2, 3)
     return '/login' not in page.url
 
@@ -156,7 +166,7 @@ def importar_listado(page, sel, usuario, password, corte, max_paginas, on_pagina
     page.click(sel['menu_operaciones_sel'])
     espera_humana(0.8, 1.5)
     page.click(f"text={sel['menu_seguimiento_text']}")
-    page.wait_for_load_state('networkidle')
+    esperar_carga(page)
     espera_humana(2, 3)
 
     todos = []
@@ -188,7 +198,7 @@ def importar_listado(page, sel, usuario, password, corte, max_paginas, on_pagina
             break
         espera_humana(1.5, 3)
         boton.click()
-        page.wait_for_load_state('networkidle')
+        esperar_carga(page)
         espera_humana(1, 2)
         pagina += 1
 
@@ -202,7 +212,7 @@ def _necesita_login_rastreo(page, sel):
 
 
 def asegurar_sesion_rastreo(page, sel, usuario, password):
-    page.goto(sel['rastrea_url'], wait_until='networkidle')
+    page.goto(sel['rastrea_url'], wait_until='domcontentloaded')
     espera_humana(1, 2)
     movimiento_humano(page)
     if _necesita_login_rastreo(page, sel):
@@ -211,7 +221,7 @@ def asegurar_sesion_rastreo(page, sel, usuario, password):
         page.fill(sel['rastrea_pass_sel'], password)
         espera_humana(0.5, 1)
         page.click(sel['rastrea_submit_sel'])
-        page.wait_for_load_state('networkidle')
+        esperar_carga(page)
         espera_humana(1.5, 2.5)
 
 
@@ -228,7 +238,7 @@ def validar_envio(page, sel, orden, codigo):
     in_codigo.first.fill(''); in_codigo.first.fill(codigo); espera_humana(0.5, 1)
     movimiento_humano(page)
     page.click(sel['rastrea_submit_sel'])
-    page.wait_for_load_state('networkidle')
+    esperar_carga(page)
     espera_humana(1.5, 2.5)
 
     loc = page.locator(sel['rastrea_estado_sel']).first

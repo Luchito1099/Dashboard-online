@@ -20,6 +20,12 @@ def _config(integ):
     return cfg
 
 
+def _progreso(cfg, texto):
+    """Actualiza el texto de avance en vivo (lo lee el panel por polling)."""
+    cfg.progreso = texto[:255]
+    cfg.save(update_fields=['progreso'])
+
+
 def arreglar_mojibake(s):
     """Corrige texto UTF-8 mal decodificado como latin-1 (ej. 'AÃ©reo' → 'Aéreo')."""
     if s and 'Ã' in s:
@@ -104,28 +110,37 @@ def correr(integ, tipo='manual', user=None, solo=None, orden=None, codigo=None):
     mensaje = ''
 
     try:
+        _progreso(cfg, 'Abriendo navegador…')
         with sync_playwright() as p:
             ctx = sc.nuevo_contexto(p, integ)
             page = ctx.pages[0] if ctx.pages else ctx.new_page()
             try:
                 # ── Etapa 1: importar listado ──
                 if solo != 'validar' and not orden:
+                    _progreso(cfg, 'Etapa 1: iniciando sesión en pro.shalom.pe…')
                     corte = {'orden': cfg.corte_orden, 'codigo': cfg.corte_codigo, 'fecha': cfg.corte_fecha}
+
+                    def _on_pagina(pagina, filas):
+                        _progreso(cfg, f'Etapa 1: página {pagina} · {len(filas)} envíos leídos…')
+
                     filas, alcanzo = sc.importar_listado(
-                        page, sel, usuario, password, corte, cfg.max_paginas
+                        page, sel, usuario, password, corte, cfg.max_paginas, on_pagina=_on_pagina
                     )
                     for f in filas:
                         _, creado = _upsert_envio(integ, f)
                         if creado:
                             nuevos += 1
+                    _progreso(cfg, f'Etapa 1 lista: {len(filas)} leídos, {nuevos} nuevos.')
 
                 # ── Etapa 2: validar pendientes ──
                 if solo != 'importar':
+                    _progreso(cfg, 'Etapa 2: preparando rastreo…')
                     sc.asegurar_sesion_rastreo(page, sel, usuario, password)
                     if orden and codigo:
                         qs = EnvioShalom.objects.filter(integracion=integ, orden=orden, codigo=codigo)
                     else:
                         qs = EnvioShalom.objects.filter(integracion=integ, entregado=False)
+                    total_val = qs.count()
                     bloque = sc.random.randint(5, 15)
                     cont = 0
                     for envio in qs:
@@ -142,6 +157,7 @@ def correr(integ, tipo='manual', user=None, solo=None, orden=None, codigo=None):
                                 entregados += 1
                             envio.save()
                             validados += 1
+                            _progreso(cfg, f'Etapa 2: validando {validados}/{total_val} · {entregados} entregados…')
                         except Exception:
                             envio.estado_real = 'ERROR'
                             envio.save()
@@ -168,9 +184,10 @@ def correr(integ, tipo='manual', user=None, solo=None, orden=None, codigo=None):
     finally:
         cfg.corriendo = False
         cfg.cancelar = False
+        cfg.progreso = ''
         cfg.ultima_corrida = timezone.now()
         cfg.ultimo_resultado = mensaje
-        cfg.save(update_fields=['corriendo', 'cancelar', 'ultima_corrida', 'ultimo_resultado'])
+        cfg.save(update_fields=['corriendo', 'cancelar', 'progreso', 'ultima_corrida', 'ultimo_resultado'])
         corrida.fin = timezone.now()
         corrida.ok = ok
         corrida.nuevos = nuevos

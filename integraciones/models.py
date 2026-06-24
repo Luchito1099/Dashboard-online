@@ -248,6 +248,7 @@ class ConfigShalom(models.Model):
     # Estado de ejecución
     corriendo = models.BooleanField(default=False)
     cancelar = models.BooleanField(default=False)   # bandera para detener una corrida
+    progreso = models.CharField(max_length=255, blank=True)   # texto de avance en vivo
     ultima_corrida = models.DateTimeField(null=True, blank=True)
     ultimo_resultado = models.TextField(blank=True)
 

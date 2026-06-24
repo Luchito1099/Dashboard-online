@@ -125,7 +125,7 @@
     poll=setInterval(async()=>{
       const r=await fetch(`/integraciones/shalom/${ID}/estado/`);
       const d=await r.json();
-      if(d.corriendo){btn.disabled=true;btn.textContent='⏳ Corriendo…';btnStop.style.display='';estado.textContent='Corriendo…';}
+      if(d.corriendo){btn.disabled=true;btn.textContent='⏳ Corriendo…';btnStop.style.display='';estado.textContent=d.progreso||'Corriendo…';}
       else{btn.disabled=false;btn.textContent='⚡ Actualizar ahora';btnStop.style.display='none';estado.textContent='Última corrida: '+(d.ultima_corrida||'—')+' · '+(d.ultimo_resultado||'');clearInterval(poll);poll=null;cargar();}
     },4000);
   }
