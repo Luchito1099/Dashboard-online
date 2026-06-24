@@ -35,6 +35,15 @@
     </div>
   </div>
 
+  {# Panel de logs — visible solo mientras corre #}
+  <div id="sh-logs-box" style="display:none;background:var(--bg-card,#1a1a2e);border:1px solid var(--border,#333);border-radius:8px;padding:12px 14px;margin-bottom:16px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+      <span style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;">Log en vivo</span>
+      <button id="sh-logs-limpiar" style="font-size:11px;background:none;border:none;color:var(--muted);cursor:pointer;padding:0;">Limpiar</button>
+    </div>
+    <div id="sh-logs" style="font-family:monospace;font-size:12px;color:#aaa;max-height:220px;overflow-y:auto;line-height:1.7;"></div>
+  </div>
+
   {# Filtros #}
   <div class="sh-filtros">
     <input id="sh-q" type="text" placeholder="🔎 Buscar nombre, orden, código o DNI…">
@@ -64,7 +73,25 @@
   const btn=document.getElementById('sh-actualizar');
   const btnStop=document.getElementById('sh-detener');
   const archivo=document.getElementById('sh-archivo');
-  let timer=null, poll=null;
+  const logsBox=document.getElementById('sh-logs-box');
+  const logsDiv=document.getElementById('sh-logs');
+  document.getElementById('sh-logs-limpiar').addEventListener('click',()=>{logsDiv.innerHTML='';});
+  let timer=null, poll=null, deteniendo=false, ultimoLog='';
+
+  function ts(){return new Date().toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit',second:'2-digit'});}
+
+  function agregarLog(msg){
+    if(!msg||msg===ultimoLog)return;
+    ultimoLog=msg;
+    logsBox.style.display='';
+    const el=document.createElement('div');
+    const esError=msg.includes('ERROR')||msg.includes('Pausa');
+    const esOk=msg.includes('→')&&!msg.includes('ERROR');
+    el.style.color=esError?'#f87171':(esOk?'#6ee7b7':'#aaa');
+    el.textContent=`[${ts()}] ${msg}`;
+    logsDiv.appendChild(el);
+    logsBox.scrollTop=logsBox.scrollHeight;
+  }
 
   function esc(s){const d=document.createElement('div');d.textContent=s==null?'':s;return d.innerHTML;}
 
@@ -116,7 +143,9 @@
   }
 
   async function actualizar(){
+    deteniendo=false;ultimoLog='';
     btn.disabled=true;btn.textContent='⏳ Iniciando…';
+    btnStop.style.display='';btnStop.disabled=false;btnStop.textContent='⏹ Detener';
     await fetch(`/integraciones/shalom/${ID}/actualizar/`,{method:'POST',headers:{'X-CSRFToken':CSRF}});
     iniciarPoll();
   }
@@ -126,13 +155,31 @@
     poll=setInterval(async()=>{
       const r=await fetch(`/integraciones/shalom/${ID}/estado/`);
       const d=await r.json();
-      if(d.corriendo){btn.disabled=true;btn.textContent='⏳ Corriendo…';btnStop.style.display='';estado.textContent=d.progreso||'Corriendo…';}
-      else{btn.disabled=false;btn.textContent='⚡ Actualizar ahora';btnStop.style.display='none';estado.textContent='Última corrida: '+(d.ultima_corrida||'—')+' · '+(d.ultimo_resultado||'');clearInterval(poll);poll=null;cargar();}
+      if(d.corriendo){
+        btn.disabled=true;
+        if(deteniendo){
+          btn.textContent='⏹ Deteniendo…';
+          btnStop.style.display='none';
+        } else {
+          btn.textContent='⏳ Corriendo…';
+          btnStop.style.display='';
+        }
+        if(d.progreso){estado.textContent=d.progreso;agregarLog(d.progreso);}
+      } else {
+        deteniendo=false;
+        btn.disabled=false;btn.textContent='⚡ Actualizar ahora';
+        btnStop.style.display='none';
+        estado.textContent='Última corrida: '+(d.ultima_corrida||'—')+' · '+(d.ultimo_resultado||'');
+        agregarLog('Corrida finalizada: '+(d.ultimo_resultado||''));
+        clearInterval(poll);poll=null;cargar();
+      }
     },4000);
   }
 
   async function detener(){
-    btnStop.disabled=true;btnStop.textContent='⏹ Deteniendo…';
+    deteniendo=true;
+    btn.textContent='⏹ Deteniendo…';
+    btnStop.style.display='none';
     await fetch(`/integraciones/shalom/${ID}/detener/`,{method:'POST',headers:{'X-CSRFToken':CSRF}});
   }
 

@@ -167,11 +167,12 @@ def correr(integ, tipo='manual', user=None, solo=None, orden=None, codigo=None):
                     total_val = qs.count()
                     bloque = sc.random.randint(5, 15)
                     cont = 0
-                    for envio in qs:
+                    for i, envio in enumerate(qs, 1):
                         # Botón Detener: revisamos la bandera en BD cada iteración
                         if ConfigShalom.objects.filter(pk=cfg.pk, cancelar=True).exists():
                             mensaje = 'Detenido por el usuario. '
                             break
+                        _progreso(cfg, f'[{i}/{total_val}] Consultando {envio.orden}/{envio.codigo}…')
                         try:
                             estado_real = sc.validar_envio(pv, sel, envio.orden, envio.codigo)
                             envio.estado_real = estado_real or 'NO_ENCONTRADO'
@@ -181,16 +182,18 @@ def correr(integ, tipo='manual', user=None, solo=None, orden=None, codigo=None):
                                 entregados += 1
                             envio.save()
                             validados += 1
-                            _progreso(cfg, f'Etapa 2: validando {validados}/{total_val} · {entregados} entregados…')
+                            _progreso(cfg, f'[{i}/{total_val}] {envio.orden}/{envio.codigo} → {envio.estado_real}')
                         except Exception:
                             envio.estado_real = 'ERROR'
                             envio.save()
+                            _progreso(cfg, f'[{i}/{total_val}] {envio.orden}/{envio.codigo} → ERROR (reconectando…)')
                             try:
                                 sc.asegurar_sesion_rastreo(pv, sel, usuario, password)
                             except Exception:
                                 pass
                         cont += 1
                         if cont >= bloque:
+                            _progreso(cfg, f'— Pausa de bloque ({cont} pedidos procesados, {validados} ok, {entregados} entregados) —')
                             sc.pausa_larga_con_actividad(pv)
                             bloque = sc.random.randint(5, 15)
                             cont = 0
