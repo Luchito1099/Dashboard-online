@@ -28,6 +28,7 @@
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
       <a href="{% url 'integraciones:lista' %}" class="btn-probar">← Volver</a>
       <button id="sh-actualizar" class="btn-guardar">⚡ Actualizar ahora</button>
+      <button id="sh-validar" class="btn-probar" title="No re-descarga el listado; solo valida los pedidos ya guardados">🔄 Solo validar (etapa 2)</button>
       <button id="sh-detener" class="btn-eliminar" style="display:none;">⏹ Detener</button>
       <label class="btn-probar" style="cursor:pointer;">⬆ Importar JSON
         <input id="sh-archivo" type="file" accept="application/json" style="display:none;">
@@ -71,6 +72,7 @@
   const filtro=document.getElementById('sh-filtro');
   const estado=document.getElementById('sh-estado');
   const btn=document.getElementById('sh-actualizar');
+  const btnValidar=document.getElementById('sh-validar');
   const btnStop=document.getElementById('sh-detener');
   const archivo=document.getElementById('sh-archivo');
   const logsBox=document.getElementById('sh-logs-box');
@@ -142,11 +144,14 @@
     return r.ok;
   }
 
-  async function actualizar(){
+  async function actualizar(solo){
     deteniendo=false;ultimoLog='';
-    btn.disabled=true;btn.textContent='⏳ Iniciando…';
+    btn.disabled=true;btnValidar.disabled=true;
+    btn.textContent='⏳ Iniciando…';
     btnStop.style.display='';btnStop.disabled=false;btnStop.textContent='⏹ Detener';
-    await fetch(`/integraciones/shalom/${ID}/actualizar/`,{method:'POST',headers:{'X-CSRFToken':CSRF}});
+    const qp=solo?('?solo='+solo):'';
+    await fetch(`/integraciones/shalom/${ID}/actualizar/`+qp,{method:'POST',headers:{'X-CSRFToken':CSRF}});
+    agregarLog(solo==='validar'?'Iniciando SOLO validación (etapa 2, sin re-descargar listado)…':'Iniciando actualización completa…');
     iniciarPoll();
   }
 
@@ -156,7 +161,7 @@
       const r=await fetch(`/integraciones/shalom/${ID}/estado/`);
       const d=await r.json();
       if(d.corriendo){
-        btn.disabled=true;
+        btn.disabled=true;btnValidar.disabled=true;
         if(deteniendo){
           btn.textContent='⏹ Deteniendo…';
           btnStop.style.display='none';
@@ -168,6 +173,7 @@
       } else {
         deteniendo=false;
         btn.disabled=false;btn.textContent='⚡ Actualizar ahora';
+        btnValidar.disabled=false;
         btnStop.style.display='none';
         estado.textContent='Última corrida: '+(d.ultima_corrida||'—')+' · '+(d.ultimo_resultado||'');
         agregarLog('Corrida finalizada: '+(d.ultimo_resultado||''));
@@ -198,7 +204,7 @@
       const r=await fetch(`/integraciones/shalom/${ID}/estado/`);
       const d=await r.json();
       if(d.corriendo){
-        btn.disabled=true;btn.textContent='⏳ Corriendo…';
+        btn.disabled=true;btn.textContent='⏳ Corriendo…';btnValidar.disabled=true;
         btnStop.style.display='';
         if(d.progreso)agregarLog(d.progreso);
         iniciarPoll();
@@ -208,7 +214,8 @@
     }catch(e){}
   }
 
-  btn.addEventListener('click',actualizar);
+  btn.addEventListener('click',()=>actualizar());
+  btnValidar.addEventListener('click',()=>actualizar('validar'));
   btnStop.addEventListener('click',detener);
   archivo.addEventListener('change',e=>{importar(e.target.files[0]);e.target.value='';});
   filtro.addEventListener('change',cargar);

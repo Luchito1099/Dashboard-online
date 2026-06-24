@@ -385,14 +385,26 @@ def api_shalom_estado(request, integracion_id):
 
 @login_required
 def api_shalom_actualizar(request, integracion_id):
-    """Lanza una corrida manual en segundo plano. Solo admin (POST)."""
+    """Lanza una corrida manual en segundo plano. Solo admin (POST).
+    ?solo=validar → salta la etapa 1 (no re-descarga el listado) y valida lo que
+    ya está en la base. ?solo=importar → solo descarga el listado."""
     if not es_admin(request.user):
         return JsonResponse({'error': 'sin permiso'}, status=403)
     if request.method != 'POST':
         return HttpResponseNotAllowed(['POST'])
     integ = get_object_or_404(Integracion, id=integracion_id, proveedor='shalom')
-    _lanzar_shalom(['--integracion', str(integ.id), '--manual'])
-    return JsonResponse({'ok': True, 'mensaje': 'Actualización iniciada en segundo plano.'})
+    args = ['--integracion', str(integ.id), '--manual']
+    solo = request.GET.get('solo', '')
+    if solo == 'validar':
+        args.append('--solo-validar')
+        msg = 'Validación (etapa 2) iniciada en segundo plano.'
+    elif solo == 'importar':
+        args.append('--solo-importar')
+        msg = 'Importación (etapa 1) iniciada en segundo plano.'
+    else:
+        msg = 'Actualización completa iniciada en segundo plano.'
+    _lanzar_shalom(args)
+    return JsonResponse({'ok': True, 'mensaje': msg})
 
 
 @login_required
