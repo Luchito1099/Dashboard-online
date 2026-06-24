@@ -265,15 +265,63 @@ def asegurar_sesion_rastreo(page, sel, usuario, password, log=_noop):
         log('Sesión ya activa, formulario de búsqueda listo.')
 
 
+def _leer_estado(page, estado_sel, fb_sel, log):
+    """Espera a que el resultado renderice (carga por JS) y lee el estado."""
+    try:
+        page.wait_for_selector(f'{estado_sel}, {fb_sel}', timeout=12000, state='visible')
+    except Exception:
+        espera_humana(1.5, 2.5)
+    loc = page.locator(estado_sel).first
+    if loc.count() == 0:
+        loc = page.locator(fb_sel).first
+    if loc.count() == 0:
+        return None
+    texto = loc.inner_text().strip()
+    return texto or None
+
+
+def _url_detalle(sel, orden, codigo):
+    """URL directa del rastreo: https://shalom.com.pe/rastrea/{orden}/{codigo}."""
+    plantilla = sel.get('rastrea_detalle_url', '')
+    if plantilla:
+        return plantilla.replace('{orden}', orden).replace('{codigo}', codigo)
+    base = sel.get('rastrea_url', '').replace('/login', '').rstrip('/')
+    return f'{base}/{orden}/{codigo}' if base else ''
+
+
 def validar_envio(page, sel, orden, codigo, log=_noop):
-    """Busca un envío y devuelve su estado real (o None)."""
+    """Devuelve el estado real de un envío (o None).
+    Método 1 (principal): URL directa /rastrea/{orden}/{codigo}.
+    Método 2 (respaldo): formulario de búsqueda."""
+    estado_sel = sel['rastrea_estado_sel']
+    fb_sel = sel['rastrea_estado_sel_fallback']
+
+    # ── Método 1: URL directa ──
+    url = _url_detalle(sel, orden, codigo)
+    if url:
+        log(f'Abriendo URL directa: {url}')
+        try:
+            ir_a(page, url)
+            texto = _leer_estado(page, estado_sel, fb_sel, log)
+            if texto:
+                log(f'Estado leído (URL directa): {texto}')
+                return texto
+            log(f'URL directa sin estado (página: {page.url}). Probando formulario…')
+        except Exception as e:
+            log(f'URL directa falló ({type(e).__name__}). Probando formulario…')
+
+    # ── Método 2: formulario de búsqueda ──
+    try:
+        ir_a(page, sel.get('rastrea_url', '').replace('/login', '').rstrip('/'))
+    except Exception:
+        pass
     movimiento_humano(page)
     in_orden = page.locator(sel['rastrea_orden_sel'])
     in_codigo = page.locator(sel['rastrea_codigo_sel'])
     if in_orden.count() == 0:
-        log('⚠ No se encontró el formulario de búsqueda en la página.')
+        log(f'⚠ No se encontró el formulario de búsqueda (página: {page.url}).')
         return None
-    log(f'Escribiendo orden {orden} y código {codigo}…')
+    log(f'Escribiendo orden {orden} y código {codigo} en el formulario…')
     in_orden.first.click(); espera_humana(0.3, 0.6)
     in_orden.first.fill(''); in_orden.first.fill(orden); espera_humana(0.5, 1)
     in_codigo.first.click(); espera_humana(0.3, 0.6)
@@ -282,23 +330,7 @@ def validar_envio(page, sel, orden, codigo, log=_noop):
     log('Enviando consulta y esperando resultado…')
     page.click(sel['rastrea_submit_sel'])
     esperar_carga(page)
-
-    # El resultado se renderiza por JavaScript DESPUÉS de la carga del DOM. Si
-    # leemos de inmediato (como hacía antes) el elemento aún no existe y todo
-    # sale 'NO_ENCONTRADO'. Esperamos a que aparezca el estado antes de leerlo.
-    estado_sel = sel['rastrea_estado_sel']
-    fb_sel = sel['rastrea_estado_sel_fallback']
-    try:
-        page.wait_for_selector(f'{estado_sel}, {fb_sel}', timeout=15000, state='visible')
-    except Exception:
-        # Puede ser un envío que realmente no existe; damos un margen y seguimos.
-        espera_humana(1.5, 2.5)
-
-    loc = page.locator(estado_sel).first
-    if loc.count() == 0:
-        loc = page.locator(fb_sel).first
-    if loc.count() == 0:
-        log('⚠ No se encontró el estado en la página de resultado.')
-        return None
-    texto = loc.inner_text().strip()
-    return texto or None
+    texto = _leer_estado(page, estado_sel, fb_sel, log)
+    if not texto:
+        log(f'⚠ No se encontró el estado (formulario). Página final: {page.url}')
+    return texto

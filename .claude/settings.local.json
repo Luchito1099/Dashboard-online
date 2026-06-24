@@ -35,7 +35,8 @@
       "PowerShell(& \".\\\\venv\\\\Scripts\\\\python.exe\" manage.py makemigrations integraciones)",
       "PowerShell(& \".\\\\venv\\\\Scripts\\\\python.exe\" manage.py migrate integraciones)",
       "PowerShell(& \".\\\\venv\\\\Scripts\\\\python.exe\" -c \"import ast; ast.parse\\(open\\('integraciones/shalom_runner.py'\\).read\\(\\)\\); ast.parse\\(open\\('integraciones/shalom_scraper.py'\\).read\\(\\)\\); ast.parse\\(open\\('integraciones/views.py'\\).read\\(\\)\\); print\\('Sintaxis OK'\\)\")",
-      "PowerShell(& \".\\\\venv\\\\Scripts\\\\python.exe\" -c \"import ast; [ast.parse\\(open\\(f, encoding='utf-8'\\).read\\(\\)\\) for f in ['integraciones/shalom_runner.py','integraciones/shalom_scraper.py','integraciones/views.py','integraciones/models.py']]; print\\('Sintaxis OK en los 4 archivos'\\)\")"
+      "PowerShell(& \".\\\\venv\\\\Scripts\\\\python.exe\" -c \"import ast; [ast.parse\\(open\\(f, encoding='utf-8'\\).read\\(\\)\\) for f in ['integraciones/shalom_runner.py','integraciones/shalom_scraper.py','integraciones/views.py','integraciones/models.py']]; print\\('Sintaxis OK en los 4 archivos'\\)\")",
+      "PowerShell(& \".\\\\venv\\\\Scripts\\\\python.exe\" -c \"import ast; [ast.parse\\(open\\(f, encoding='utf-8'\\).read\\(\\)\\) for f in ['integraciones/shalom_scraper.py','integraciones/models.py','integraciones/shalom_runner.py']]; print\\('Sintaxis OK'\\)\")"
     ]
   }
 }

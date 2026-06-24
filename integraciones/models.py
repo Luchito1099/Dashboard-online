@@ -214,6 +214,8 @@ DEFAULT_SHALOM_SCRAPER = {
     'rastrea_submit_sel': 'button[type="submit"]',
     'rastrea_orden_sel': 'input[maxlength="8"]',
     'rastrea_codigo_sel': 'input[maxlength="4"]',
+    # URL directa del detalle (método principal). {orden}/{codigo} se reemplazan.
+    'rastrea_detalle_url': 'https://shalom.com.pe/rastrea/{orden}/{codigo}',
     'rastrea_estado_sel': '.text-4xl.text-red-color-sidebar',
     'rastrea_estado_sel_fallback': '.text-red-color-sidebar',
     # Palabra que indica entrega en el estado real
