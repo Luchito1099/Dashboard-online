@@ -71,8 +71,11 @@ def _abiertos(integ):
             .exclude(estado_real__iregex=TERMINAL_REGEX))
 
 
-def _upsert_envio(integ, f):
-    """Crea/actualiza un EnvioShalom desde una fila del listado. Devuelve (envio, creado)."""
+def _upsert_envio(integ, f, palabra_entregado='entregado'):
+    """Crea/actualiza un EnvioShalom desde una fila del listado. Devuelve (envio, creado).
+
+    Si el listado de etapa 1 ya marca el envío como ENTREGADO, lo cerramos aquí:
+    así no se vuelve a buscar en etapa 2 (es la 'referencia de corte' del usuario)."""
     fecha = sc.parse_fecha(f.get('fecha', ''))
     envio, creado = EnvioShalom.objects.update_or_create(
         integracion=integ, orden=f['orden'], codigo=f['codigo'],
@@ -88,6 +91,13 @@ def _upsert_envio(integ, f):
             'fecha_pedido': fecha,
         },
     )
+    estado_listado = (f.get('estado', '') or '').lower()
+    if palabra_entregado and palabra_entregado.lower() in estado_listado and not envio.entregado:
+        envio.entregado = True
+        envio.en_alerta = False
+        if not envio.estado_real:
+            envio.estado_real = f.get('estado', '')
+        envio.save(update_fields=['entregado', 'en_alerta', 'estado_real'])
     return envio, creado
 
 
@@ -155,8 +165,9 @@ def correr(integ, tipo='manual', user=None, solo=None, orden=None, codigo=None):
                         page, sel, usuario, password, corte, cfg.max_paginas, on_pagina=_on_pagina
                     )
                     _progreso(cfg, f'Etapa 1: guardando {len(filas)} envíos leídos en la base…')
+                    palabra_ent = sel.get('palabra_entregado', 'entregado')
                     for f in filas:
-                        _, creado = _upsert_envio(integ, f)
+                        _, creado = _upsert_envio(integ, f, palabra_ent)
                         if creado:
                             nuevos += 1
                     _progreso(cfg, f'Etapa 1 lista: {len(filas)} leídos, {nuevos} nuevos.')

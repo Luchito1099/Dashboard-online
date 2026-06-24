@@ -282,12 +282,23 @@ def validar_envio(page, sel, orden, codigo, log=_noop):
     log('Enviando consulta y esperando resultado…')
     page.click(sel['rastrea_submit_sel'])
     esperar_carga(page)
-    espera_humana(1.5, 2.5)
 
-    loc = page.locator(sel['rastrea_estado_sel']).first
+    # El resultado se renderiza por JavaScript DESPUÉS de la carga del DOM. Si
+    # leemos de inmediato (como hacía antes) el elemento aún no existe y todo
+    # sale 'NO_ENCONTRADO'. Esperamos a que aparezca el estado antes de leerlo.
+    estado_sel = sel['rastrea_estado_sel']
+    fb_sel = sel['rastrea_estado_sel_fallback']
+    try:
+        page.wait_for_selector(f'{estado_sel}, {fb_sel}', timeout=15000, state='visible')
+    except Exception:
+        # Puede ser un envío que realmente no existe; damos un margen y seguimos.
+        espera_humana(1.5, 2.5)
+
+    loc = page.locator(estado_sel).first
     if loc.count() == 0:
-        loc = page.locator(sel['rastrea_estado_sel_fallback']).first
+        loc = page.locator(fb_sel).first
     if loc.count() == 0:
         log('⚠ No se encontró el estado en la página de resultado.')
         return None
-    return loc.inner_text().strip()
+    texto = loc.inner_text().strip()
+    return texto or None
