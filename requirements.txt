@@ -6,3 +6,4 @@ python-dotenv
 pillow
 cryptography
 requests
+playwright

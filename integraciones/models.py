@@ -25,11 +25,13 @@ class Integracion(models.Model):
     PROVEEDOR_SHOPIFY = 'shopify'
     PROVEEDOR_WOOCOMMERCE = 'woocommerce'
     PROVEEDOR_WORDPRESS = 'wordpress'
+    PROVEEDOR_SHALOM = 'shalom'
     PROVEEDOR_OTRO = 'otro'
     PROVEEDOR_CHOICES = [
         (PROVEEDOR_SHOPIFY, 'Shopify'),
         (PROVEEDOR_WOOCOMMERCE, 'WooCommerce'),
         (PROVEEDOR_WORDPRESS, 'WordPress'),
+        (PROVEEDOR_SHALOM, 'Shalom'),
         (PROVEEDOR_OTRO, 'Otro'),
     ]
 
@@ -182,3 +184,145 @@ class PedidoItem(models.Model):
 
     def __str__(self):
         return f'{self.cantidad}× {self.nombre}'
+
+
+# ───────────────────────── Shalom (rastreo por scraper) ─────────────────────────
+
+# Selectores/URLs por defecto (derivados de los scripts del usuario). Editables desde la UI.
+DEFAULT_SHALOM_SCRAPER = {
+    # Etapa 1 — listado (pro.shalom.pe)
+    'login_url': 'https://pro.shalom.pe/login?origin=WEB',
+    'login_email_sel': '#formLogin input[name="email"]',
+    'login_pass_sel': '#passwordLogin',
+    'login_remember_sel': '#remember',
+    'login_submit_sel': '#formLogin button[type="submit"]',
+    'menu_operaciones_sel': '#navbarDropdown-operaciones',
+    'menu_seguimiento_text': 'Seguimiento de envíos',
+    'row_sel': '.shipment-row',
+    'row_status_sel': '.col-status',
+    'row_orden_sel': '.order-number',
+    'row_codigo_sel': '.code-value',
+    'row_contenido_sel': '.content-info div',
+    'row_recipient_sel': '.recipient-info div',
+    'row_monto_sel': '.amount-info',
+    'row_delivery_sel': '.delivery-info div',
+    'next_btn_sel': 'button[aria-label="Next"]',
+    # Etapa 2 — validación (shalom.com.pe/rastrea)
+    'rastrea_url': 'https://shalom.com.pe/rastrea/login',
+    'rastrea_email_sel': 'input[type="email"]',
+    'rastrea_pass_sel': 'input[type="password"]',
+    'rastrea_submit_sel': 'button[type="submit"]',
+    'rastrea_orden_sel': 'input[maxlength="8"]',
+    'rastrea_codigo_sel': 'input[maxlength="4"]',
+    'rastrea_estado_sel': '.text-4xl.text-red-color-sidebar',
+    'rastrea_estado_sel_fallback': '.text-red-color-sidebar',
+    # Palabra que indica entrega en el estado real
+    'palabra_entregado': 'entregado',
+}
+
+
+class ConfigShalom(models.Model):
+    """Ajustes del proveedor Shalom de una integración (OneToOne).
+    Las credenciales viven en la Integracion: api_key = usuario, token = contraseña."""
+    integracion = models.OneToOneField(Integracion, on_delete=models.CASCADE, related_name='shalom')
+
+    # Horario de actualización
+    intervalo_horas = models.PositiveSmallIntegerField(default=6)
+    horarios = models.JSONField(default=list, blank=True)   # ["08:00","14:00"] (opcional)
+    dias_atras = models.PositiveSmallIntegerField(default=30)
+    max_paginas = models.PositiveSmallIntegerField(default=20)
+
+    # Selectores / URLs editables
+    config_scraper = models.JSONField(default=dict, blank=True)
+
+    # Configuración avanzada (código completo, opcional). Cifrado.
+    codigo_listado = EncryptedTextField(blank=True, default='')
+    codigo_validacion = EncryptedTextField(blank=True, default='')
+    usar_codigo_avanzado = models.BooleanField(default=False)
+
+    # Marca de agua de corte (de aquí hacia atrás, todo entregado)
+    corte_orden = models.CharField(max_length=40, blank=True)
+    corte_codigo = models.CharField(max_length=40, blank=True)
+    corte_fecha = models.DateField(null=True, blank=True)
+
+    # Estado de ejecución
+    corriendo = models.BooleanField(default=False)
+    ultima_corrida = models.DateTimeField(null=True, blank=True)
+    ultimo_resultado = models.TextField(blank=True)
+
+    class Meta:
+        verbose_name = 'Configuración Shalom'
+        verbose_name_plural = 'Configuración Shalom'
+
+    def __str__(self):
+        return f'Shalom · {self.integracion.nombre}'
+
+    def selectores(self):
+        """config_scraper con los valores por defecto rellenados."""
+        base = dict(DEFAULT_SHALOM_SCRAPER)
+        base.update(self.config_scraper or {})
+        return base
+
+
+class EnvioShalom(models.Model):
+    """Un envío rastreado en Shalom."""
+    integracion = models.ForeignKey(Integracion, on_delete=models.CASCADE, related_name='envios')
+    orden = models.CharField(max_length=40)
+    codigo = models.CharField(max_length=40)
+    estado = models.CharField(max_length=120, blank=True)        # del listado (etapa 1)
+    estado_real = models.CharField(max_length=120, blank=True)   # validado (etapa 2)
+    entregado = models.BooleanField(default=False)
+
+    producto = models.CharField(max_length=300, blank=True)
+    nombre = models.CharField(max_length=200, blank=True)
+    dni = models.CharField(max_length=40, blank=True)
+    monto = models.CharField(max_length=40, blank=True)
+    lugar_entrega = models.CharField(max_length=200, blank=True)
+    tipo_envio = models.CharField(max_length=120, blank=True)
+    fecha_texto = models.CharField(max_length=60, blank=True)
+    fecha_pedido = models.DateField(null=True, blank=True)
+
+    notificado = models.BooleanField(default=False)
+    en_alerta = models.BooleanField(default=False)
+    primera_vez = models.DateTimeField(auto_now_add=True)
+    ultima_validacion = models.DateTimeField(null=True, blank=True)
+    actualizado = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-fecha_pedido', '-primera_vez']
+        unique_together = ('integracion', 'orden', 'codigo')
+        verbose_name = 'Envío Shalom'
+        verbose_name_plural = 'Envíos Shalom'
+
+    def __str__(self):
+        return f'{self.orden}/{self.codigo} · {self.nombre}'
+
+    def to_dict(self):
+        return {
+            'id': self.id, 'orden': self.orden, 'codigo': self.codigo,
+            'estado': self.estado, 'estado_real': self.estado_real, 'entregado': self.entregado,
+            'producto': self.producto, 'nombre': self.nombre, 'dni': self.dni,
+            'monto': self.monto, 'lugar_entrega': self.lugar_entrega, 'tipo_envio': self.tipo_envio,
+            'fecha': self.fecha_texto, 'en_alerta': self.en_alerta, 'notificado': self.notificado,
+            'ultima_validacion': self.ultima_validacion.strftime('%d/%m/%Y %H:%M') if self.ultima_validacion else '',
+        }
+
+
+class CorridaShalom(models.Model):
+    """Log de cada corrida del scraper."""
+    integracion = models.ForeignKey(Integracion, on_delete=models.CASCADE, related_name='corridas')
+    tipo = models.CharField(max_length=10, default='manual')   # auto | manual
+    por = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, blank=True)
+    inicio = models.DateTimeField(auto_now_add=True)
+    fin = models.DateTimeField(null=True, blank=True)
+    ok = models.BooleanField(null=True, blank=True)
+    nuevos = models.PositiveIntegerField(default=0)
+    validados = models.PositiveIntegerField(default=0)
+    entregados = models.PositiveIntegerField(default=0)
+    mensaje = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ['-inicio']
+
+    def __str__(self):
+        return f'Corrida {self.inicio:%d/%m %H:%M} · {self.integracion.nombre}'

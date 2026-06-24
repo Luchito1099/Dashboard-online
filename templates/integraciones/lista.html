@@ -150,6 +150,57 @@
           {% endif %}
         </div>
 
+        {# Shalom: credenciales + ajustes del scraper #}
+        <div class="prov-shalom">
+          <div class="integ-grid">
+            <label class="integ-field">
+              <span>Usuario Shalom</span>
+              <input type="text" name="shalom_usuario" value="{{ integ.api_key }}" autocomplete="off" placeholder="correo@ejemplo.com">
+            </label>
+            <label class="integ-field">
+              <span>Contraseña {% if integ.token_enmascarado %}<em>· {{ integ.token_enmascarado }}</em>{% endif %}</span>
+              <input type="password" name="shalom_password" autocomplete="off" placeholder="{% if integ.token_enmascarado %}(sin cambios){% else %}…{% endif %}">
+            </label>
+          </div>
+          <div class="integ-grid">
+            <label class="integ-field">
+              <span>Intervalo (horas)</span>
+              <input type="number" name="intervalo_horas" value="{{ integ.shalom.intervalo_horas|default:6 }}" min="1">
+            </label>
+            <label class="integ-field">
+              <span>Días atrás (corte)</span>
+              <input type="number" name="dias_atras" value="{{ integ.shalom.dias_atras|default:30 }}" min="1">
+            </label>
+            <label class="integ-field">
+              <span>Máx. páginas</span>
+              <input type="number" name="max_paginas" value="{{ integ.shalom.max_paginas|default:20 }}" min="1">
+            </label>
+          </div>
+          <label class="integ-field">
+            <span>Horarios fijos <em>(opcional, ej: 08:00,14:00)</em></span>
+            <input type="text" name="horarios" value="{{ integ.shalom.horarios|join:',' }}" placeholder="08:00,14:00">
+          </label>
+          <details class="shalom-avanzado">
+            <summary>⚙ Configuración avanzada (selectores y código)</summary>
+            <label class="integ-field">
+              <span>Selectores/URLs (JSON) <em>(vacío = valores por defecto)</em></span>
+              <textarea name="config_scraper" rows="4" placeholder='{"login_url":"...","row_sel":".shipment-row"}'></textarea>
+            </label>
+            <label class="integ-check">
+              <input type="checkbox" name="usar_codigo_avanzado" {% if integ.shalom.usar_codigo_avanzado %}checked{% endif %}>
+              Usar código avanzado (exec) — solo si Shalom cambió algo
+            </label>
+            <label class="integ-field">
+              <span>Código etapa 1 — listado <em>(en blanco = sin cambios)</em></span>
+              <textarea name="codigo_listado" rows="3" placeholder="def importar(page, sel, ...): ..."></textarea>
+            </label>
+            <label class="integ-field">
+              <span>Código etapa 2 — validación <em>(en blanco = sin cambios)</em></span>
+              <textarea name="codigo_validacion" rows="3" placeholder="def validar(page, sel, ...): ..."></textarea>
+            </label>
+          </details>
+        </div>
+
         {# Proveedores sin conector aún #}
         <div class="integ-pendiente prov-pendiente">Conector para este proveedor en preparación.</div>
       </div>
@@ -164,6 +215,8 @@
     <div class="integ-acciones">
       {# Conectar con Shopify (OAuth) — solo proveedor shopify #}
       <a href="{% url 'integraciones:oauth_iniciar' integ.id %}" class="btn-guardar prov-shopify">Conectar con Shopify</a>
+      {# Ver envíos / rastreo — solo proveedor shalom #}
+      <a href="{% url 'integraciones:shalom_envios' integ.id %}" class="btn-guardar prov-shalom">📦 Ver envíos / rastreo</a>
       {# Probar conexión #}
       <form method="post" action="{% url 'integraciones:probar' integ.id %}">
         {% csrf_token %}
@@ -211,12 +264,15 @@
     const prov = sel.value;
     const esShopify = prov === 'shopify';
     const esWoo = prov === 'woocommerce';
-    const pendiente = !esShopify && !esWoo;
+    const esShalom = prov === 'shalom';
+    const pendiente = !esShopify && !esWoo && !esShalom;
 
     // Elementos solo de Shopify (scopes, estado OAuth, versión API, botón conectar)
     card.querySelectorAll('.prov-shopify').forEach(el => el.style.display = esShopify ? '' : 'none');
-    // Bloque de claves de API (Shopify y WooCommerce); oculto si no hay conector
-    card.querySelectorAll('.cred-keys').forEach(el => el.style.display = pendiente ? 'none' : '');
+    // Elementos solo de Shalom (credenciales + ajustes scraper + ver envíos)
+    card.querySelectorAll('.prov-shalom').forEach(el => el.style.display = esShalom ? '' : 'none');
+    // Bloque de claves de API (Shopify y WooCommerce); oculto en Shalom y sin conector
+    card.querySelectorAll('.cred-keys').forEach(el => el.style.display = (esShopify || esWoo) ? '' : 'none');
     // "En preparación" para proveedores sin conector
     card.querySelectorAll('.prov-pendiente').forEach(el => el.style.display = pendiente ? '' : 'none');
 

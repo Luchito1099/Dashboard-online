@@ -30,6 +30,26 @@
 .badge-shopify { background: oklch(62% 0.18 145 / .12); color: oklch(45% 0.18 145); }
 .badge-woocommerce { background: oklch(55% 0.18 300 / .12); color: oklch(45% 0.18 300); }
 .badge-wordpress { background: oklch(60% 0.15 240 / .12); color: oklch(45% 0.15 240); }
+.badge-shalom { background: oklch(60% 0.2 25 / .12); color: oklch(48% 0.2 25); }
+
+/* ── Shalom: filtros + cards colapsables (acordeón) ── */
+.sh-filtros { display: flex; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+.sh-filtros input { flex: 1; min-width: 200px; padding: 9px 11px; border: 1px solid var(--border-dark); border-radius: 8px; font-size: 14px; }
+.sh-filtros select { padding: 9px 11px; border: 1px solid var(--border-dark); border-radius: 8px; font-size: 14px; background: var(--surface); }
+.shalom-avanzado { margin-top: 8px; border-top: 1px dashed var(--border-dark); padding-top: 10px; }
+.shalom-avanzado summary { cursor: pointer; font-size: 12.5px; font-weight: 600; color: var(--text-secondary); }
+.shalom-avanzado textarea { width: 100%; font-family: monospace; font-size: 12px; padding: 8px; border: 1px solid var(--border-dark); border-radius: 8px; box-sizing: border-box; }
+
+.rot-cards { display: flex; flex-direction: column; gap: 10px; }
+.rot-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; box-shadow: var(--shadow); }
+.rot-card-head { display: flex; align-items: center; gap: 10px; padding: 12px 14px; cursor: pointer; min-height: 44px; }
+.rot-card-head:hover { background: var(--bg); }
+.rot-origen { font-size: 10px; font-weight: 700; text-transform: uppercase; color: #fff; padding: 3px 8px; border-radius: 6px; flex-shrink: 0; max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rot-card-body { max-height: 0; overflow: hidden; transition: max-height .28s ease; }
+.rot-card.open .rot-card-body { max-height: 600px; }
+.rot-card.open .sh-chevron { transform: rotate(180deg); }
+.rot-card-inner { padding: 0 14px 14px; }
+.rot-loading, .rot-empty { padding: 30px; text-align: center; color: var(--muted); font-size: 14px; }
 
 .integ-tag {
   font-size: 11px; padding: 2px 8px; border-radius: 6px;

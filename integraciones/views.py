@@ -5,7 +5,7 @@ import secrets
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
-from django.http import HttpResponseNotAllowed, HttpResponse
+from django.http import HttpResponseNotAllowed, HttpResponse, JsonResponse
 from django.urls import reverse
 from django.views.decorators.csrf import csrf_exempt
 
@@ -87,9 +87,52 @@ def editar(request, integracion_id):
         if nuevo:
             setattr(integ, campo, nuevo)
 
+    # Shalom: usuario (api_key) se guarda siempre; contraseña (token) solo si llega
+    if integ.proveedor == 'shalom':
+        integ.api_key = request.POST.get('shalom_usuario', integ.api_key).strip()
+        nueva_pass = request.POST.get('shalom_password', '').strip()
+        if nueva_pass:
+            integ.token = nueva_pass
+
     integ.save()
+
+    if integ.proveedor == 'shalom':
+        _guardar_config_shalom(integ, request)
+
     messages.success(request, f'Integración «{integ.nombre}» actualizada.')
     return redirect(reverse_lista() + f'#integ-{integ.id}')
+
+
+def _guardar_config_shalom(integ, request):
+    """Guarda los ajustes específicos de Shalom en ConfigShalom."""
+    from .models import ConfigShalom
+    cfg, _ = ConfigShalom.objects.get_or_create(integracion=integ)
+    cfg.intervalo_horas = _a_int(request.POST.get('intervalo_horas'), cfg.intervalo_horas)
+    cfg.dias_atras = _a_int(request.POST.get('dias_atras'), cfg.dias_atras)
+    cfg.max_paginas = _a_int(request.POST.get('max_paginas'), cfg.max_paginas)
+    # horarios: coma-separados "08:00,14:00"
+    horarios_raw = request.POST.get('horarios', '')
+    cfg.horarios = [h.strip() for h in horarios_raw.split(',') if h.strip()]
+    # selectores (JSON); si no es válido, se conserva
+    sel_raw = request.POST.get('config_scraper', '').strip()
+    if sel_raw:
+        try:
+            cfg.config_scraper = json.loads(sel_raw)
+        except ValueError:
+            messages.warning(request, 'Los selectores no eran JSON válido; se conservaron los anteriores.')
+    cfg.usar_codigo_avanzado = request.POST.get('usar_codigo_avanzado') == 'on'
+    if request.POST.get('codigo_listado', '').strip():
+        cfg.codigo_listado = request.POST['codigo_listado']
+    if request.POST.get('codigo_validacion', '').strip():
+        cfg.codigo_validacion = request.POST['codigo_validacion']
+    cfg.save()
+
+
+def _a_int(valor, por_defecto):
+    try:
+        return int(valor)
+    except (ValueError, TypeError):
+        return por_defecto
 
 
 @login_required
@@ -258,6 +301,110 @@ def webhook_shopify(request, integracion_id):
 
     connectors._guardar_pedido_shopify(integ, pedido)
     return HttpResponse(status=200)
+
+
+# ───────────────────────── Shalom (rastreo) ─────────────────────────
+
+def _lanzar_shalom(args):
+    """Lanza el comando shalom_actualizar como subproceso desacoplado (segundo plano)."""
+    import subprocess
+    import sys
+    from django.conf import settings
+    manage = str(settings.BASE_DIR / 'manage.py')
+    subprocess.Popen([sys.executable, manage, 'shalom_actualizar'] + args, cwd=str(settings.BASE_DIR))
+
+
+@login_required
+def shalom_envios(request, integracion_id):
+    """Panel de envíos Shalom: estado, alertas y lista. Solo admin."""
+    if not es_admin(request.user):
+        messages.error(request, 'No tienes permisos.')
+        return redirect('core:home')
+    from .models import ConfigShalom
+    integ = get_object_or_404(Integracion, id=integracion_id, proveedor='shalom')
+    cfg, _ = ConfigShalom.objects.get_or_create(integracion=integ)
+    return render(request, 'integraciones/shalom_envios.html', {'integ': integ, 'cfg': cfg})
+
+
+@login_required
+def api_shalom_envios(request, integracion_id):
+    """Lista de envíos (JSON) con filtros: ?q=&estado=pendiente|entregado|alerta."""
+    if not es_admin(request.user):
+        return JsonResponse({'error': 'sin permiso'}, status=403)
+    integ = get_object_or_404(Integracion, id=integracion_id, proveedor='shalom')
+    qs = integ.envios.all()
+    filtro = request.GET.get('estado', '')
+    if filtro == 'pendiente':
+        qs = qs.filter(entregado=False)
+    elif filtro == 'entregado':
+        qs = qs.filter(entregado=True)
+    elif filtro == 'alerta':
+        qs = qs.filter(en_alerta=True)
+    q = request.GET.get('q', '').strip()
+    if q:
+        from django.db.models import Q
+        qs = qs.filter(Q(nombre__icontains=q) | Q(orden__icontains=q) |
+                       Q(codigo__icontains=q) | Q(dni__icontains=q))
+    return JsonResponse({
+        'envios': [e.to_dict() for e in qs[:500]],
+        'alertas': integ.envios.filter(en_alerta=True).count(),
+    })
+
+
+@login_required
+def api_shalom_estado(request, integracion_id):
+    """Estado de la corrida (para polling)."""
+    if not es_admin(request.user):
+        return JsonResponse({'error': 'sin permiso'}, status=403)
+    from .models import ConfigShalom
+    integ = get_object_or_404(Integracion, id=integracion_id, proveedor='shalom')
+    cfg, _ = ConfigShalom.objects.get_or_create(integracion=integ)
+    return JsonResponse({
+        'corriendo': cfg.corriendo,
+        'ultima_corrida': cfg.ultima_corrida.strftime('%d/%m/%Y %H:%M') if cfg.ultima_corrida else '',
+        'ultimo_resultado': cfg.ultimo_resultado,
+    })
+
+
+@login_required
+def api_shalom_actualizar(request, integracion_id):
+    """Lanza una corrida manual en segundo plano. Solo admin (POST)."""
+    if not es_admin(request.user):
+        return JsonResponse({'error': 'sin permiso'}, status=403)
+    if request.method != 'POST':
+        return HttpResponseNotAllowed(['POST'])
+    integ = get_object_or_404(Integracion, id=integracion_id, proveedor='shalom')
+    _lanzar_shalom(['--integracion', str(integ.id), '--manual'])
+    return JsonResponse({'ok': True, 'mensaje': 'Actualización iniciada en segundo plano.'})
+
+
+@login_required
+def api_shalom_validar(request, envio_id):
+    """Re-valida un envío puntual en segundo plano. Solo admin (POST)."""
+    if not es_admin(request.user):
+        return JsonResponse({'error': 'sin permiso'}, status=403)
+    if request.method != 'POST':
+        return HttpResponseNotAllowed(['POST'])
+    from .models import EnvioShalom
+    envio = get_object_or_404(EnvioShalom, id=envio_id)
+    _lanzar_shalom(['--integracion', str(envio.integracion_id),
+                    '--solo-validar', '--orden', envio.orden, '--codigo', envio.codigo])
+    return JsonResponse({'ok': True, 'mensaje': 'Re-validación iniciada.'})
+
+
+@login_required
+def api_shalom_notificar(request, envio_id):
+    """Marca un envío como notificado (baja la alerta). Solo admin (POST)."""
+    if not es_admin(request.user):
+        return JsonResponse({'error': 'sin permiso'}, status=403)
+    if request.method != 'POST':
+        return HttpResponseNotAllowed(['POST'])
+    from .models import EnvioShalom
+    envio = get_object_or_404(EnvioShalom, id=envio_id)
+    envio.notificado = True
+    envio.en_alerta = False
+    envio.save(update_fields=['notificado', 'en_alerta'])
+    return JsonResponse({'ok': True})
 
 
 def reverse_lista():

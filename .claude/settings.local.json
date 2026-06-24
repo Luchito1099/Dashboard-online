@@ -20,7 +20,10 @@
       "Bash(venv/Scripts/python.exe manage.py check)",
       "Bash(venv/Scripts/python.exe manage.py shell -c ' *)",
       "Bash(venv/Scripts/python.exe manage.py makemigrations core)",
-      "Bash(venv/Scripts/python.exe manage.py makemigrations rotulador)"
+      "Bash(venv/Scripts/python.exe manage.py makemigrations rotulador)",
+      "Bash(venv/Scripts/python.exe -m pip install playwright)",
+      "Bash(venv/Scripts/python.exe -m playwright install chromium)",
+      "Bash(venv/Scripts/python.exe manage.py shalom_actualizar --help)"
     ]
   }
 }

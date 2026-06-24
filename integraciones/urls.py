@@ -18,4 +18,11 @@ urlpatterns = [
     # Webhooks (tiempo real)
     path('integraciones/webhook/activar/<int:integracion_id>/', views.activar_webhook, name='activar_webhook'),
     path('integraciones/webhook/shopify/<int:integracion_id>/', views.webhook_shopify, name='webhook'),
+    # Shalom (rastreo por scraper)
+    path('integraciones/shalom/<int:integracion_id>/envios/', views.shalom_envios, name='shalom_envios'),
+    path('integraciones/shalom/<int:integracion_id>/actualizar/', views.api_shalom_actualizar, name='shalom_actualizar'),
+    path('integraciones/shalom/<int:integracion_id>/estado/', views.api_shalom_estado, name='shalom_estado'),
+    path('integraciones/shalom/<int:integracion_id>/api/envios/', views.api_shalom_envios, name='shalom_api_envios'),
+    path('integraciones/shalom/envio/<int:envio_id>/validar/', views.api_shalom_validar, name='shalom_validar'),
+    path('integraciones/shalom/envio/<int:envio_id>/notificar/', views.api_shalom_notificar, name='shalom_notificar'),
 ]

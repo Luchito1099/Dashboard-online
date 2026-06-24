@@ -1,0 +1,133 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% comment %} templates/integraciones/shalom_envios.html — Envíos rastreados de Shalom {% endcomment %}
+
+{% block title %}Shalom · {{ integ.nombre }} · KLYNEA{% endblock %}
+{% block nav_config %}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'core/css/integraciones.css' %}">
+{% endblock %}
+
+{% block breadcrumb %}
+  <span>›</span><a href="{% url 'integraciones:lista' %}">Integraciones</a><span>›</span><span>Shalom · {{ integ.nombre }}</span>
+{% endblock %}
+
+{% block content %}
+{% csrf_token %}
+<div class="integ" data-integ="{{ integ.id }}">
+
+  <div class="integ-header">
+    <div>
+      <h2 class="integ-title">Rastreo Shalom · {{ integ.nombre }}</h2>
+      <p class="integ-subtitle" id="sh-estado">
+        {% if cfg.ultima_corrida %}Última corrida: {{ cfg.ultima_corrida|date:"d/m/Y H:i" }} · {{ cfg.ultimo_resultado }}{% else %}Aún no se ha corrido.{% endif %}
+      </p>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <a href="{% url 'integraciones:lista' %}" class="btn-probar">← Volver</a>
+      <button id="sh-actualizar" class="btn-guardar">⚡ Actualizar ahora</button>
+    </div>
+  </div>
+
+  {# Filtros #}
+  <div class="sh-filtros">
+    <input id="sh-q" type="text" placeholder="🔎 Buscar nombre, orden, código o DNI…">
+    <select id="sh-filtro">
+      <option value="alerta">🔔 Llegaron a destino (alertas)</option>
+      <option value="pendiente">En tránsito (pendientes)</option>
+      <option value="entregado">Entregados</option>
+      <option value="">Todos</option>
+    </select>
+  </div>
+
+  <div id="sh-lista" class="rot-cards"><div class="rot-loading">Cargando…</div></div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function(){
+  const ROOT=document.querySelector('.integ');
+  const ID=ROOT.dataset.integ;
+  const CSRF=document.querySelector('input[name=csrfmiddlewaretoken]').value;
+  const lista=document.getElementById('sh-lista');
+  const q=document.getElementById('sh-q');
+  const filtro=document.getElementById('sh-filtro');
+  const estado=document.getElementById('sh-estado');
+  const btn=document.getElementById('sh-actualizar');
+  let timer=null, poll=null;
+
+  function esc(s){const d=document.createElement('div');d.textContent=s==null?'':s;return d.innerHTML;}
+
+  async function cargar(){
+    const params=new URLSearchParams({estado:filtro.value, q:q.value.trim()});
+    const r=await fetch(`/integraciones/shalom/${ID}/api/envios/?`+params);
+    const data=await r.json();
+    render(data.envios||[]);
+  }
+
+  function fila(k,v){return v?`<div style="display:flex;gap:8px;font-size:12.5px;padding:3px 0"><span style="color:var(--muted);min-width:90px;font-weight:600">${k}</span><span style="flex:1">${esc(v)}</span></div>`:'';}
+
+  function render(envios){
+    if(!envios.length){lista.innerHTML='<div class="rot-empty">Sin envíos para este filtro.</div>';return;}
+    lista.innerHTML=envios.map(e=>{
+      const col=e.entregado?'var(--success)':(e.estado_real&&e.estado_real!=='NO_ENCONTRADO'?'var(--primary)':'var(--muted)');
+      const alerta=e.en_alerta?'<span class="integ-tag" style="background:var(--success);color:#fff;border:none">🔔 llegó</span>':'';
+      return `<div class="rot-card" data-id="${e.id}">
+        <div class="rot-card-head">
+          <span class="rot-origen" style="background:${col}">${esc(e.estado_real||e.estado||'—')}</span>
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(e.nombre||'(sin nombre)')} ${alerta}</div>
+            <div style="font-size:12px;color:var(--muted)">${esc(e.orden)}/${esc(e.codigo)} · ${esc(e.lugar_entrega||'—')}</div>
+          </div>
+          <span class="sh-chevron" style="color:var(--muted);font-size:11px">▼</span>
+        </div>
+        <div class="rot-card-body"><div class="rot-card-inner">
+          ${fila('Producto',e.producto)}${fila('DNI',e.dni)}${fila('Monto',e.monto)}
+          ${fila('Lugar',e.lugar_entrega)}${fila('Tipo',e.tipo_envio)}${fila('Fecha',e.fecha)}
+          ${fila('Estado real',e.estado_real)}${fila('Últ. validación',e.ultima_validacion)}
+          <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+            <button class="btn-probar sh-validar" data-id="${e.id}">↻ Re-validar</button>
+            ${e.en_alerta?`<button class="btn-guardar sh-notificar" data-id="${e.id}">✓ Marcar notificado</button>`:''}
+          </div>
+        </div></div>
+      </div>`;
+    }).join('');
+    lista.querySelectorAll('.rot-card-head').forEach(h=>h.addEventListener('click',()=>{
+      const c=h.closest('.rot-card');c.classList.toggle('open');
+    }));
+    lista.querySelectorAll('.sh-validar').forEach(b=>b.addEventListener('click',ev=>{ev.stopPropagation();accion(`/integraciones/shalom/envio/${b.dataset.id}/validar/`,'Re-validación iniciada (segundo plano).');}));
+    lista.querySelectorAll('.sh-notificar').forEach(b=>b.addEventListener('click',async ev=>{ev.stopPropagation();await accion(`/integraciones/shalom/envio/${b.dataset.id}/notificar/`);cargar();}));
+  }
+
+  async function accion(url,msg){
+    const r=await fetch(url,{method:'POST',headers:{'X-CSRFToken':CSRF}});
+    if(r.ok&&msg)alert(msg);
+    return r.ok;
+  }
+
+  async function actualizar(){
+    btn.disabled=true;btn.textContent='⏳ Iniciando…';
+    await fetch(`/integraciones/shalom/${ID}/actualizar/`,{method:'POST',headers:{'X-CSRFToken':CSRF}});
+    iniciarPoll();
+  }
+
+  function iniciarPoll(){
+    if(poll)clearInterval(poll);
+    poll=setInterval(async()=>{
+      const r=await fetch(`/integraciones/shalom/${ID}/estado/`);
+      const d=await r.json();
+      if(d.corriendo){btn.disabled=true;btn.textContent='⏳ Corriendo…';estado.textContent='Corriendo…';}
+      else{btn.disabled=false;btn.textContent='⚡ Actualizar ahora';estado.textContent='Última corrida: '+(d.ultima_corrida||'—')+' · '+(d.ultimo_resultado||'');clearInterval(poll);poll=null;cargar();}
+    },4000);
+  }
+
+  btn.addEventListener('click',actualizar);
+  filtro.addEventListener('change',cargar);
+  q.addEventListener('input',()=>{clearTimeout(timer);timer=setTimeout(cargar,300);});
+  cargar();
+})();
+</script>
+{% endblock %}

@@ -16,6 +16,10 @@ RUN apt-get update \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Playwright + Chromium (para el scraper de Shalom). Instala el navegador y sus
+# librerías del sistema. Aumenta el tamaño de la imagen ~400MB.
+RUN playwright install --with-deps chromium
+
 # Copiamos el proyecto
 COPY . .
 
