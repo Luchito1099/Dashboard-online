@@ -335,10 +335,16 @@ def api_shalom_envios(request, integracion_id):
     from .shalom_runner import TERMINAL_REGEX
     qs = integ.envios.all()
     filtro = request.GET.get('estado', '')
-    if filtro == 'pendiente':
-        qs = qs.filter(entregado=False).exclude(estado_real__iregex=TERMINAL_REGEX)
+    if filtro == 'transito':
+        qs = qs.filter(estado_real__iregex=r'en tr[aá]nsito')
+    elif filtro == 'agencia':
+        qs = qs.filter(estado_real__icontains='agencia')
+    elif filtro == 'destino':
+        qs = qs.filter(estado_real__icontains='en destino')
     elif filtro == 'entregado':
         qs = qs.filter(entregado=True)
+    elif filtro == 'pendiente':
+        qs = qs.filter(entregado=False).exclude(estado_real__iregex=TERMINAL_REGEX)
     elif filtro == 'cerrado':
         qs = qs.filter(estado_real__iregex=TERMINAL_REGEX)
     elif filtro == 'alerta':
