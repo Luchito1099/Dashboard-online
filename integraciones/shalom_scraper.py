@@ -265,10 +265,30 @@ def asegurar_sesion_rastreo(page, sel, usuario, password, log=_noop):
         log('Sesión ya activa, formulario de búsqueda listo.')
 
 
-def _leer_estado(page, estado_sel, fb_sel, log):
-    """Espera a que el resultado renderice (carga por JS) y lee el estado."""
+def _diagnostico(page, log):
+    """Vuelca qué hay en la página cuando NO se encontró el estado, para depurar."""
     try:
-        page.wait_for_selector(f'{estado_sel}, {fb_sel}', timeout=12000, state='visible')
+        titulo = page.title()
+    except Exception:
+        titulo = '?'
+    try:
+        cuerpo = page.inner_text('body')
+        cuerpo = ' '.join(cuerpo.split())[:280]  # colapsa espacios/saltos
+    except Exception:
+        cuerpo = '(no se pudo leer el body)'
+    log(f'  ↳ diagnóstico — título: "{titulo}" · texto visible: {cuerpo or "(vacío)"}')
+
+
+def _leer_estado(page, estado_sel, fb_sel):
+    """Espera a que el resultado renderice (carga por JS) y lee el estado.
+    Imita a test2.py: espera 'networkidle' (que terminen las llamadas AJAX) y
+    luego a que aparezca el elemento del estado."""
+    try:
+        page.wait_for_load_state('networkidle', timeout=15000)
+    except Exception:
+        pass
+    try:
+        page.wait_for_selector(f'{estado_sel}, {fb_sel}', timeout=12000)
     except Exception:
         espera_humana(1.5, 2.5)
     loc = page.locator(estado_sel).first
@@ -302,13 +322,14 @@ def validar_envio(page, sel, orden, codigo, log=_noop):
         log(f'Abriendo URL directa: {url}')
         try:
             ir_a(page, url)
-            texto = _leer_estado(page, estado_sel, fb_sel, log)
+            texto = _leer_estado(page, estado_sel, fb_sel)
             if texto:
                 log(f'Estado leído (URL directa): {texto}')
                 return texto
             log(f'URL directa sin estado (página: {page.url}). Probando formulario…')
+            _diagnostico(page, log)
         except Exception as e:
-            log(f'URL directa falló ({type(e).__name__}). Probando formulario…')
+            log(f'URL directa falló ({type(e).__name__}: {e}). Probando formulario…')
 
     # ── Método 2: formulario de búsqueda ──
     try:
@@ -320,6 +341,7 @@ def validar_envio(page, sel, orden, codigo, log=_noop):
     in_codigo = page.locator(sel['rastrea_codigo_sel'])
     if in_orden.count() == 0:
         log(f'⚠ No se encontró el formulario de búsqueda (página: {page.url}).')
+        _diagnostico(page, log)
         return None
     log(f'Escribiendo orden {orden} y código {codigo} en el formulario…')
     in_orden.first.click(); espera_humana(0.3, 0.6)
@@ -330,7 +352,8 @@ def validar_envio(page, sel, orden, codigo, log=_noop):
     log('Enviando consulta y esperando resultado…')
     page.click(sel['rastrea_submit_sel'])
     esperar_carga(page)
-    texto = _leer_estado(page, estado_sel, fb_sel, log)
+    texto = _leer_estado(page, estado_sel, fb_sel)
     if not texto:
         log(f'⚠ No se encontró el estado (formulario). Página final: {page.url}')
+        _diagnostico(page, log)
     return texto
