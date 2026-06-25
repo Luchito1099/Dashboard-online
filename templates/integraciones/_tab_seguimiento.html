@@ -4,8 +4,8 @@
   <table class="ped-tabla ped-tabla-seg" id="segTabla">
     <thead>
       <tr>
-        <th>Pedido</th><th class="ped-cli">Cliente</th><th>Fuente</th><th>Vendedor</th><th>Estado</th>
-        <th>Llamada</th><th>Intentos</th><th>Comentario</th><th>Tipo cliente</th><th>Etapa embudo</th><th>Estrategia</th><th></th>
+        <th>Pedido</th><th class="ped-cli">Cliente</th><th>Vendedor</th><th>Estado</th>
+        <th>Llamada</th><th>Int.</th><th>Comentario</th><th>Tipo cliente</th><th>Estrategia</th><th></th>
       </tr>
     </thead>
     <tbody>
@@ -22,7 +22,6 @@
           </div>
           {% endif %}
         </td>
-        <td><span class="ped-fuente">{{ p.integracion.get_proveedor_display }}</span></td>
         <td>
           <select class="ped-seg-sel js-seg" data-campo="vendedor" {% if not puede_editar_seguimiento %}disabled{% endif %}>
             <option value="">— Sin asignar</option>
@@ -61,14 +60,6 @@
         </td>
 
         <td>
-          <select class="ped-seg-sel js-seg" data-campo="etapa_embudo" {% if not puede_editar_seguimiento %}disabled{% endif %}>
-            {% for valor, etiqueta in etapa_choices %}
-            <option value="{{ valor }}" {% if seg.etapa_embudo == valor %}selected{% endif %}>{{ etiqueta }}</option>
-            {% endfor %}
-          </select>
-        </td>
-
-        <td>
           <select class="ped-seg-sel js-seg" data-campo="estrategia" {% if not puede_editar_seguimiento %}disabled{% endif %}>
             <option value="">—</option>
             {% for e in estrategias %}
@@ -85,7 +76,7 @@
       </tr>
       {% endwith %}
       {% empty %}
-      <tr><td colspan="12" class="integ-vacio-cell">No hay pedidos con estos filtros.</td></tr>
+      <tr><td colspan="10" class="integ-vacio-cell">No hay pedidos con estos filtros.</td></tr>
       {% endfor %}
     </tbody>
   </table>

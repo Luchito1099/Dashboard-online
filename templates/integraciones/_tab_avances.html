@@ -62,28 +62,14 @@
     {% empty %}<div class="av-vacio">Ningún pedido tiene vendedor asignado.</div>{% endfor %}
   </div>
 
-  {# ── Funnel por etapa del embudo (con % del total) ── #}
+  {# ── Embudo por estado del pedido (con % del total) ── #}
   <div class="av-card av-card-wide">
-    <div class="av-card-title">Embudo (etapas) · % del total</div>
-    {% for label, n, pct, val in av_por_etapa %}
-    <div class="av-bar-row">
-      <div class="av-bar-label">{{ label }}</div>
-      <div class="av-bar-track">
-        <div class="av-bar-fill etapa-{{ val }}" style="width: {% widthratio n av_max_etapa 100 %}%"></div>
-      </div>
-      <div class="av-bar-num">{{ n }} <span class="av-bar-pct">({{ pct }}%)</span></div>
-    </div>
-    {% endfor %}
-  </div>
-
-  {# ── Por estado del flujo (con % del total) ── #}
-  <div class="av-card">
-    <div class="av-card-title">Pedidos por estado · % del total</div>
+    <div class="av-card-title">Embudo por estado · % del total</div>
     {% for label, n, pct, val in av_por_estado %}
     <div class="av-bar-row">
       <div class="av-bar-label">{{ label }}</div>
       <div class="av-bar-track">
-        <div class="av-bar-fill estado-{{ val }}" style="width: {% widthratio n av_total 100 %}%"></div>
+        <div class="av-bar-fill estado-{{ val }} etapa-{{ val }}" style="width: {% widthratio n av_max_estado 100 %}%"></div>
       </div>
       <div class="av-bar-num">{{ n }} <span class="av-bar-pct">({{ pct }}%)</span></div>
     </div>

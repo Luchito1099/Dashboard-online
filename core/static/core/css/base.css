@@ -544,3 +544,22 @@ body {
   cursor: pointer; flex-shrink: 0; align-self: flex-start;
 }
 .toast-cerrar:hover { color: var(--text); }
+
+/* ── Campanita: panel de pedidos recientes ── */
+.notif-wrap { position: relative; }
+.notif-panel {
+  display: none; position: absolute; top: calc(100% + 8px); right: 0; z-index: 300;
+  width: 320px; max-height: 420px; background: var(--surface);
+  border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow-md); overflow: hidden;
+}
+.notif-panel.show { display: block; }
+.notif-panel-head { padding: 12px 14px; font-size: 13px; font-weight: 700; color: var(--text); border-bottom: 1px solid var(--border); }
+.notif-panel-body { max-height: 370px; overflow-y: auto; }
+.notif-empty { padding: 24px; text-align: center; color: var(--muted); font-size: 13px; }
+.notif-item { display: block; padding: 10px 14px; border-bottom: 1px solid var(--border); text-decoration: none; transition: background .12s; }
+.notif-item:hover { background: var(--bg); }
+.notif-item-top { display: flex; justify-content: space-between; align-items: center; }
+.notif-num { font-size: 13px; font-weight: 700; color: var(--text); }
+.notif-fuente { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 6px; background: var(--primary-bg); color: var(--primary-dark); }
+.notif-cli { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+.notif-fecha { font-size: 11px; color: var(--muted); margin-top: 2px; }

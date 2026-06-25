@@ -235,8 +235,11 @@ _ORDEN_LABELS = [
 
 
 def _norm(s):
-    """Normaliza un texto para comparar/deduplicar: sin espacios extra y en minúsculas."""
-    return ' '.join((s or '').split()).lower()
+    """Normaliza un texto para comparar/deduplicar: quita espacios redundantes, espacios
+    invisibles (no-break, zero-width) y mayúsculas, para que textos visualmente iguales
+    cuenten como uno solo."""
+    s = (s or '').replace('\xa0', ' ').replace('​', '').replace('﻿', '')
+    return ' '.join(s.split()).lower()
 
 
 def _valores_unicos(valores):
@@ -456,7 +459,6 @@ def _context_seguimiento(qs, context):
         'total_visibles': qs.count(),
         'llamada_choices': PedidoSeguimiento.LLAMADA_CHOICES,
         'tipo_cliente_choices': PedidoSeguimiento.TIPO_CLIENTE_CHOICES,
-        'etapa_choices': PedidoSeguimiento.ETAPA_CHOICES,
         'estrategias': Estrategia.objects.filter(activo=True),
     })
 
@@ -469,20 +471,11 @@ def _context_avances(qs, context):
     def _pct(n):
         return round(n / total * 100) if total else 0
 
-    # Conteo por estado de flujo (con % del total)
+    # Conteo por estado de flujo (con % del total). Es la base del embudo y las visuales.
     cuenta_estado = {r['estado']: r['n'] for r in qs.values('estado').annotate(n=Count('id'))}
     por_estado = [(lbl, cuenta_estado.get(val, 0), _pct(cuenta_estado.get(val, 0)), val)
                   for val, lbl in Pedido.ESTADO_CHOICES]
-
-    # Funnel por etapa del embudo (los pedidos sin seguimiento cuentan como 'creado'), con %
-    cuenta_etapa_raw = {r['seguimiento__etapa_embudo']: r['n']
-                        for r in qs.values('seguimiento__etapa_embudo').annotate(n=Count('id'))}
-    sin_seg = cuenta_etapa_raw.pop(None, 0)
-    cuenta_etapa = dict(cuenta_etapa_raw)
-    cuenta_etapa['creado'] = cuenta_etapa.get('creado', 0) + sin_seg
-    por_etapa = [(lbl, cuenta_etapa.get(val, 0), _pct(cuenta_etapa.get(val, 0)), val)
-                 for val, lbl in PedidoSeguimiento.ETAPA_CHOICES]
-    max_etapa = max([n for _, n, _, _ in por_etapa] + [1])
+    max_estado = max([n for _, n, _, _ in por_estado] + [1])
 
     # Conversión
     n_creado = cuenta_estado.get(Pedido.ESTADO_CREADO, 0)
@@ -561,8 +554,7 @@ def _context_avances(qs, context):
     context.update({
         'av_total': total,
         'av_por_estado': por_estado,
-        'av_por_etapa': por_etapa,
-        'av_max_etapa': max_etapa,
+        'av_max_estado': max_estado,
         'av_conv_confirmacion': conv_confirmacion,
         'av_conv_entrega': conv_entrega,
         'av_pct_confirmado_total': pct_confirmado_total,
@@ -671,7 +663,6 @@ def pedido_seguimiento_editar(request, pedido_id):
     choice_campos = {
         'llamada_estado': dict(PedidoSeguimiento.LLAMADA_CHOICES),
         'tipo_cliente': dict(PedidoSeguimiento.TIPO_CLIENTE_CHOICES),
-        'etapa_embudo': dict(PedidoSeguimiento.ETAPA_CHOICES),
     }
     for campo, opciones in choice_campos.items():
         nuevo = request.POST.get(campo)
@@ -748,7 +739,6 @@ def pedido_seguimiento_editar(request, pedido_id):
         'ok': True,
         'llamada_estado': seg.llamada_estado,
         'tipo_cliente': seg.tipo_cliente,
-        'etapa_embudo': seg.etapa_embudo,
         'actualizado_por': request.user.get_full_name() or request.user.username,
     })
 
@@ -766,8 +756,7 @@ def pedido_historial(request, pedido_id):
         'estado': 'Estado', 'total': 'Precio final', 'adelanto': 'Adelanto',
         'llamada_estado': 'Llamada', 'llamadas_intentadas': 'Llamadas intentadas',
         'comentario': 'Comentario', 'tipo_cliente': 'Tipo de cliente',
-        'etapa_embudo': 'Etapa del embudo', 'estrategia': 'Estrategia', 'vendedor': 'Vendedor',
-        'clave': 'Clave de entrega',
+        'estrategia': 'Estrategia', 'vendedor': 'Vendedor', 'clave': 'Clave de entrega',
     }
     data = [{
         'id': l.id,
@@ -833,7 +822,7 @@ def pedido_revertir(request, log_id):
         registrar_cambio(pedido, request.user, 'vendedor', actual, ant)
         pedido.vendedor = nuevo_u
         pedido.save(update_fields=['vendedor'])
-    elif campo in ('llamada_estado', 'tipo_cliente', 'etapa_embudo', 'comentario',
+    elif campo in ('llamada_estado', 'tipo_cliente', 'comentario',
                    'estrategia', 'llamadas_intentadas'):
         seg = pedido.get_seguimiento()
         if campo == 'estrategia':
@@ -846,7 +835,6 @@ def pedido_revertir(request, log_id):
             mapas = {
                 'llamada_estado': {v: k for k, v in PedidoSeguimiento.LLAMADA_CHOICES},
                 'tipo_cliente': {v: k for k, v in PedidoSeguimiento.TIPO_CLIENTE_CHOICES},
-                'etapa_embudo': {v: k for k, v in PedidoSeguimiento.ETAPA_CHOICES},
             }
             if campo == 'comentario':
                 valor = log.valor_anterior
@@ -866,6 +854,28 @@ def pedido_revertir(request, log_id):
         return JsonResponse({'error': 'Campo no reversible.'}, status=400)
 
     return JsonResponse({'ok': True})
+
+
+@login_required
+def pedidos_recientes(request):
+    """Lista de los últimos pedidos llegados (para el panel de la campanita), con su
+    fecha y hora. Solo pedidos de origen automático (sincronización/webhook)."""
+    from core.permisos import puede_ver_pedidos
+    if not puede_ver_pedidos(request.user):
+        return JsonResponse({'ok': False}, status=403)
+    qs = (Pedido.objects.filter(origen=Pedido.ORIGEN_AUTO)
+          .select_related('integracion').order_by('-id')[:25])
+    data = []
+    for p in qs:
+        cuando = p.fecha_pedido or p.creado
+        data.append({
+            'numero': p.numero or p.external_id,
+            'cliente': p.nombre_cliente or 'Cliente',
+            'fuente': p.integracion.get_proveedor_display(),
+            'fecha': timezone.localtime(cuando).strftime('%d/%m/%Y %H:%M') if cuando else '—',
+        })
+    return JsonResponse({'ok': True, 'pedidos': data,
+                         'url': reverse('integraciones:pedidos_modulo')})
 
 
 @login_required

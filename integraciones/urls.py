@@ -19,6 +19,7 @@ urlpatterns = [
     path('pedidos/<int:pedido_id>/historial/', views.pedido_historial, name='pedido_historial'),
     path('pedidos/historial/<int:log_id>/revertir/', views.pedido_revertir, name='pedido_revertir'),
     path('pedidos/nuevos/', views.pedidos_nuevos, name='pedidos_nuevos'),
+    path('pedidos/recientes/', views.pedidos_recientes, name='pedidos_recientes'),
     path('pedidos/filtro/', views.pedido_filtro, name='pedido_filtro'),
     # Registro de pedidos (alta manual)
     path('registro-pedidos/', views.registro_pedidos, name='registro_pedidos'),

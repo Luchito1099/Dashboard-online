@@ -294,17 +294,13 @@ class PedidoSeguimiento(models.Model):
         ('recuperado', 'Recuperado'),
     ]
 
-    # Etapa del embudo: usa los MISMOS estados del flujo del pedido (Pedido.ESTADO_CHOICES)
-    # para no duplicar conceptos similares.
-    ETAPA_CREADO = Pedido.ESTADO_CREADO
-    ETAPA_CHOICES = Pedido.ESTADO_CHOICES
+    # (La "etapa del embudo" se eliminó: el embudo y las visuales se basan en Pedido.estado)
 
     pedido = models.OneToOneField(Pedido, on_delete=models.CASCADE, related_name='seguimiento')
     llamada_estado = models.CharField(max_length=30, choices=LLAMADA_CHOICES, default=LLAMADA_NO_CONTACTADO)
     llamadas_intentadas = models.PositiveSmallIntegerField(default=0)
     comentario = models.TextField(blank=True)
     tipo_cliente = models.CharField(max_length=20, choices=TIPO_CLIENTE_CHOICES, blank=True)
-    etapa_embudo = models.CharField(max_length=20, choices=ETAPA_CHOICES, default=ETAPA_CREADO)
     estrategia = models.ForeignKey('capacitacion.Estrategia', on_delete=models.SET_NULL,
                                    null=True, blank=True, related_name='pedidos')
     actualizado_por = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, blank=True,
@@ -325,7 +321,7 @@ class PedidoEditLog(models.Model):
     pedido = models.ForeignKey(Pedido, on_delete=models.CASCADE, related_name='historial')
     usuario = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, blank=True,
                                 related_name='ediciones_pedido')
-    campo_modificado = models.CharField(max_length=60)   # 'estado', 'adelanto', 'etapa_embudo', ...
+    campo_modificado = models.CharField(max_length=60)   # 'estado', 'adelanto', 'clave', ...
     valor_anterior = models.CharField(max_length=300, blank=True)
     valor_nuevo = models.CharField(max_length=300, blank=True)
     timestamp = models.DateTimeField(auto_now_add=True)

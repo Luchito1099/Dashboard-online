@@ -1,6 +1,6 @@
 # Esquema de la base de datos · KLYNEA ERP
 
-> Generado automáticamente por `python manage.py esquema_bd` el 2026-06-25 18:38. **No editar a mano** (se sobrescribe). Para análisis y mejoras ver `docs/ESQUEMA_NOTAS.md`.
+> Generado automáticamente por `python manage.py esquema_bd` el 2026-06-25 18:51. **No editar a mano** (se sobrescribe). Para análisis y mejoras ver `docs/ESQUEMA_NOTAS.md`.
 
 ## Cómo visualizarlo
 - **Diagrama ER (rápido):** copia el bloque *Mermaid* en https://mermaid.live
@@ -293,7 +293,6 @@ erDiagram
         int llamadas_intentadas
         text comentario
         varchar tipo_cliente
-        varchar etapa_embudo
         int estrategia_id FK
         int actualizado_por_id FK
         datetime actualizado_en
@@ -669,7 +668,6 @@ Table integraciones_pedidoseguimiento {
   llamadas_intentadas int
   comentario text
   tipo_cliente varchar
-  etapa_embudo varchar
   estrategia_id int [null, ref: > capacitacion_estrategia.id]
   actualizado_por_id int [null, ref: > auth_user.id]
   actualizado_en datetime [null]
@@ -1095,7 +1093,6 @@ _Datos de gestión/seguimiento de un pedido (1:1 con Pedido): contacto, etapa_
 | llamadas_intentadas | PositiveSmallIntegerField | no |  |  |
 | comentario | TextField | no |  |  |
 | tipo_cliente | CharField | no |  | máx 20, choices |
-| etapa_embudo | CharField | no |  | máx 20, choices |
 | estrategia_id | ForeignKey | sí | FK → `capacitacion_estrategia` (SET_NULL) |  |
 | actualizado_por_id | ForeignKey | sí | FK → `auth_user` (SET_NULL) |  |
 | actualizado_en | DateTimeField | sí |  |  |

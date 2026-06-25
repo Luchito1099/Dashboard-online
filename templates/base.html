@@ -160,12 +160,18 @@
       <input type="text" placeholder="Buscar...">
       <span class="search-kbd">⌘K</span>
     </div>
-    <button class="topbar-btn" id="notifBtn">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-        <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0"/>
-      </svg>
-      <span class="notif-dot"></span>
-    </button>
+    <div class="notif-wrap">
+      <button class="topbar-btn" id="notifBtn"{% if puede_editar or cfg.vendedor_puede_ver_pedidos or cfg.vendedor_puede_editar_pedidos or cfg.vendedor_puede_ver_seguimiento or cfg.vendedor_puede_editar_seguimiento or cfg.vendedor_puede_ver_avances %} data-url="{% url 'integraciones:pedidos_recientes' %}"{% endif %}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0"/>
+        </svg>
+        <span class="notif-dot" id="notifDot" style="display:none;"></span>
+      </button>
+      <div class="notif-panel" id="notifPanel">
+        <div class="notif-panel-head">🔔 Pedidos recientes</div>
+        <div class="notif-panel-body" id="notifBody"><div class="notif-empty">Cargando…</div></div>
+      </div>
+    </div>
     <div class="topbar-avatar">{{ request.user.username|first|upper }}</div>
   </header>
 
@@ -302,6 +308,8 @@
         if(j.pedidos && j.pedidos.length){
           j.pedidos.forEach(function(p){ toast(p, j.url); });
           beep();
+          var dot = document.getElementById('notifDot');
+          if(dot) dot.style.display = '';   // marca la campanita
         }
         if(typeof j.max_id !== 'undefined') localStorage.setItem(KEY, j.max_id);
       })
@@ -310,6 +318,40 @@
 
   poll();
   setInterval(poll, 30000);
+})();
+
+// Campanita: panel con los pedidos recientes (fecha y hora)
+(function(){
+  var btn = document.getElementById('notifBtn');
+  if(!btn || !btn.dataset.url) return;
+  var panel = document.getElementById('notifPanel');
+  var body = document.getElementById('notifBody');
+  btn.addEventListener('click', function(e){
+    e.stopPropagation();
+    var dot = document.getElementById('notifDot'); if(dot) dot.style.display = 'none';
+    var abrir = !panel.classList.contains('show');
+    panel.classList.toggle('show', abrir);
+    if(!abrir) return;
+    body.innerHTML = '<div class="notif-empty">Cargando…</div>';
+    fetch(btn.dataset.url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+      .then(function(r){ return r.json(); })
+      .then(function(j){
+        if(!j || !j.ok){ body.innerHTML = '<div class="notif-empty">Sin acceso.</div>'; return; }
+        if(!j.pedidos.length){ body.innerHTML = '<div class="notif-empty">Sin pedidos recientes.</div>'; return; }
+        var html = '';
+        j.pedidos.forEach(function(p){
+          html += '<a class="notif-item" href="' + j.url + '">'
+            + '<div class="notif-item-top"><span class="notif-num">' + p.numero + '</span>'
+            + '<span class="notif-fuente">' + p.fuente + '</span></div>'
+            + '<div class="notif-cli">' + p.cliente + '</div>'
+            + '<div class="notif-fecha">🕑 ' + p.fecha + '</div></a>';
+        });
+        body.innerHTML = html;
+      })
+      .catch(function(){ body.innerHTML = '<div class="notif-empty">Error al cargar.</div>'; });
+  });
+  panel.addEventListener('click', function(e){ e.stopPropagation(); });
+  document.addEventListener('click', function(){ panel.classList.remove('show'); });
 })();
 </script>
 {% block extra_js %}{% endblock %}
