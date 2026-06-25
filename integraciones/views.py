@@ -1,17 +1,21 @@
 # integraciones/views.py
 import json
 import secrets
+from datetime import timedelta
+from decimal import Decimal, InvalidOperation
 
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.http import HttpResponseNotAllowed, HttpResponse, JsonResponse
 from django.urls import reverse
+from django.utils import timezone
+from django.db.models import Q
 from django.views.decorators.csrf import csrf_exempt
 
 # Reutilizamos el helper de permisos existente (no lo duplicamos)
 from capacitacion.views import es_admin
-from .models import Integracion
+from .models import Integracion, Pedido
 from . import connectors
 
 
@@ -201,6 +205,119 @@ def pedidos(request, integracion_id):
         'total': integ.pedidos.count(),
     }
     return render(request, 'integraciones/pedidos.html', context)
+
+
+# ───────────────────────── Módulo Pedidos (vista unificada) ─────────────────────────
+
+# Rangos rápidos de fecha del módulo (clave → días hacia atrás; None = sin límite)
+_RANGOS_FECHA = {'hoy': 0, '7d': 7, '30d': 30, 'todo': None}
+
+
+@login_required
+def pedidos_modulo(request):
+    """Vista unificada de pedidos de TODAS las fuentes, con filtros, KPIs y
+    edición en línea por estado (creado/confirmado/entregado/cancelado). Solo admin."""
+    if not es_admin(request.user):
+        messages.error(request, 'No tienes permisos para ver los pedidos.')
+        return redirect('core:home')
+
+    qs = Pedido.objects.select_related('integracion', 'editado_por').prefetch_related('items')
+
+    # ── Filtros ──
+    q = request.GET.get('q', '').strip()
+    if q:
+        qs = qs.filter(Q(nombre_cliente__icontains=q) | Q(telefono__icontains=q) | Q(numero__icontains=q))
+
+    fuente = request.GET.get('fuente', '').strip()
+    if fuente:
+        qs = qs.filter(integracion_id=fuente)
+
+    estado = request.GET.get('estado', '').strip()
+    if estado in dict(Pedido.ESTADO_CHOICES):
+        qs = qs.filter(estado=estado)
+
+    envio = request.GET.get('envio', '').strip()
+    if envio:
+        qs = qs.filter(tipo_envio=envio)
+
+    rango = request.GET.get('rango', 'todo')
+    dias = _RANGOS_FECHA.get(rango, None)
+    if dias is not None:
+        desde = timezone.now() - timedelta(days=dias) if dias else timezone.now().replace(
+            hour=0, minute=0, second=0, microsecond=0)
+        qs = qs.filter(fecha_pedido__gte=desde)
+
+    pedidos = list(qs[:500])
+
+    # ── KPIs (sobre lo filtrado) ──
+    confirmados = [p for p in pedidos if p.estado == Pedido.ESTADO_CONFIRMADO]
+    total_confirmado = sum((p.total for p in confirmados), Decimal('0'))
+    total_cobrado = sum((p.adelanto for p in confirmados), Decimal('0'))
+    por_cobrar = sum((p.restante for p in pedidos if p.estado != Pedido.ESTADO_CANCELADO), Decimal('0'))
+
+    context = {
+        'pedidos': pedidos,
+        'total_visibles': len(pedidos),
+        'num_confirmados': len(confirmados),
+        'total_confirmado': total_confirmado,
+        'total_cobrado': total_cobrado,
+        'por_cobrar': por_cobrar,
+        'estados': Pedido.ESTADO_CHOICES,
+        'rangos_btn': [('hoy', 'Hoy'), ('7d', '7d'), ('30d', '30d'), ('todo', 'Todo')],
+        'fuentes': Integracion.objects.filter(categoria=Integracion.CATEGORIA_FUENTE),
+        'envios': sorted({p.tipo_envio for p in Pedido.objects.exclude(tipo_envio='')
+                          .values_list('tipo_envio', flat=True).distinct()}),
+        # Selección actual (para mantener los filtros marcados)
+        'f_q': q, 'f_fuente': fuente, 'f_estado': estado, 'f_envio': envio, 'f_rango': rango,
+    }
+    return render(request, 'integraciones/pedidos_modulo.html', context)
+
+
+@login_required
+def pedido_editar(request, pedido_id):
+    """Edición en línea de un pedido: estado, precio final y adelanto. Solo admin (POST, AJAX)."""
+    if not es_admin(request.user):
+        return JsonResponse({'error': 'sin permiso'}, status=403)
+    if request.method != 'POST':
+        return HttpResponseNotAllowed(['POST'])
+
+    pedido = get_object_or_404(Pedido, id=pedido_id)
+    cambios = []
+
+    estado = request.POST.get('estado')
+    if estado is not None and estado in dict(Pedido.ESTADO_CHOICES):
+        pedido.estado = estado
+        cambios.append('estado')
+
+    for campo in ('total', 'adelanto'):
+        crudo = request.POST.get(campo)
+        if crudo is None or crudo == '':
+            continue
+        try:
+            valor = Decimal(crudo.replace(',', '.'))
+        except (InvalidOperation, AttributeError):
+            return JsonResponse({'error': f'Valor inválido para {campo}.'}, status=400)
+        if valor < 0:
+            return JsonResponse({'error': f'{campo} no puede ser negativo.'}, status=400)
+        setattr(pedido, campo, valor)
+        cambios.append(campo)
+
+    if not cambios:
+        return JsonResponse({'error': 'Nada que actualizar.'}, status=400)
+
+    pedido.editado_por = request.user
+    pedido.editado_en = timezone.now()
+    pedido.save(update_fields=cambios + ['editado_por', 'editado_en'])
+
+    return JsonResponse({
+        'ok': True,
+        'estado': pedido.estado,
+        'estado_label': pedido.get_estado_display(),
+        'total': f'{pedido.total:.2f}',
+        'adelanto': f'{pedido.adelanto:.2f}',
+        'restante': f'{pedido.restante:.2f}',
+        'editado_por': request.user.get_full_name() or request.user.username,
+    })
 
 
 # ───────────────────────── OAuth de Shopify ─────────────────────────

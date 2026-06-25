@@ -39,7 +39,13 @@
       "PowerShell(& \".\\\\venv\\\\Scripts\\\\python.exe\" -c \"import ast; [ast.parse\\(open\\(f, encoding='utf-8'\\).read\\(\\)\\) for f in ['integraciones/shalom_scraper.py','integraciones/models.py','integraciones/shalom_runner.py']]; print\\('Sintaxis OK'\\)\")",
       "PowerShell(& \".\\\\venv\\\\Scripts\\\\python.exe\" -c \"import ast; ast.parse\\(open\\('integraciones/views.py', encoding='utf-8'\\).read\\(\\)\\); print\\('views.py OK'\\)\")",
       "PowerShell(& \".\\\\venv\\\\Scripts\\\\python.exe\" manage.py check 2>&1)",
-      "PowerShell(& \".\\\\venv\\\\Scripts\\\\python.exe\" -c \"import ast; ast.parse\\(open\\('integraciones/shalom_scraper.py', encoding='utf-8'\\).read\\(\\)\\); print\\('shalom_scraper.py OK'\\)\")"
+      "PowerShell(& \".\\\\venv\\\\Scripts\\\\python.exe\" -c \"import ast; ast.parse\\(open\\('integraciones/shalom_scraper.py', encoding='utf-8'\\).read\\(\\)\\); print\\('shalom_scraper.py OK'\\)\")",
+      "Bash(./venv/Scripts/python.exe -c \"import playwright; print\\('playwright ok'\\)\")",
+      "Bash(./venv/Scripts/python.exe \"C:/Users/luiss/AppData/Local/Temp/claude/c--Users-luiss-OneDrive-Personal-Documentos-Proyectos-Dashboard-online/381a62de-4971-4fb5-b870-ca0418c42c65/scratchpad/inspeccionar_login.py\")",
+      "Bash(ls venv/Scripts/python.exe)",
+      "Bash(venv/Scripts/python.exe -c \"import django; print\\(django.get_version\\(\\)\\)\")",
+      "Bash(venv/Scripts/python.exe manage.py migrate integraciones)",
+      "Bash(venv/Scripts/python.exe -c ' *)"
     ]
   }
 }

@@ -49,6 +49,16 @@
     </a>
     {% endif %}
 
+    {% if puede_editar %}
+    <a href="{% url 'integraciones:pedidos_modulo' %}" class="nav-item {% block nav_pedidos %}{% endblock %}">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/>
+        <path d="M3 6h18M16 10a4 4 0 01-8 0"/>
+      </svg>
+      <span class="nav-label">Pedidos</span>
+    </a>
+    {% endif %}
+
     <div class="nav-section-label">Herramientas</div>
     <a href="{% url 'rotulador:index' %}" class="nav-item {% block nav_rotulador %}{% endblock %}">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">

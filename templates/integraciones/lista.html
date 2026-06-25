@@ -21,19 +21,27 @@
   <div class="integ-header">
     <div>
       <h2 class="integ-title">Integraciones</h2>
-      <p class="integ-subtitle">{{ total }} conexión{{ total|pluralize:"es" }} · fuentes de pedidos y empresas de logística</p>
+      <p class="integ-subtitle">Fuentes de pedidos y empresas de logística conectadas</p>
     </div>
   </div>
 
-  {# ── Crear nueva integración ── #}
+  {# ── Crear nueva integración (fila inline) ── #}
   <div class="integ-card integ-nueva">
     <div class="integ-card-head"><span class="integ-card-titulo">+ Nueva integración</span></div>
     <form method="post" action="{% url 'integraciones:crear' %}">
       {% csrf_token %}
-      <div class="integ-grid">
-        <label class="integ-field integ-field-wide">
+      <div class="integ-nueva-grid">
+        <label class="integ-field">
+          <span>Proveedor</span>
+          <select name="proveedor">
+            {% for valor, etiqueta in proveedores %}
+            <option value="{{ valor }}">{{ etiqueta }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label class="integ-field">
           <span>Nombre / alias</span>
-          <input type="text" name="nombre" placeholder="Ej: Tienda principal PE" required>
+          <input type="text" name="nombre" placeholder="Ej: Novashop" required>
         </label>
         <label class="integ-field">
           <span>Categoría</span>
@@ -43,16 +51,8 @@
             {% endfor %}
           </select>
         </label>
-        <label class="integ-field">
-          <span>Proveedor</span>
-          <select name="proveedor">
-            {% for valor, etiqueta in proveedores %}
-            <option value="{{ valor }}">{{ etiqueta }}</option>
-            {% endfor %}
-          </select>
-        </label>
+        <button type="submit" class="btn-guardar">Agregar</button>
       </div>
-      <button type="submit" class="btn-guardar">+ Agregar integración</button>
     </form>
   </div>
 
@@ -61,19 +61,39 @@
   <h3 class="integ-seccion">{{ seccion_titulo }} <span>({{ items|length }})</span></h3>
 
   {% for integ in items %}
-  <div class="integ-card" id="integ-{{ integ.id }}">
+  <div class="integ-card integ-row" id="integ-{{ integ.id }}">
 
-    <div class="integ-card-head">
+    {# ── Cabecera colapsable ── #}
+    <div class="integ-row-head" role="button" tabindex="0" aria-expanded="false">
+      <svg class="integ-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg>
       <span class="integ-badge badge-{{ integ.proveedor }}">{{ integ.get_proveedor_display }}</span>
       <span class="integ-card-titulo">{{ integ.nombre }}</span>
       {% if integ.etiqueta %}<span class="integ-tag">{{ integ.etiqueta }}</span>{% endif %}
+      <span class="integ-tag">{{ integ.get_categoria_display }}</span>
       {% if not integ.activo %}<span class="integ-tag integ-tag-off">inactiva</span>{% endif %}
-      {% if integ.proveedor != 'shalom' and integ.ultimo_test_ok is not None %}
-        <span class="integ-estado {% if integ.ultimo_test_ok %}ok{% else %}fail{% endif %}">
-          {% if integ.ultimo_test_ok %}✓ Conectada{% else %}✕ Error{% endif %}
-        </span>
+
+      <div class="integ-row-meta">
+        {% if integ.ultimo_sync_en %}
+          <div class="integ-row-sync">Sync hace {{ integ.ultimo_sync_en|timesince }}</div>
+        {% elif integ.proveedor == 'otro' %}
+          <div class="integ-row-sync">Manual</div>
+        {% else %}
+          <div class="integ-row-sync">Sin sincronizar</div>
+        {% endif %}
+        <div class="integ-row-count">{{ integ.pedidos_count }} pedido{{ integ.pedidos_count|pluralize }}</div>
+      </div>
+
+      {% if integ.proveedor == 'otro' %}
+        <span class="integ-estado-pill off">✕ Sin conectar</span>
+      {% elif integ.token or integ.ultimo_test_ok %}
+        <span class="integ-estado-pill ok">✓ Conectada</span>
+      {% else %}
+        <span class="integ-estado-pill off">✕ Sin conectar</span>
       {% endif %}
     </div>
+
+    {# ── Cuerpo (se despliega) ── #}
+    <div class="integ-row-body">
 
     {% if integ.proveedor != 'shalom' and integ.ultimo_test_msg %}
     <p class="integ-test-msg">{{ integ.ultimo_test_msg }}{% if integ.ultimo_test_en %} · {{ integ.ultimo_test_en|date:"d/m/Y H:i" }}{% endif %}</p>
@@ -243,6 +263,8 @@
       </form>
     </div>
 
+    </div>{# /integ-row-body #}
+
   </div>
   {% empty %}
   <div class="integ-vacio">Sin integraciones en esta categoría todavía.</div>
@@ -256,6 +278,31 @@
 {% block extra_js %}
 <script src="{% static 'core/js/extras.js' %}"></script>
 <script>
+// ── Colapsable: abrir/cerrar cada fila de integración ──
+(function () {
+  document.querySelectorAll('.integ-row').forEach(function (row) {
+    var head = row.querySelector('.integ-row-head');
+    if (!head) return;
+    function toggle() {
+      var abierto = row.classList.toggle('open');
+      head.setAttribute('aria-expanded', abierto ? 'true' : 'false');
+    }
+    head.addEventListener('click', function (e) {
+      // No togglear si se hizo clic en un control interactivo de la cabecera
+      if (e.target.closest('a, button, input, select')) return;
+      toggle();
+    });
+    head.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); }
+    });
+  });
+  // Si la URL trae #integ-<id>, abrimos esa fila
+  if (location.hash) {
+    var objetivo = document.querySelector(location.hash);
+    if (objetivo && objetivo.classList.contains('integ-row')) objetivo.classList.add('open');
+  }
+})();
+
 // Muestra solo los campos del proveedor seleccionado en cada card de integración.
 (function () {
   function aplicar(card) {

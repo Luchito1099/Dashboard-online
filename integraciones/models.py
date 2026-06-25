@@ -116,9 +116,30 @@ class Integracion(models.Model):
 class Pedido(models.Model):
     """Pedido extraído de una integración (ej. Shopify). Guarda los campos clave
     para mostrar/operar y el JSON completo en 'datos' por si se necesita más."""
+
+    # ── Estado del flujo de trabajo (propio, no es el estado de Shopify) ──
+    # No es una bandera: el pedido avanza por estos estados. 'creado' es la base.
+    ESTADO_CREADO = 'creado'
+    ESTADO_CONFIRMADO = 'confirmado'
+    ESTADO_ENTREGADO = 'entregado'
+    ESTADO_CANCELADO = 'cancelado'
+    ESTADO_CHOICES = [
+        (ESTADO_CREADO, 'Pedido creado'),
+        (ESTADO_CONFIRMADO, 'Pedido confirmado'),
+        (ESTADO_ENTREGADO, 'Entregado'),
+        (ESTADO_CANCELADO, 'Cancelado'),
+    ]
+
     integracion = models.ForeignKey(Integracion, on_delete=models.CASCADE, related_name='pedidos')
     external_id = models.CharField(max_length=64)       # id del pedido en el origen
     numero = models.CharField(max_length=40, blank=True)  # ej. "#1001"
+
+    # Estado del flujo + montos/edición que se operan a mano desde el módulo Pedidos
+    estado = models.CharField(max_length=20, choices=ESTADO_CHOICES, default=ESTADO_CREADO)
+    adelanto = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    editado_por = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, blank=True,
+                                    related_name='pedidos_editados')
+    editado_en = models.DateTimeField(null=True, blank=True)
 
     # Cliente y entrega
     nombre_cliente = models.CharField(max_length=200, blank=True)
@@ -168,6 +189,11 @@ class Pedido(models.Model):
     def ubicacion(self):
         """Resumen 'Distrito, Provincia' para mostrar en tablas."""
         return ', '.join(filter(None, [self.distrito, self.provincia]))
+
+    @property
+    def restante(self):
+        """Lo que falta cobrar: precio final menos el adelanto (nunca negativo)."""
+        return max(self.total - self.adelanto, 0)
 
 
 class PedidoItem(models.Model):
