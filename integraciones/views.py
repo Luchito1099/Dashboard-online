@@ -246,12 +246,16 @@ def pedidos_modulo(request):
     if envio:
         qs = qs.filter(tipo_envio=envio)
 
+    # Fechas en hora de Perú (America/Lima): usamos la fecha local y el lookup __date,
+    # que Django evalúa en la zona horaria activa (TIME_ZONE). Así "Hoy" coincide con el Inicio.
     rango = request.GET.get('rango', 'todo')
     dias = _RANGOS_FECHA.get(rango, None)
     if dias is not None:
-        desde = timezone.now() - timedelta(days=dias) if dias else timezone.now().replace(
-            hour=0, minute=0, second=0, microsecond=0)
-        qs = qs.filter(fecha_pedido__gte=desde)
+        hoy = timezone.localdate()
+        if dias == 0:   # Hoy
+            qs = qs.filter(fecha_pedido__date=hoy)
+        else:           # Últimos N días (incluye hoy)
+            qs = qs.filter(fecha_pedido__date__gte=hoy - timedelta(days=dias - 1))
 
     # ── KPIs: se calculan en la base sobre TODO lo filtrado (no solo lo mostrado) ──
     cero = Value(Decimal('0'), output_field=DecimalField(max_digits=12, decimal_places=2))
