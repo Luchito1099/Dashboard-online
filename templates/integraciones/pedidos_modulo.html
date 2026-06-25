@@ -83,7 +83,7 @@
     <table class="ped-tabla" id="pedTabla">
       <thead>
         <tr>
-          <th>Pedido</th><th>Cliente</th><th>Fuente</th><th>Estado</th>
+          <th>Pedido</th><th class="ped-cli">Cliente</th><th>Fuente</th><th>Estado</th>
           <th>Precio final</th><th>Adelanto</th><th>Restante</th><th>Tipo envío</th><th>Editado por</th>
         </tr>
       </thead>
@@ -91,7 +91,7 @@
         {% for p in pedidos %}
         <tr data-id="{{ p.id }}" data-url="{% url 'integraciones:pedido_editar' p.id %}">
           <td>{{ p.numero|default:p.external_id }}</td>
-          <td>
+          <td class="ped-cli">
             <div class="ped-cliente-nombre">{{ p.nombre_cliente|default:"—" }}</div>
             {% if p.telefono %}<div class="ped-cliente-tel">{{ p.telefono }}</div>{% endif %}
           </td>

@@ -162,7 +162,8 @@
 .ped-sub { font-size: 11px; color: var(--muted); }
 
 /* ───────────────────────── Módulo Pedidos (vista unificada) ───────────────────────── */
-.pedidos-mod { max-width: 1240px; }
+/* Sin tope de ancho: usa todo el espacio disponible para que la tabla no se corte. */
+.pedidos-mod { width: 100%; }
 
 /* Barra de filtros */
 .ped-filtros {
@@ -205,9 +206,11 @@
   box-shadow: var(--shadow); overflow-x: auto;
 }
 .ped-tabla { width: 100%; border-collapse: collapse; font-size: 13px; }
-.ped-tabla th, .ped-tabla td { text-align: left; padding: 11px 12px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.ped-tabla th, .ped-tabla td { text-align: left; padding: 10px 9px; border-bottom: 1px solid var(--border); white-space: nowrap; }
 .ped-tabla th { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); font-weight: 600; }
 .ped-tabla tbody tr:hover { background: var(--bg); }
+/* Cliente puede ocupar el espacio sobrante y partir en líneas si hace falta */
+.ped-tabla td.ped-cli, .ped-tabla th.ped-cli { white-space: normal; width: 100%; }
 .ped-num { font-size: 13px; text-align: right; }
 .ped-cliente-nombre { font-weight: 600; color: var(--text); }
 .ped-cliente-tel { font-size: 11px; color: var(--muted); }
@@ -216,9 +219,9 @@
 
 /* Inputs en línea de montos */
 .ped-monto {
-  width: 78px; padding: 6px 8px; font-size: 13px; text-align: right;
+  width: 62px; padding: 6px 7px; font-size: 13px; text-align: right;
   border: 1px solid transparent; border-radius: 6px; background: var(--bg); color: var(--text);
-  font-family: inherit;
+  font-family: inherit; box-sizing: border-box;
 }
 .ped-monto:hover { border-color: var(--border-dark); }
 .ped-monto:focus { outline: none; border-color: var(--primary); background: var(--surface); }

@@ -10,7 +10,8 @@ from django.contrib import messages
 from django.http import HttpResponseNotAllowed, HttpResponse, JsonResponse
 from django.urls import reverse
 from django.utils import timezone
-from django.db.models import Q
+from django.db.models import Q, Count, Sum, F, Value, DecimalField
+from django.db.models.functions import Coalesce, Greatest
 from django.views.decorators.csrf import csrf_exempt
 
 # Reutilizamos el helper de permisos existente (no lo duplicamos)
@@ -226,7 +227,7 @@ def pedidos_modulo(request):
         return redirect(destino_vendedor(request.user))
     puede_editar_ped = puede_ver(request.user, 'vendedor_puede_editar_pedidos')
 
-    qs = Pedido.objects.select_related('integracion', 'editado_por').prefetch_related('items')
+    qs = Pedido.objects.select_related('integracion', 'editado_por')
 
     # ── Filtros ──
     q = request.GET.get('q', '').strip()
@@ -252,20 +253,26 @@ def pedidos_modulo(request):
             hour=0, minute=0, second=0, microsecond=0)
         qs = qs.filter(fecha_pedido__gte=desde)
 
-    pedidos = list(qs[:500])
+    # ── KPIs: se calculan en la base sobre TODO lo filtrado (no solo lo mostrado) ──
+    cero = Value(Decimal('0'), output_field=DecimalField(max_digits=12, decimal_places=2))
+    total_visibles = qs.count()
+    conf = qs.filter(estado=Pedido.ESTADO_CONFIRMADO).aggregate(
+        n=Count('id'),
+        total=Coalesce(Sum('total'), cero),
+        cobrado=Coalesce(Sum('adelanto'), cero),
+    )
+    restante_expr = Greatest(F('total') - F('adelanto'), cero)
+    por_cobrar = qs.exclude(estado=Pedido.ESTADO_CANCELADO).aggregate(
+        s=Coalesce(Sum(restante_expr), cero))['s']
 
-    # ── KPIs (sobre lo filtrado) ──
-    confirmados = [p for p in pedidos if p.estado == Pedido.ESTADO_CONFIRMADO]
-    total_confirmado = sum((p.total for p in confirmados), Decimal('0'))
-    total_cobrado = sum((p.adelanto for p in confirmados), Decimal('0'))
-    por_cobrar = sum((p.restante for p in pedidos if p.estado != Pedido.ESTADO_CANCELADO), Decimal('0'))
+    pedidos = list(qs)   # todos los pedidos filtrados
 
     context = {
         'pedidos': pedidos,
-        'total_visibles': len(pedidos),
-        'num_confirmados': len(confirmados),
-        'total_confirmado': total_confirmado,
-        'total_cobrado': total_cobrado,
+        'total_visibles': total_visibles,
+        'num_confirmados': conf['n'],
+        'total_confirmado': conf['total'],
+        'total_cobrado': conf['cobrado'],
         'por_cobrar': por_cobrar,
         'estados': Pedido.ESTADO_CHOICES,
         'rangos_btn': [('hoy', 'Hoy'), ('7d', '7d'), ('30d', '30d'), ('todo', 'Todo')],
