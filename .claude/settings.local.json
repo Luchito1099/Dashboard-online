@@ -56,7 +56,8 @@
       "PowerShell(python manage.py check 2>&1)",
       "PowerShell(python -m pip install whitenoise --quiet 2>&1 | Select-Object -Last 2; Write-Output \"exit:$LASTEXITCODE\")",
       "PowerShell(python manage.py makemigrations integraciones 2>&1)",
-      "PowerShell(python manage.py migrate 2>&1)"
+      "PowerShell(python manage.py migrate 2>&1)",
+      "PowerShell(python manage.py makemigrations integraciones core 2>&1)"
     ]
   }
 }

@@ -237,7 +237,7 @@ _ORDEN_LABELS = [
 def _filtrar_pedidos(request):
     """Aplica los filtros comunes (q, fuente, estado, envío, rango, orden) y devuelve
     (queryset filtrado, dict con la selección actual de filtros)."""
-    qs = Pedido.objects.select_related('integracion', 'editado_por').prefetch_related('items')
+    qs = Pedido.objects.select_related('integracion', 'editado_por', 'vendedor').prefetch_related('items')
 
     q = request.GET.get('q', '').strip()
     if q:
@@ -379,6 +379,14 @@ def _context_listado(qs, context):
     })
 
 
+def _vendedores_qs():
+    """Usuarios asignables como vendedor de un pedido (rol vendedor/admin o superuser)."""
+    from django.contrib.auth.models import User
+    return (User.objects.filter(is_active=True)
+            .filter(Q(perfil__rol__in=['vendedor', 'admin']) | Q(is_superuser=True))
+            .order_by('username'))
+
+
 def _context_seguimiento(qs, context):
     """Lista de pedidos con sus datos de seguimiento (creados al vuelo en plantilla si faltan)."""
     from capacitacion.models import Estrategia
@@ -390,6 +398,7 @@ def _context_seguimiento(qs, context):
         'tipo_cliente_choices': PedidoSeguimiento.TIPO_CLIENTE_CHOICES,
         'etapa_choices': PedidoSeguimiento.ETAPA_CHOICES,
         'estrategias': Estrategia.objects.filter(activo=True),
+        'vendedores': _vendedores_qs(),
     })
 
 
@@ -435,11 +444,32 @@ def _context_avances(qs, context):
     evol.reverse()
     max_evol = max([r['n'] for r in evol] + [1])
 
+    # Por vendedor atribuido (campo vendedor)
+    por_vendedor = list(qs.exclude(vendedor=None)
+                        .values('vendedor__username').annotate(n=Count('id')).order_by('-n'))
+    max_vendedor = max([r['n'] for r in por_vendedor] + [1])
+
     # Por vendedor: registros manuales + ediciones
     por_vendedor_reg = list(qs.filter(origen=Pedido.ORIGEN_MANUAL).exclude(registrado_por=None)
                             .values('registrado_por__username').annotate(n=Count('id')).order_by('-n'))
     por_editor = list(qs.exclude(editado_por=None)
                       .values('editado_por__username').annotate(n=Count('id')).order_by('-n'))
+
+    # Cumplimiento de metas del día (independiente de los filtros: siempre "hoy")
+    from core.models import MetaVendedor
+    hoy = timezone.localdate()
+    av_metas = []
+    for m in MetaVendedor.objects.filter(Q(pedidos_dia__gt=0) | Q(monto_dia__gt=0)).select_related('usuario'):
+        hoy_qs = Pedido.objects.filter(vendedor=m.usuario, fecha_pedido__date=hoy)
+        hechos = hoy_qs.count()
+        monto = hoy_qs.aggregate(s=Coalesce(Sum('total'), cero))['s']
+        pct = round(hechos / m.pedidos_dia * 100) if m.pedidos_dia else 0
+        pct_monto = round(monto / m.monto_dia * 100) if m.monto_dia else 0
+        av_metas.append({
+            'vendedor': m.usuario.get_full_name() or m.usuario.username,
+            'meta': m.pedidos_dia, 'hechos': hechos, 'pct': min(pct, 100), 'pct_real': pct,
+            'meta_monto': m.monto_dia, 'monto': monto, 'pct_monto': min(pct_monto, 100), 'pct_monto_real': pct_monto,
+        })
 
     context.update({
         'av_total': total,
@@ -453,8 +483,11 @@ def _context_avances(qs, context):
         'av_por_canal': por_canal,
         'av_evol': evol,
         'av_max_evol': max_evol,
+        'av_por_vendedor': por_vendedor,
+        'av_max_vendedor': max_vendedor,
         'av_por_vendedor_reg': por_vendedor_reg,
         'av_por_editor': por_editor,
+        'av_metas': av_metas,
     })
 
 
@@ -581,12 +614,28 @@ def pedido_seguimiento_editar(request, pedido_id):
             seg.estrategia = nueva
             cambios = True
 
-    if not cambios:
+    # Vendedor atribuido (vive en el Pedido, no en el seguimiento)
+    if 'vendedor' in request.POST:
+        from django.contrib.auth.models import User
+        raw = request.POST.get('vendedor', '').strip()
+        nuevo_id = int(raw) if raw.isdigit() else None
+        if nuevo_id != (pedido.vendedor_id or None):
+            ant = (pedido.vendedor.get_full_name() or pedido.vendedor.username) if pedido.vendedor else ''
+            nuevo_u = User.objects.filter(id=nuevo_id).first() if nuevo_id else None
+            if nuevo_id and not nuevo_u:
+                return JsonResponse({'error': 'Vendedor inválido.'}, status=400)
+            registrar_cambio(pedido, request.user, 'vendedor', ant,
+                             (nuevo_u.get_full_name() or nuevo_u.username) if nuevo_u else '')
+            pedido.vendedor = nuevo_u
+            pedido.save(update_fields=['vendedor'])
+
+    if not cambios and 'vendedor' not in request.POST:
         return JsonResponse({'error': 'Nada que actualizar.'}, status=400)
 
-    seg.actualizado_por = request.user
-    seg.actualizado_en = timezone.now()
-    seg.save()
+    if cambios:
+        seg.actualizado_por = request.user
+        seg.actualizado_en = timezone.now()
+        seg.save()
 
     return JsonResponse({
         'ok': True,
@@ -610,7 +659,7 @@ def pedido_historial(request, pedido_id):
         'estado': 'Estado', 'total': 'Precio final', 'adelanto': 'Adelanto',
         'llamada_estado': 'Llamada', 'llamadas_intentadas': 'Llamadas intentadas',
         'comentario': 'Comentario', 'tipo_cliente': 'Tipo de cliente',
-        'etapa_embudo': 'Etapa del embudo', 'estrategia': 'Estrategia',
+        'etapa_embudo': 'Etapa del embudo', 'estrategia': 'Estrategia', 'vendedor': 'Vendedor',
     }
     data = [{
         'id': l.id,
@@ -661,6 +710,15 @@ def pedido_revertir(request, log_id):
         pedido.editado_por = request.user
         pedido.editado_en = timezone.now()
         pedido.save(update_fields=[campo, 'editado_por', 'editado_en'])
+    elif campo == 'vendedor':
+        from django.contrib.auth.models import User
+        ant = log.valor_anterior or ''
+        nuevo_u = (User.objects.filter(username=ant).first()
+                   or next((u for u in _vendedores_qs() if (u.get_full_name() or u.username) == ant), None)) if ant else None
+        actual = (pedido.vendedor.get_full_name() or pedido.vendedor.username) if pedido.vendedor else ''
+        registrar_cambio(pedido, request.user, 'vendedor', actual, ant)
+        pedido.vendedor = nuevo_u
+        pedido.save(update_fields=['vendedor'])
     elif campo in ('llamada_estado', 'tipo_cliente', 'etapa_embudo', 'comentario',
                    'estrategia', 'llamadas_intentadas'):
         seg = pedido.get_seguimiento()
@@ -785,6 +843,13 @@ def registro_crear(request):
         if tipo_envio == 'Otros':
             tipo_envio = request.POST.get('tipo_envio_otro', '').strip() or 'Otros'
 
+        # Vendedor atribuido (por defecto, quien registra)
+        from django.contrib.auth.models import User
+        vend_raw = request.POST.get('vendedor', '').strip()
+        vendedor = User.objects.filter(id=int(vend_raw)).first() if vend_raw.isdigit() else None
+        if vendedor is None:
+            vendedor = request.user
+
         integ = Integracion.get_manual()
         pedido = Pedido.objects.create(
             integracion=integ,
@@ -799,6 +864,7 @@ def registro_crear(request):
             fuente_manual=fuente_manual,
             fuente_manual_detalle=request.POST.get('fuente_manual_detalle', '').strip(),
             registrado_por=request.user,
+            vendedor=vendedor,
             editado_por=request.user,
             editado_en=timezone.now(),
             fecha_pedido=timezone.now(),
@@ -827,8 +893,7 @@ def registro_crear(request):
 
     context = {
         'fuentes_manual': Pedido.FUENTE_MANUAL_CHOICES,
-        'envios': sorted(Pedido.objects.exclude(tipo_envio='')
-                         .values_list('tipo_envio', flat=True).distinct()),
+        'vendedores': _vendedores_qs(),
     }
     return render(request, 'integraciones/registro_crear.html', context)
 

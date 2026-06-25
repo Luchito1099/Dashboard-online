@@ -181,6 +181,9 @@ class Pedido(models.Model):
     fuente_manual_detalle = models.CharField(max_length=120, blank=True)  # texto libre si "Otro"
     registrado_por = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, blank=True,
                                        related_name='pedidos_registrados')
+    # Vendedor al que se le atribuye el pedido (para metas y reportes por vendedor)
+    vendedor = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, blank=True,
+                                 related_name='pedidos_vendedor')
 
     # Estado del flujo + montos/edición que se operan a mano desde el módulo Pedidos
     estado = models.CharField(max_length=20, choices=ESTADO_CHOICES, default=ESTADO_CREADO)
@@ -289,17 +292,10 @@ class PedidoSeguimiento(models.Model):
         ('recuperado', 'Recuperado'),
     ]
 
-    # Etapa del embudo
-    ETAPA_CREADO = 'creado'
-    ETAPA_CHOICES = [
-        ('creado', 'Pedido creado'),
-        ('contactado', 'Contactado'),
-        ('confirmado', 'Confirmado'),
-        ('despachado', 'Despachado'),
-        ('entregado', 'Entregado'),
-        ('perdido', 'Perdido/Caído'),
-        ('recuperado', 'Recuperado'),
-    ]
+    # Etapa del embudo: usa los MISMOS estados del flujo del pedido (Pedido.ESTADO_CHOICES)
+    # para no duplicar conceptos similares.
+    ETAPA_CREADO = Pedido.ESTADO_CREADO
+    ETAPA_CHOICES = Pedido.ESTADO_CHOICES
 
     pedido = models.OneToOneField(Pedido, on_delete=models.CASCADE, related_name='seguimiento')
     llamada_estado = models.CharField(max_length=30, choices=LLAMADA_CHOICES, default=LLAMADA_NO_CONTACTADO)

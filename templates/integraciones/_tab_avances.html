@@ -18,7 +18,44 @@
   </div>
 </div>
 
+{# ── Cumplimiento de metas del día ── #}
+{% if av_metas %}
+<div class="av-card av-card-metas">
+  <div class="av-card-title">🎯 Cumplimiento de metas (hoy)</div>
+  <div class="av-metas-grid">
+    {% for m in av_metas %}
+    <div class="av-meta">
+      <div class="av-meta-top">
+        <span class="av-meta-vend">{{ m.vendedor }}</span>
+        <span class="av-meta-pct {% if m.pct_real >= 100 %}ok{% endif %}">{{ m.pct_real }}%</span>
+      </div>
+      {% if m.meta %}
+      <div class="av-meta-bar"><div class="av-meta-fill {% if m.pct_real >= 100 %}ok{% endif %}" style="width: {{ m.pct }}%"></div></div>
+      <div class="av-meta-sub">{{ m.hechos }} / {{ m.meta }} pedidos</div>
+      {% endif %}
+      {% if m.meta_monto %}
+      <div class="av-meta-bar"><div class="av-meta-fill monto {% if m.pct_monto_real >= 100 %}ok{% endif %}" style="width: {{ m.pct_monto }}%"></div></div>
+      <div class="av-meta-sub">S/ {{ m.monto|floatformat:2 }} / S/ {{ m.meta_monto|floatformat:2 }}</div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
 <div class="av-grid">
+
+  {# ── Pedidos por vendedor ── #}
+  <div class="av-card">
+    <div class="av-card-title">Pedidos por vendedor</div>
+    {% for r in av_por_vendedor %}
+    <div class="av-bar-row">
+      <div class="av-bar-label">{{ r.vendedor__username }}</div>
+      <div class="av-bar-track"><div class="av-bar-fill" style="width: {% widthratio r.n av_max_vendedor 100 %}%"></div></div>
+      <div class="av-bar-num">{{ r.n }}</div>
+    </div>
+    {% empty %}<div class="av-vacio">Ningún pedido tiene vendedor asignado.</div>{% endfor %}
+  </div>
 
   {# ── Funnel por etapa del embudo ── #}
   <div class="av-card av-card-wide">

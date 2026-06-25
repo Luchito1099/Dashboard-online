@@ -114,3 +114,15 @@
 .tabla-permisos th { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
 .tabla-permisos .si { color: var(--success); font-weight: 700; }
 .tabla-permisos .no { color: var(--muted); }
+
+/* ── Metas diarias por vendedor ── */
+.cfg-card-desc { font-size: 13px; color: var(--muted); margin: -4px 0 14px; }
+.cfg-metas-tabla { width: 100%; border-collapse: collapse; font-size: 13px; }
+.cfg-metas-tabla th, .cfg-metas-tabla td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--border); }
+.cfg-metas-tabla th { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); font-weight: 600; }
+.cfg-meta-input {
+  width: 110px; padding: 7px 9px; font-size: 13px; border: 1px solid var(--border-dark);
+  border-radius: 8px; background: var(--surface); color: var(--text); font-family: inherit; box-sizing: border-box;
+}
+.cfg-meta-input:focus { outline: none; border-color: var(--primary); }
+.cfg-meta-vacio { text-align: center; color: var(--muted); padding: 16px; }

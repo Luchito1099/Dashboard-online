@@ -62,3 +62,18 @@ class ConfiguracionSistema(models.Model):
         """Devuelve la única fila de configuración, creándola con valores por defecto si no existe."""
         config, _ = cls.objects.get_or_create(pk=1)
         return config
+
+
+class MetaVendedor(models.Model):
+    """Meta diaria de un vendedor: cantidad de pedidos y/o monto de venta esperados por día.
+    Sirve para que cada vendedor se mida contra su objetivo en la vista Avances."""
+    usuario = models.OneToOneField(User, on_delete=models.CASCADE, related_name='meta')
+    pedidos_dia = models.PositiveSmallIntegerField(default=0)
+    monto_dia = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+
+    class Meta:
+        verbose_name = 'Meta de vendedor'
+        verbose_name_plural = 'Metas de vendedores'
+
+    def __str__(self):
+        return f'Meta de {self.usuario.username}: {self.pedidos_dia}/día'

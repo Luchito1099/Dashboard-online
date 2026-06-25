@@ -254,6 +254,38 @@
     </form>
   </div>
 
+  <!-- ── METAS DIARIAS POR VENDEDOR ── -->
+  <div class="cfg-card">
+    <div class="cfg-card-title">🎯 Metas diarias por vendedor</div>
+    <p class="cfg-card-desc">Define la meta de pedidos y/o monto de venta por día. El avance del día se ve en Pedidos › Avances.</p>
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="accion" value="guardar_metas">
+      <table class="cfg-metas-tabla">
+        <thead>
+          <tr><th>Vendedor</th><th>Pedidos / día</th><th>Monto S/ / día</th></tr>
+        </thead>
+        <tbody>
+          {% for m in metas_info %}
+          <tr>
+            <td>{{ m.nombre }}</td>
+            <td>
+              <input type="hidden" name="meta_usuario" value="{{ m.id }}">
+              <input type="number" min="0" name="pedidos_dia_{{ m.id }}" value="{{ m.pedidos_dia }}" class="cfg-meta-input">
+            </td>
+            <td><input type="text" inputmode="decimal" name="monto_dia_{{ m.id }}" value="{{ m.monto_dia|floatformat:2 }}" class="cfg-meta-input"></td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="3" class="cfg-meta-vacio">No hay vendedores registrados.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <div style="margin-top:14px;">
+        <button type="submit" class="btn-primary">Guardar metas</button>
+      </div>
+    </form>
+  </div>
+
   <!-- ── TABLA INFORMATIVA DE PERMISOS ── -->
   <div class="cfg-card">
     <div class="cfg-card-title">Qué puede hacer cada rol</div>

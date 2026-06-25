@@ -10,7 +10,7 @@ from django.utils import timezone
 
 from capacitacion.models import Tarea, ProgresoTarea
 from capacitacion.views import es_admin  # reutilizamos el helper de permisos
-from .models import Perfil, ConfiguracionSistema
+from .models import Perfil, ConfiguracionSistema, MetaVendedor
 from .permisos import puede_ver, destino_vendedor
 
 
@@ -134,6 +134,9 @@ def configuracion(request):
             config.save()
             messages.success(request, 'Configuración guardada.')
 
+        elif accion == 'guardar_metas':
+            _guardar_metas(request)
+
         return redirect('core:configuracion')
 
     # ── GET: listamos usuarios con su perfil (creándolo si faltara) ──
@@ -149,12 +152,54 @@ def configuracion(request):
             'es_superuser': u.is_superuser,
         })
 
+    # ── Metas por vendedor (rol vendedor/admin o superuser) ──
+    metas_info = []
+    vendedores = (User.objects.filter(is_active=True)
+                  .filter(Q(perfil__rol__in=['vendedor', 'admin']) | Q(is_superuser=True))
+                  .order_by('username'))
+    for v in vendedores:
+        meta, _ = MetaVendedor.objects.get_or_create(usuario=v)
+        metas_info.append({
+            'id': v.id,
+            'nombre': v.get_full_name() or v.username,
+            'pedidos_dia': meta.pedidos_dia,
+            'monto_dia': meta.monto_dia,
+        })
+
     context = {
         'usuarios_info': usuarios_info,
         'config': config,
         'roles': Perfil.ROL_CHOICES,
+        'metas_info': metas_info,
     }
     return render(request, 'core/configuracion.html', context)
+
+
+def _guardar_metas(request):
+    """Guarda las metas diarias (pedidos y monto) de cada vendedor."""
+    from decimal import Decimal, InvalidOperation
+    ids = request.POST.getlist('meta_usuario')
+    for uid in ids:
+        if not str(uid).isdigit():
+            continue
+        try:
+            usuario = User.objects.get(id=uid)
+        except User.DoesNotExist:
+            continue
+        meta, _ = MetaVendedor.objects.get_or_create(usuario=usuario)
+        crudo_ped = (request.POST.get(f'pedidos_dia_{uid}') or '0').strip()
+        crudo_monto = (request.POST.get(f'monto_dia_{uid}') or '0').strip().replace(',', '.')
+        try:
+            meta.pedidos_dia = max(int(crudo_ped), 0) if crudo_ped else 0
+        except ValueError:
+            meta.pedidos_dia = 0
+        try:
+            v = Decimal(crudo_monto) if crudo_monto else Decimal('0')
+            meta.monto_dia = v if v >= 0 else Decimal('0')
+        except InvalidOperation:
+            meta.monto_dia = Decimal('0')
+        meta.save()
+    messages.success(request, 'Metas de vendedores guardadas.')
 
 
 def _crear_usuario(request):

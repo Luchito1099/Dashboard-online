@@ -74,13 +74,21 @@
       </label>
     </div>
 
-    <div class="reg-seccion">Origen</div>
+    <div class="reg-seccion">Origen y vendedor</div>
     <div class="reg-grid">
       <label class="reg-field">
         <span>Canal / fuente manual</span>
         <select name="fuente_manual" id="regFuente">
           {% for valor, etiqueta in fuentes_manual %}
           <option value="{{ valor }}">{{ etiqueta }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="reg-field">
+        <span>Vendedor</span>
+        <select name="vendedor">
+          {% for v in vendedores %}
+          <option value="{{ v.id }}" {% if v.id == request.user.id %}selected{% endif %}>{{ v.get_full_name|default:v.username }}</option>
           {% endfor %}
         </select>
       </label>
