@@ -1,20 +1,25 @@
 {% comment %} Pestaña Avances — KPIs / funnel agregados {% endcomment %}
 
-<div class="ped-kpis av-kpis">
+<div class="ped-kpis av-kpis-4">
   <div class="ped-kpi">
     <div class="ped-kpi-num">{{ av_total }}</div>
     <div class="ped-kpi-label">Pedidos totales</div>
     <div class="ped-kpi-sub">según filtros activos</div>
   </div>
   <div class="ped-kpi">
-    <div class="ped-kpi-num verde">{{ av_conv_confirmacion }}%</div>
-    <div class="ped-kpi-label">Conversión a confirmado</div>
-    <div class="ped-kpi-sub">confirmados / no cancelados</div>
+    <div class="ped-kpi-num verde">{{ av_pct_confirmado_total }}%</div>
+    <div class="ped-kpi-label">Confirmados del total</div>
+    <div class="ped-kpi-sub">conversión sobre no cancelados: {{ av_conv_confirmacion }}%</div>
   </div>
   <div class="ped-kpi">
-    <div class="ped-kpi-num">{{ av_conv_entrega }}%</div>
-    <div class="ped-kpi-label">Entrega</div>
-    <div class="ped-kpi-sub">entregados / confirmados</div>
+    <div class="ped-kpi-num">{{ av_pct_entregado_total }}%</div>
+    <div class="ped-kpi-label">Entregados del total</div>
+    <div class="ped-kpi-sub">entrega s/ confirmados: {{ av_conv_entrega }}%</div>
+  </div>
+  <div class="ped-kpi">
+    <div class="ped-kpi-num">{{ av_dia_prom }}</div>
+    <div class="ped-kpi-label">Promedio por día</div>
+    <div class="ped-kpi-sub">{{ av_dias_activos }} día(s) con pedidos</div>
   </div>
 </div>
 
@@ -57,30 +62,30 @@
     {% empty %}<div class="av-vacio">Ningún pedido tiene vendedor asignado.</div>{% endfor %}
   </div>
 
-  {# ── Funnel por etapa del embudo ── #}
+  {# ── Funnel por etapa del embudo (con % del total) ── #}
   <div class="av-card av-card-wide">
-    <div class="av-card-title">Embudo (etapas)</div>
-    {% for label, n, val in av_por_etapa %}
+    <div class="av-card-title">Embudo (etapas) · % del total</div>
+    {% for label, n, pct, val in av_por_etapa %}
     <div class="av-bar-row">
       <div class="av-bar-label">{{ label }}</div>
       <div class="av-bar-track">
         <div class="av-bar-fill etapa-{{ val }}" style="width: {% widthratio n av_max_etapa 100 %}%"></div>
       </div>
-      <div class="av-bar-num">{{ n }}</div>
+      <div class="av-bar-num">{{ n }} <span class="av-bar-pct">({{ pct }}%)</span></div>
     </div>
     {% endfor %}
   </div>
 
-  {# ── Por estado del flujo ── #}
+  {# ── Por estado del flujo (con % del total) ── #}
   <div class="av-card">
-    <div class="av-card-title">Pedidos por estado</div>
-    {% for label, n, val in av_por_estado %}
+    <div class="av-card-title">Pedidos por estado · % del total</div>
+    {% for label, n, pct, val in av_por_estado %}
     <div class="av-bar-row">
       <div class="av-bar-label">{{ label }}</div>
       <div class="av-bar-track">
         <div class="av-bar-fill estado-{{ val }}" style="width: {% widthratio n av_total 100 %}%"></div>
       </div>
-      <div class="av-bar-num">{{ n }}</div>
+      <div class="av-bar-num">{{ n }} <span class="av-bar-pct">({{ pct }}%)</span></div>
     </div>
     {% endfor %}
   </div>
@@ -127,6 +132,33 @@
       {% endfor %}
     </div>
     {% else %}<div class="av-vacio">Sin datos de fecha.</div>{% endif %}
+    {% if av_dia_max %}
+    <div class="av-stats">
+      <div class="av-stat"><span class="av-stat-num">{{ av_dia_prom }}</span><span class="av-stat-lbl">Promedio/día</span></div>
+      <div class="av-stat ok"><span class="av-stat-num">{{ av_dia_max.n }}</span><span class="av-stat-lbl">Máx · {{ av_dia_max.d|date:"d/m" }}</span></div>
+      <div class="av-stat low"><span class="av-stat-num">{{ av_dia_min.n }}</span><span class="av-stat-lbl">Mín · {{ av_dia_min.d|date:"d/m" }}</span></div>
+    </div>
+    {% endif %}
+  </div>
+
+  {# ── Por día de la semana (días más/menos vendidos) ── #}
+  <div class="av-card av-card-wide">
+    <div class="av-card-title">Pedidos por día de la semana</div>
+    {% if av_dia_semana_top %}
+    <div class="av-dia-resumen">
+      <span class="av-pill ok">📈 Más vendido: <b>{{ av_dia_semana_top.0 }}</b> ({{ av_dia_semana_top.1 }})</span>
+      <span class="av-pill low">📉 Menos vendido: <b>{{ av_dia_semana_low.0 }}</b> ({{ av_dia_semana_low.1 }})</span>
+    </div>
+    {% endif %}
+    {% for label, n in av_por_dia_semana %}
+    <div class="av-bar-row">
+      <div class="av-bar-label">{{ label }}</div>
+      <div class="av-bar-track">
+        <div class="av-bar-fill {% if av_dia_semana_top and label == av_dia_semana_top.0 %}ok{% endif %}" style="width: {% widthratio n av_max_wd 100 %}%"></div>
+      </div>
+      <div class="av-bar-num">{{ n }}</div>
+    </div>
+    {% endfor %}
   </div>
 
   {# ── Por vendedor ── #}

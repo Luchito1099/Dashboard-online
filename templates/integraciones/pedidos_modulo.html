@@ -24,17 +24,17 @@
     </div>
   </div>
 
-  {# ── Sub-pestañas (persistentes en la URL) ── #}
-  {% with qs="&q="|add:f_q|add:"&fuente="|add:f_fuente|add:"&estado="|add:f_estado|add:"&envio="|add:f_envio|add:"&rango="|add:f_rango|add:"&orden="|add:f_orden|add:"&desde="|add:f_desde|add:"&hasta="|add:f_hasta %}
+  {# ── Sub-pestañas (persistentes en la URL, conservan los filtros activos) ── #}
+  {% with qs=querystring_filtros %}
   <div class="ped-subtabs">
     {% if tab_listado %}
-    <a href="?vista=listado{{ qs }}" class="ped-subtab {% if vista == 'listado' %}active{% endif %}">📋 Listado</a>
+    <a href="?vista=listado{% if qs %}&{{ qs }}{% endif %}" class="ped-subtab {% if vista == 'listado' %}active{% endif %}">📋 Listado</a>
     {% endif %}
     {% if tab_seguimiento %}
-    <a href="?vista=seguimiento{{ qs }}" class="ped-subtab {% if vista == 'seguimiento' %}active{% endif %}">🎯 Seguimiento</a>
+    <a href="?vista=seguimiento{% if qs %}&{{ qs }}{% endif %}" class="ped-subtab {% if vista == 'seguimiento' %}active{% endif %}">🎯 Seguimiento</a>
     {% endif %}
     {% if tab_avances %}
-    <a href="?vista=avances{{ qs }}" class="ped-subtab {% if vista == 'avances' %}active{% endif %}">📈 Avances</a>
+    <a href="?vista=avances{% if qs %}&{{ qs }}{% endif %}" class="ped-subtab {% if vista == 'avances' %}active{% endif %}">📈 Avances</a>
     {% endif %}
   </div>
   {% endwith %}
@@ -63,11 +63,34 @@
       <option value="{{ e }}" {% if f_envio == e %}selected{% endif %}>{{ e }}</option>
       {% endfor %}
     </select>
+    <select name="vendedor" onchange="this.form.submit()" title="Vendedor">
+      <option value="">Todos los vendedores</option>
+      <option value="sin" {% if f_vendedor == 'sin' %}selected{% endif %}>Sin asignar</option>
+      {% for v in vendedores %}
+      <option value="{{ v.id }}" {% if f_vendedor == v.id|stringformat:"s" %}selected{% endif %}>{{ v.get_full_name|default:v.username }}</option>
+      {% endfor %}
+    </select>
     <select name="orden" class="ped-orden" onchange="this.form.submit()" title="Ordenar por">
       {% for clave, etiqueta in ordenes %}
       <option value="{{ clave }}" {% if f_orden == clave %}selected{% endif %}>↕ {{ etiqueta }}</option>
       {% endfor %}
     </select>
+    {# Filtro por producto (multi-selección con checkboxes) #}
+    <div class="ped-multi" id="prodMulti">
+      <button type="button" class="ped-multi-btn" id="prodMultiBtn">
+        🛍️ Productos{% if f_productos %} <span class="ped-multi-badge">{{ f_productos|length }}</span>{% endif %} ▾
+      </button>
+      <div class="ped-multi-panel" id="prodMultiPanel">
+        <input type="text" class="ped-multi-buscar" id="prodMultiBuscar" placeholder="Filtrar productos…">
+        <div class="ped-multi-lista">
+          {% for prod in productos_lista %}
+          <label class="ped-multi-opt"><input type="checkbox" name="producto" value="{{ prod }}" {% if prod in f_productos %}checked{% endif %} onchange="this.form.submit()"> <span>{{ prod }}</span></label>
+          {% empty %}
+          <div class="ped-multi-vacio">Sin productos registrados.</div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
     <div class="ped-rangos">
       {% for clave, etiqueta in rangos_btn %}
       <button type="submit" name="rango" value="{{ clave }}" class="ped-rango {% if f_rango == clave %}activo{% endif %}">{{ etiqueta }}</button>
@@ -77,9 +100,11 @@
       <label>Desde <input type="date" name="desde" value="{{ f_desde }}" onchange="this.form.submit()"></label>
       <label>Hasta <input type="date" name="hasta" value="{{ f_hasta }}" onchange="this.form.submit()"></label>
       {% if f_desde or f_hasta %}
-      <a class="ped-fechas-limpiar" href="?vista={{ vista }}&q={{ f_q }}&fuente={{ f_fuente }}&estado={{ f_estado }}&envio={{ f_envio }}&orden={{ f_orden }}">✕ limpiar</a>
+      <button type="button" class="ped-fechas-limpiar" onclick="this.form.desde.value='';this.form.hasta.value='';this.form.submit()">✕ limpiar</button>
       {% endif %}
     </div>
+    {# Fijador: recuerda estos filtros entre sesiones (localStorage) #}
+    <button type="button" class="ped-fijar" id="pedFijar" title="Fijar estos filtros para futuras sesiones">📌 Fijar filtros</button>
   </form>
 
   {# ── Contenido de la pestaña activa ── #}
@@ -158,6 +183,11 @@
         });
       });
     });
+
+    var clave = row.querySelector('.js-clave');
+    if (clave) clave.addEventListener('change', function () {
+      guardar(row, 'url', { clave: clave.value });
+    });
   });
 
   // ── Seguimiento: llamada / tipo cliente / etapa / estrategia / comentario ──
@@ -219,6 +249,69 @@
         .catch(function () { body.innerHTML = '<div class="hist-vacio">Error al cargar.</div>'; });
     });
   });
+})();
+
+// ── Filtro de productos (dropdown con checkboxes) + Fijador de filtros ──
+(function () {
+  // Dropdown de productos
+  var multi = document.getElementById('prodMulti');
+  if (multi) {
+    var btn = document.getElementById('prodMultiBtn');
+    var panel = document.getElementById('prodMultiPanel');
+    var buscar = document.getElementById('prodMultiBuscar');
+    btn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      panel.classList.toggle('show');
+      if (panel.classList.contains('show') && buscar) buscar.focus();
+    });
+    panel.addEventListener('click', function (e) { e.stopPropagation(); });
+    document.addEventListener('click', function () { panel.classList.remove('show'); });
+    if (buscar) buscar.addEventListener('input', function () {
+      var t = buscar.value.toLowerCase();
+      panel.querySelectorAll('.ped-multi-opt').forEach(function (opt) {
+        opt.style.display = opt.textContent.toLowerCase().indexOf(t) > -1 ? '' : 'none';
+      });
+    });
+  }
+
+  // Fijador: recuerda los filtros entre sesiones (localStorage)
+  var KEY = 'klynea_ped_filtros';
+  var fijarBtn = document.getElementById('pedFijar');
+  if (fijarBtn) {
+    var params = new URLSearchParams(location.search);
+    var vistaActual = params.get('vista') || 'listado';
+
+    // Querystring actual SIN 'vista'
+    var actual = new URLSearchParams(location.search);
+    actual.delete('vista');
+    var actualStr = actual.toString();
+
+    var fijado = localStorage.getItem(KEY);
+
+    // Aplicar el filtro fijado si entras "en limpio" (sin filtros en la URL)
+    if (fijado && actualStr === '') {
+      location.replace(location.pathname + '?vista=' + vistaActual + '&' + fijado);
+      return;
+    }
+
+    function pintar() {
+      var hay = localStorage.getItem(KEY) !== null;
+      fijarBtn.classList.toggle('activo', hay);
+      fijarBtn.textContent = hay ? '📌 Filtros fijados ✓' : '📌 Fijar filtros';
+    }
+    pintar();
+
+    fijarBtn.addEventListener('click', function () {
+      if (localStorage.getItem(KEY) !== null) {
+        localStorage.removeItem(KEY);
+      } else {
+        var p = new URLSearchParams(location.search);
+        p.delete('vista');
+        localStorage.setItem(KEY, p.toString());
+      }
+      pintar();
+    });
+  }
 })();
 </script>
 {% endblock %}

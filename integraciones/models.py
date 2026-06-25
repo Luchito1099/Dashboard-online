@@ -216,6 +216,8 @@ class Pedido(models.Model):
     # Envío / express
     tipo_envio = models.CharField(max_length=120, blank=True)
     es_express = models.BooleanField(default=False)
+    # Clave de entrega: código que el cliente da para que le entreguen el producto
+    clave = models.CharField(max_length=40, blank=True)
 
     # Extras
     tags = models.CharField(max_length=255, blank=True)

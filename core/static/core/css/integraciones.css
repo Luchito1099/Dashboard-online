@@ -335,8 +335,70 @@
 /* Selector de orden en filtros */
 .ped-orden { font-weight: 600; color: var(--text-secondary); }
 
+/* Clave de entrega (input en línea, Listado) */
+.ped-clave {
+  width: 84px; padding: 6px 8px; font-size: 13px; font-family: inherit;
+  border: 1px solid var(--border-dark); border-radius: 6px; background: var(--bg); color: var(--text);
+  box-sizing: border-box; letter-spacing: .5px;
+}
+.ped-clave:hover { border-color: var(--primary); }
+.ped-clave:focus { outline: none; border-color: var(--primary); background: var(--surface); }
+.ped-clave:disabled { background: transparent; border-color: transparent; }
+
+/* Filtro multi-producto (dropdown con checkboxes) */
+.ped-multi { position: relative; }
+.ped-multi-btn {
+  padding: 9px 11px; font-size: 13px; font-weight: 600; border-radius: 8px; cursor: pointer;
+  border: 1px solid var(--border-dark); background: var(--surface); color: var(--text-secondary); font-family: inherit;
+}
+.ped-multi-btn:hover { border-color: var(--primary); }
+.ped-multi-badge {
+  display: inline-block; min-width: 16px; text-align: center; padding: 0 5px; border-radius: 100px;
+  background: var(--primary); color: #fff; font-size: 11px; font-weight: 700;
+}
+.ped-multi-panel {
+  display: none; position: absolute; top: calc(100% + 6px); left: 0; z-index: 50;
+  width: 260px; max-height: 320px; background: var(--surface); border: 1px solid var(--border-dark);
+  border-radius: 10px; box-shadow: var(--shadow-md); padding: 8px;
+}
+.ped-multi-panel.show { display: block; }
+.ped-multi-buscar {
+  width: 100%; box-sizing: border-box; padding: 7px 9px; font-size: 12px; margin-bottom: 6px;
+  border: 1px solid var(--border-dark); border-radius: 7px; background: var(--bg); color: var(--text);
+}
+.ped-multi-lista { max-height: 250px; overflow-y: auto; }
+.ped-multi-opt { display: flex; align-items: center; gap: 8px; padding: 6px 7px; border-radius: 7px; font-size: 13px; cursor: pointer; }
+.ped-multi-opt:hover { background: var(--bg); }
+.ped-multi-opt span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ped-multi-vacio { padding: 10px; text-align: center; color: var(--muted); font-size: 12px; }
+
+/* Fijador de filtros */
+.ped-fijar {
+  padding: 9px 13px; font-size: 13px; font-weight: 600; border-radius: 8px; cursor: pointer;
+  border: 1px dashed var(--border-dark); background: transparent; color: var(--text-secondary); font-family: inherit;
+}
+.ped-fijar:hover { border-color: var(--primary); color: var(--primary); }
+.ped-fijar.activo { background: var(--primary-bg); border-style: solid; border-color: var(--primary); color: var(--primary-dark); }
+
 /* ───────────────────────── Avances ───────────────────────── */
 .av-kpis { grid-template-columns: repeat(3, 1fr); }
+.av-kpis-4 { grid-template-columns: repeat(4, 1fr); }
+.av-bar-pct { font-size: 11px; font-weight: 600; color: var(--muted); }
+.av-bar-fill.ok { background: var(--success); }
+
+/* Resumen de estadísticas diarias (promedio / máx / mín) */
+.av-stats { display: flex; gap: 12px; margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--border-dark); }
+.av-stat { flex: 1; text-align: center; background: var(--bg); border: 1px solid var(--border); border-radius: 9px; padding: 10px; }
+.av-stat-num { display: block; font-size: 20px; font-weight: 800; color: var(--text); }
+.av-stat-lbl { display: block; font-size: 11px; color: var(--muted); margin-top: 2px; }
+.av-stat.ok .av-stat-num { color: var(--success); }
+.av-stat.low .av-stat-num { color: oklch(60% 0.16 70); }
+
+/* Resumen de días de la semana */
+.av-dia-resumen { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+.av-pill { font-size: 12px; padding: 5px 11px; border-radius: 100px; background: var(--bg); border: 1px solid var(--border); color: var(--text-secondary); }
+.av-pill.ok { border-color: var(--success); color: var(--success); }
+.av-pill.low { border-color: oklch(70% 0.16 70); color: oklch(58% 0.16 70); }
 .av-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
 .av-card {
   background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
@@ -440,6 +502,6 @@
   .integ-nueva-grid { grid-template-columns: 1fr; }
   .ped-kpis { grid-template-columns: repeat(2, 1fr); }
   .av-grid { grid-template-columns: 1fr; }
-  .av-kpis { grid-template-columns: 1fr; }
+  .av-kpis, .av-kpis-4 { grid-template-columns: repeat(2, 1fr); }
   .reg-grid { grid-template-columns: 1fr; }
 }

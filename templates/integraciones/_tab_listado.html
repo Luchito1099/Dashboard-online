@@ -28,7 +28,7 @@
     <thead>
       <tr>
         <th>Pedido</th><th class="ped-cli">Cliente</th><th>Fuente</th><th>Estado</th>
-        <th>Precio final</th><th>Adelanto</th><th>Restante</th><th>Tipo envío</th><th>Editado por</th>
+        <th>Precio final</th><th>Adelanto</th><th>Restante</th><th>Clave</th><th>Tipo envío</th><th>Editado por</th>
       </tr>
     </thead>
     <tbody>
@@ -58,6 +58,7 @@
         <td class="ped-num"><input type="text" inputmode="decimal" class="ped-monto js-total" value="{{ p.total|floatformat:2 }}" {% if not puede_editar_listado %}disabled{% endif %}></td>
         <td class="ped-num"><input type="text" inputmode="decimal" class="ped-monto js-adelanto" value="{{ p.adelanto|floatformat:2 }}" {% if not puede_editar_listado %}disabled{% endif %}></td>
         <td class="ped-num"><span class="js-restante">{{ p.restante|floatformat:2 }}</span></td>
+        <td><input type="text" class="ped-clave js-clave" value="{{ p.clave }}" placeholder="—" maxlength="40" {% if not puede_editar_listado %}disabled{% endif %}></td>
         <td>{{ p.tipo_envio|default:"—" }}</td>
         <td>
           <div class="ped-editado-wrap">
@@ -76,7 +77,7 @@
         </td>
       </tr>
       {% empty %}
-      <tr><td colspan="9" class="integ-vacio-cell">No hay pedidos con estos filtros.</td></tr>
+      <tr><td colspan="10" class="integ-vacio-cell">No hay pedidos con estos filtros.</td></tr>
       {% endfor %}
     </tbody>
   </table>

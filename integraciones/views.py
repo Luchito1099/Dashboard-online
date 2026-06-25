@@ -16,7 +16,7 @@ from django.views.decorators.csrf import csrf_exempt
 
 # Reutilizamos el helper de permisos existente (no lo duplicamos)
 from capacitacion.views import es_admin
-from .models import Integracion, Pedido, PedidoSeguimiento, PedidoEditLog, registrar_cambio
+from .models import Integracion, Pedido, PedidoItem, PedidoSeguimiento, PedidoEditLog, registrar_cambio
 from . import connectors
 
 
@@ -255,6 +255,20 @@ def _filtrar_pedidos(request):
     if envio:
         qs = qs.filter(tipo_envio=envio)
 
+    vendedor = request.GET.get('vendedor', '').strip()
+    if vendedor == 'sin':
+        qs = qs.filter(vendedor__isnull=True)
+    elif vendedor.isdigit():
+        qs = qs.filter(vendedor_id=vendedor)
+
+    # Filtro por producto (multi-selección). Usamos subconsulta de ids para no
+    # multiplicar filas en los agregados (KPIs).
+    from .models import PedidoItem
+    productos_sel = [p for p in request.GET.getlist('producto') if p.strip()]
+    if productos_sel:
+        ids = PedidoItem.objects.filter(nombre__in=productos_sel).values_list('pedido_id', flat=True)
+        qs = qs.filter(id__in=ids)
+
     # Rango de fechas explícito (desde / hasta) tiene prioridad sobre los botones rápidos.
     from django.utils.dateparse import parse_date
     desde = request.GET.get('desde', '').strip()
@@ -289,7 +303,8 @@ def _filtrar_pedidos(request):
         orden = 'reciente'
 
     filtros = {'f_q': q, 'f_fuente': fuente, 'f_estado': estado, 'f_envio': envio,
-               'f_rango': rango, 'f_orden': orden, 'f_desde': desde, 'f_hasta': hasta}
+               'f_rango': rango, 'f_orden': orden, 'f_desde': desde, 'f_hasta': hasta,
+               'f_vendedor': vendedor, 'f_productos': productos_sel}
     return qs, filtros
 
 
@@ -304,6 +319,9 @@ def _base_context(request, filtros, vista):
         'envios': sorted(Pedido.objects.exclude(tipo_envio='')
                          .values_list('tipo_envio', flat=True).distinct()),
         'ordenes': _ORDEN_LABELS,
+        'vendedores': _vendedores_qs(),
+        'productos_lista': sorted(PedidoItem.objects.exclude(nombre='')
+                                  .values_list('nombre', flat=True).distinct()),
         'puede_editar_pedidos': es_admin(request.user) or puede_editar_seguimiento(request.user),
         'puede_editar_seguimiento': puede_editar_seguimiento(request.user),
         'es_admin': es_admin(request.user),
@@ -340,6 +358,11 @@ def pedidos_modulo(request):
 
     qs, filtros = _filtrar_pedidos(request)
     context = _base_context(request, filtros, vista)
+    # Querystring de filtros (sin 'vista') para los enlaces de las sub-pestañas;
+    # maneja correctamente los multivalor como ?producto=A&producto=B.
+    qs_copy = request.GET.copy()
+    qs_copy.pop('vista', None)
+    context['querystring_filtros'] = qs_copy.urlencode()
     # Permisos para mostrar/ocultar pestañas
     context['tab_listado'] = can_listado
     context['tab_seguimiento'] = can_seguimiento
@@ -398,7 +421,6 @@ def _context_seguimiento(qs, context):
         'tipo_cliente_choices': PedidoSeguimiento.TIPO_CLIENTE_CHOICES,
         'etapa_choices': PedidoSeguimiento.ETAPA_CHOICES,
         'estrategias': Estrategia.objects.filter(activo=True),
-        'vendedores': _vendedores_qs(),
     })
 
 
@@ -407,18 +429,23 @@ def _context_avances(qs, context):
     cero = Value(Decimal('0'), output_field=DecimalField(max_digits=12, decimal_places=2))
     total = qs.count()
 
-    # Conteo por estado de flujo
-    cuenta_estado = {r['estado']: r['n'] for r in qs.values('estado').annotate(n=Count('id'))}
-    por_estado = [(lbl, cuenta_estado.get(val, 0), val) for val, lbl in Pedido.ESTADO_CHOICES]
+    def _pct(n):
+        return round(n / total * 100) if total else 0
 
-    # Funnel por etapa del embudo (los pedidos sin seguimiento cuentan como 'creado')
+    # Conteo por estado de flujo (con % del total)
+    cuenta_estado = {r['estado']: r['n'] for r in qs.values('estado').annotate(n=Count('id'))}
+    por_estado = [(lbl, cuenta_estado.get(val, 0), _pct(cuenta_estado.get(val, 0)), val)
+                  for val, lbl in Pedido.ESTADO_CHOICES]
+
+    # Funnel por etapa del embudo (los pedidos sin seguimiento cuentan como 'creado'), con %
     cuenta_etapa_raw = {r['seguimiento__etapa_embudo']: r['n']
                         for r in qs.values('seguimiento__etapa_embudo').annotate(n=Count('id'))}
     sin_seg = cuenta_etapa_raw.pop(None, 0)
     cuenta_etapa = dict(cuenta_etapa_raw)
     cuenta_etapa['creado'] = cuenta_etapa.get('creado', 0) + sin_seg
-    por_etapa = [(lbl, cuenta_etapa.get(val, 0), val) for val, lbl in PedidoSeguimiento.ETAPA_CHOICES]
-    max_etapa = max([n for _, n, _ in por_etapa] + [1])
+    por_etapa = [(lbl, cuenta_etapa.get(val, 0), _pct(cuenta_etapa.get(val, 0)), val)
+                 for val, lbl in PedidoSeguimiento.ETAPA_CHOICES]
+    max_etapa = max([n for _, n, _, _ in por_etapa] + [1])
 
     # Conversión
     n_creado = cuenta_estado.get(Pedido.ESTADO_CREADO, 0)
@@ -427,6 +454,8 @@ def _context_avances(qs, context):
     base_conf = total - cuenta_estado.get(Pedido.ESTADO_CANCELADO, 0)
     conv_confirmacion = round(n_conf / base_conf * 100) if base_conf else 0
     conv_entrega = round(n_entreg / n_conf * 100) if n_conf else 0
+    pct_confirmado_total = _pct(n_conf)     # % del total de pedidos que confirmaron
+    pct_entregado_total = _pct(n_entreg)
 
     # Por fuente
     por_fuente = list(qs.values('integracion__nombre', 'integracion__proveedor')
@@ -443,6 +472,27 @@ def _context_avances(qs, context):
                 .values('d').annotate(n=Count('id')).order_by('-d')[:14])
     evol.reverse()
     max_evol = max([r['n'] for r in evol] + [1])
+
+    # Estadísticas diarias sobre TODO el rango filtrado (promedio / máx / mín)
+    evol_full = list(qs.exclude(fecha_pedido=None).annotate(d=TruncDate('fecha_pedido'))
+                     .values('d').annotate(n=Count('id')).order_by('d'))
+    counts = [r['n'] for r in evol_full]
+    dias_activos = len(counts)
+    dia_prom = round(sum(counts) / dias_activos, 1) if dias_activos else 0
+    dia_max = max(evol_full, key=lambda r: r['n']) if evol_full else None
+    dia_min = min(evol_full, key=lambda r: r['n']) if evol_full else None
+
+    # Por día de la semana (qué días se vende más / menos)
+    from collections import Counter
+    wd = Counter()
+    for r in evol_full:
+        wd[r['d'].weekday()] += r['n']     # 0=Lunes … 6=Domingo
+    nombres_dia = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
+    por_dia_semana = [(nombres_dia[i], wd.get(i, 0)) for i in range(7)]
+    max_wd = max([n for _, n in por_dia_semana] + [1])
+    activos_wd = [x for x in por_dia_semana if x[1] > 0]
+    dia_semana_top = max(activos_wd, key=lambda x: x[1]) if activos_wd else None
+    dia_semana_low = min(activos_wd, key=lambda x: x[1]) if activos_wd else None
 
     # Por vendedor atribuido (campo vendedor)
     por_vendedor = list(qs.exclude(vendedor=None)
@@ -478,11 +528,21 @@ def _context_avances(qs, context):
         'av_max_etapa': max_etapa,
         'av_conv_confirmacion': conv_confirmacion,
         'av_conv_entrega': conv_entrega,
+        'av_pct_confirmado_total': pct_confirmado_total,
+        'av_pct_entregado_total': pct_entregado_total,
         'av_por_fuente': por_fuente,
         'av_max_fuente': max_fuente,
         'av_por_canal': por_canal,
         'av_evol': evol,
         'av_max_evol': max_evol,
+        'av_dias_activos': dias_activos,
+        'av_dia_prom': dia_prom,
+        'av_dia_max': dia_max,
+        'av_dia_min': dia_min,
+        'av_por_dia_semana': por_dia_semana,
+        'av_max_wd': max_wd,
+        'av_dia_semana_top': dia_semana_top,
+        'av_dia_semana_low': dia_semana_low,
         'av_por_vendedor': por_vendedor,
         'av_max_vendedor': max_vendedor,
         'av_por_vendedor_reg': por_vendedor_reg,
@@ -528,6 +588,15 @@ def pedido_editar(request, pedido_id):
             setattr(pedido, campo, valor)
             cambios.append(campo)
 
+    # Clave de entrega (texto libre)
+    clave = request.POST.get('clave')
+    if clave is not None:
+        clave = clave.strip()
+        if clave != pedido.clave:
+            registrar_cambio(pedido, request.user, 'clave', pedido.clave, clave)
+            pedido.clave = clave
+            cambios.append('clave')
+
     if not cambios:
         return JsonResponse({'error': 'Nada que actualizar.'}, status=400)
 
@@ -542,6 +611,7 @@ def pedido_editar(request, pedido_id):
         'total': f'{pedido.total:.2f}',
         'adelanto': f'{pedido.adelanto:.2f}',
         'restante': f'{pedido.restante:.2f}',
+        'clave': pedido.clave,
         'editado_por': request.user.get_full_name() or request.user.username,
     })
 
@@ -660,6 +730,7 @@ def pedido_historial(request, pedido_id):
         'llamada_estado': 'Llamada', 'llamadas_intentadas': 'Llamadas intentadas',
         'comentario': 'Comentario', 'tipo_cliente': 'Tipo de cliente',
         'etapa_embudo': 'Etapa del embudo', 'estrategia': 'Estrategia', 'vendedor': 'Vendedor',
+        'clave': 'Clave de entrega',
     }
     data = [{
         'id': l.id,
@@ -710,6 +781,12 @@ def pedido_revertir(request, log_id):
         pedido.editado_por = request.user
         pedido.editado_en = timezone.now()
         pedido.save(update_fields=[campo, 'editado_por', 'editado_en'])
+    elif campo == 'clave':
+        registrar_cambio(pedido, request.user, 'clave', pedido.clave, log.valor_anterior or '')
+        pedido.clave = log.valor_anterior or ''
+        pedido.editado_por = request.user
+        pedido.editado_en = timezone.now()
+        pedido.save(update_fields=['clave', 'editado_por', 'editado_en'])
     elif campo == 'vendedor':
         from django.contrib.auth.models import User
         ant = log.valor_anterior or ''
