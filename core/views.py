@@ -124,6 +124,8 @@ def configuracion(request):
             config.vendedor_puede_ver_capacitacion = request.POST.get('vendedor_puede_ver_capacitacion') == 'on'
             config.vendedor_puede_ver_herramientas = request.POST.get('vendedor_puede_ver_herramientas') == 'on'
             config.vendedor_puede_compartir = request.POST.get('vendedor_puede_compartir') == 'on'
+            config.vendedor_puede_ver_pedidos = request.POST.get('vendedor_puede_ver_pedidos') == 'on'
+            config.vendedor_puede_editar_pedidos = request.POST.get('vendedor_puede_editar_pedidos') == 'on'
             config.save()
             messages.success(request, 'Configuración guardada.')
 

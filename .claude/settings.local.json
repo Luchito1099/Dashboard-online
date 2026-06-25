@@ -45,7 +45,8 @@
       "Bash(ls venv/Scripts/python.exe)",
       "Bash(venv/Scripts/python.exe -c \"import django; print\\(django.get_version\\(\\)\\)\")",
       "Bash(venv/Scripts/python.exe manage.py migrate integraciones)",
-      "Bash(venv/Scripts/python.exe -c ' *)"
+      "Bash(venv/Scripts/python.exe -c ' *)",
+      "Bash(venv/Scripts/python.exe manage.py migrate core)"
     ]
   }
 }

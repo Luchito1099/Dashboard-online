@@ -20,7 +20,7 @@
   <div class="integ-header">
     <div>
       <h2 class="integ-title">Pedidos</h2>
-      <p class="integ-subtitle">Vista unificada de todas tus fuentes de pedidos · edición en línea</p>
+      <p class="integ-subtitle">Vista unificada de todas tus fuentes de pedidos · {% if puede_editar_pedidos %}edición en línea{% else %}solo lectura{% endif %}</p>
     </div>
   </div>
 
@@ -97,14 +97,14 @@
           </td>
           <td><span class="ped-fuente">{{ p.integracion.get_proveedor_display }} · {{ p.integracion.nombre }}</span></td>
           <td>
-            <select class="ped-estado js-estado" data-estado="{{ p.estado }}">
+            <select class="ped-estado js-estado" data-estado="{{ p.estado }}" {% if not puede_editar_pedidos %}disabled{% endif %}>
               {% for valor, etiqueta in estados %}
               <option value="{{ valor }}" {% if p.estado == valor %}selected{% endif %}>{{ etiqueta }}</option>
               {% endfor %}
             </select>
           </td>
-          <td class="ped-num"><input type="text" inputmode="decimal" class="ped-monto js-total" value="{{ p.total|floatformat:2 }}"></td>
-          <td class="ped-num"><input type="text" inputmode="decimal" class="ped-monto js-adelanto" value="{{ p.adelanto|floatformat:2 }}"></td>
+          <td class="ped-num"><input type="text" inputmode="decimal" class="ped-monto js-total" value="{{ p.total|floatformat:2 }}" {% if not puede_editar_pedidos %}disabled{% endif %}></td>
+          <td class="ped-num"><input type="text" inputmode="decimal" class="ped-monto js-adelanto" value="{{ p.adelanto|floatformat:2 }}" {% if not puede_editar_pedidos %}disabled{% endif %}></td>
           <td class="ped-num"><span class="js-restante">{{ p.restante|floatformat:2 }}</span></td>
           <td>{{ p.tipo_envio|default:"—" }}</td>
           <td>

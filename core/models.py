@@ -35,6 +35,9 @@ class ConfiguracionSistema(models.Model):
     vendedor_puede_ver_capacitacion = models.BooleanField(default=True)
     vendedor_puede_ver_herramientas = models.BooleanField(default=True)
     vendedor_puede_compartir = models.BooleanField(default=True)
+    # Módulo Pedidos (datos financieros → desactivado por defecto, el admin lo habilita)
+    vendedor_puede_ver_pedidos = models.BooleanField(default=False)
+    vendedor_puede_editar_pedidos = models.BooleanField(default=False)
 
     class Meta:
         verbose_name = 'Configuración del sistema'

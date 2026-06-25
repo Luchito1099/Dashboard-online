@@ -216,10 +216,15 @@ _RANGOS_FECHA = {'hoy': 0, '7d': 7, '30d': 30, 'todo': None}
 @login_required
 def pedidos_modulo(request):
     """Vista unificada de pedidos de TODAS las fuentes, con filtros, KPIs y
-    edición en línea por estado (creado/confirmado/entregado/cancelado). Solo admin."""
-    if not es_admin(request.user):
+    edición en línea por estado (creado/confirmado/entregado/cancelado).
+    Admin siempre; el vendedor según los permisos configurables (ver/editar)."""
+    from core.permisos import puede_ver, destino_vendedor
+    puede_ver_ped = (puede_ver(request.user, 'vendedor_puede_ver_pedidos')
+                     or puede_ver(request.user, 'vendedor_puede_editar_pedidos'))
+    if not puede_ver_ped:
         messages.error(request, 'No tienes permisos para ver los pedidos.')
-        return redirect('core:home')
+        return redirect(destino_vendedor(request.user))
+    puede_editar_ped = puede_ver(request.user, 'vendedor_puede_editar_pedidos')
 
     qs = Pedido.objects.select_related('integracion', 'editado_por').prefetch_related('items')
 
@@ -269,14 +274,17 @@ def pedidos_modulo(request):
                          .values_list('tipo_envio', flat=True).distinct()),
         # Selección actual (para mantener los filtros marcados)
         'f_q': q, 'f_fuente': fuente, 'f_estado': estado, 'f_envio': envio, 'f_rango': rango,
+        'puede_editar_pedidos': puede_editar_ped,
     }
     return render(request, 'integraciones/pedidos_modulo.html', context)
 
 
 @login_required
 def pedido_editar(request, pedido_id):
-    """Edición en línea de un pedido: estado, precio final y adelanto. Solo admin (POST, AJAX)."""
-    if not es_admin(request.user):
+    """Edición en línea de un pedido: estado, precio final y adelanto (POST, AJAX).
+    Admin siempre; el vendedor solo si tiene el permiso de editar pedidos."""
+    from core.permisos import puede_ver
+    if not puede_ver(request.user, 'vendedor_puede_editar_pedidos'):
         return JsonResponse({'error': 'sin permiso'}, status=403)
     if request.method != 'POST':
         return HttpResponseNotAllowed(['POST'])

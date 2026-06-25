@@ -235,6 +235,11 @@
 .ped-estado[data-estado="entregado"] { color: oklch(48% 0.15 240); border-color: oklch(60% 0.15 240); }
 .ped-estado[data-estado="cancelado"] { color: var(--error); border-color: var(--error); }
 
+/* Controles en solo lectura (vendedor sin permiso de editar) */
+.ped-monto:disabled { background: transparent; color: var(--text); border-color: transparent; cursor: default; }
+.ped-monto:disabled:hover { border-color: transparent; }
+.ped-estado:disabled { background: transparent; border-color: transparent; cursor: default; -webkit-appearance: none; appearance: none; padding-left: 0; }
+
 .ped-fuente { font-size: 11px; padding: 3px 8px; border-radius: 6px; background: var(--bg); border: 1px solid var(--border); color: var(--text-secondary); }
 .ped-saved { color: var(--success); font-size: 11px; opacity: 0; transition: opacity .2s; }
 .ped-saved.show { opacity: 1; }
