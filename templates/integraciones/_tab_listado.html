@@ -38,6 +38,11 @@
         <td class="ped-cli">
           <div class="ped-cliente-nombre">{{ p.nombre_cliente|default:"—" }}</div>
           {% if p.telefono %}<div class="ped-cliente-tel">{{ p.telefono }}</div>{% endif %}
+          {% if p.items.all %}
+          <div class="ped-cli-items">
+            {% for it in p.items.all %}<span class="ped-cli-item">{{ it.cantidad }}× {{ it.nombre }}</span>{% endfor %}
+          </div>
+          {% endif %}
         </td>
         <td>
           <span class="ped-fuente">{{ p.integracion.get_proveedor_display }} · {{ p.integracion.nombre }}</span>

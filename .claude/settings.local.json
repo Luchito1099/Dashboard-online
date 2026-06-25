@@ -54,7 +54,9 @@
       "PowerShell(python -m pip install cryptography python-dotenv --quiet 2>&1 | Select-Object -Last 3; Write-Output \"exit:$LASTEXITCODE\")",
       "PowerShell(python manage.py migrate 2>&1 | Select-Object -Last 20; Write-Output \"exit:$LASTEXITCODE\"; Write-Output \"---check---\"; python manage.py check 2>&1 | Select-Object -Last 5)",
       "PowerShell(python manage.py check 2>&1)",
-      "PowerShell(python -m pip install whitenoise --quiet 2>&1 | Select-Object -Last 2; Write-Output \"exit:$LASTEXITCODE\")"
+      "PowerShell(python -m pip install whitenoise --quiet 2>&1 | Select-Object -Last 2; Write-Output \"exit:$LASTEXITCODE\")",
+      "PowerShell(python manage.py makemigrations integraciones 2>&1)",
+      "PowerShell(python manage.py migrate 2>&1)"
     ]
   }
 }

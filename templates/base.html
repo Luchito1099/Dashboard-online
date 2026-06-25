@@ -14,6 +14,11 @@
 </head>
 <body>
 
+{# Contenedor de notificaciones pop-up (nuevos pedidos) #}
+{% if request.user.is_authenticated and puede_editar or cfg.vendedor_puede_ver_pedidos or cfg.vendedor_puede_editar_pedidos or cfg.vendedor_puede_ver_seguimiento or cfg.vendedor_puede_editar_seguimiento or cfg.vendedor_puede_ver_avances %}
+<div id="toastWrap" class="toast-wrap" data-poll-url="{% url 'integraciones:pedidos_nuevos' %}"></div>
+{% endif %}
+
 <!-- SIDEBAR -->
 <aside class="sidebar" id="sidebar">
   <div class="sidebar-logo">
@@ -248,6 +253,63 @@
     else{document.documentElement.setAttribute('data-theme','dark');localStorage.setItem('klynea_theme','dark');}
     pintar();
   });
+})();
+</script>
+
+<script>
+// Notificaciones pop-up de nuevos pedidos (sondeo cada 30s)
+(function(){
+  var cont = document.getElementById('toastWrap');
+  if(!cont) return;                       // solo si el usuario tiene acceso a Pedidos
+  var endpoint = cont.dataset.pollUrl;
+  var KEY = 'klynea_last_pedido_id';
+
+  function beep(){
+    try{
+      var Ctx = window.AudioContext || window.webkitAudioContext;
+      var ctx = new Ctx();
+      var o = ctx.createOscillator(), g = ctx.createGain();
+      o.connect(g); g.connect(ctx.destination);
+      o.type = 'sine'; o.frequency.value = 880;
+      g.gain.setValueAtTime(0.0001, ctx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.18, ctx.currentTime + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.45);
+      o.start(); o.stop(ctx.currentTime + 0.45);
+    }catch(e){}
+  }
+
+  function toast(p, url){
+    var el = document.createElement('div');
+    el.className = 'toast-ped';
+    el.innerHTML = '<div class="toast-ico">🛒</div>'
+      + '<div class="toast-body"><div class="toast-titulo">Nuevo pedido · ' + p.fuente + '</div>'
+      + '<div class="toast-sub">' + p.numero + ' · ' + p.cliente + '</div>'
+      + '<a class="toast-ver" href="' + url + '">Ver pedidos →</a></div>'
+      + '<button class="toast-cerrar" type="button" aria-label="Cerrar">×</button>';
+    el.querySelector('.toast-cerrar').addEventListener('click', function(){ el.remove(); });
+    cont.appendChild(el);
+    setTimeout(function(){ el.classList.add('out'); setTimeout(function(){ el.remove(); }, 350); }, 14000);
+  }
+
+  function poll(){
+    var last = localStorage.getItem(KEY);
+    var url = endpoint + (last !== null ? ('?desde_id=' + encodeURIComponent(last)) : '');
+    fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(j){
+        if(!j || !j.ok) return;
+        if(j.init){ localStorage.setItem(KEY, j.max_id); return; }
+        if(j.pedidos && j.pedidos.length){
+          j.pedidos.forEach(function(p){ toast(p, j.url); });
+          beep();
+        }
+        if(typeof j.max_id !== 'undefined') localStorage.setItem(KEY, j.max_id);
+      })
+      .catch(function(){});
+  }
+
+  poll();
+  setInterval(poll, 30000);
 })();
 </script>
 {% block extra_js %}{% endblock %}

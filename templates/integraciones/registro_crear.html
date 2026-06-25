@@ -62,10 +62,15 @@
       </label>
       <label class="reg-field">
         <span>Tipo de envío</span>
-        <input type="text" name="tipo_envio" list="enviosList" placeholder="ej. Express, Shalom…">
-        <datalist id="enviosList">
-          {% for e in envios %}<option value="{{ e }}">{% endfor %}
-        </datalist>
+        <select name="tipo_envio" id="regEnvio">
+          <option value="Agencia">Agencia</option>
+          <option value="Delivery">Delivery</option>
+          <option value="Otros">Otros</option>
+        </select>
+      </label>
+      <label class="reg-field" id="regEnvioOtroWrap" style="display:none;">
+        <span>Detalle del envío</span>
+        <input type="text" name="tipo_envio_otro" placeholder="Especifica…">
       </label>
     </div>
 
@@ -103,11 +108,17 @@
     row.querySelectorAll('input').forEach(function (i) { if (i.name !== 'item_cantidad') i.value = ''; else i.value = '1'; });
     cont.appendChild(row);
   });
-  // Mostrar detalle solo si "Otro"
+  // Mostrar detalle de canal solo si "Otro"
   var sel = document.getElementById('regFuente');
   var wrap = document.getElementById('regDetalleWrap');
   function toggle() { wrap.style.display = (sel.value === 'otro') ? '' : 'none'; }
   sel.addEventListener('change', toggle); toggle();
+
+  // Mostrar detalle de envío solo si "Otros"
+  var env = document.getElementById('regEnvio');
+  var envWrap = document.getElementById('regEnvioOtroWrap');
+  function toggleEnv() { envWrap.style.display = (env.value === 'Otros') ? '' : 'none'; }
+  env.addEventListener('change', toggleEnv); toggleEnv();
 })();
 </script>
 {% endblock %}

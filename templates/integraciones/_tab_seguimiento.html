@@ -5,7 +5,7 @@
     <thead>
       <tr>
         <th>Pedido</th><th class="ped-cli">Cliente</th><th>Fuente</th><th>Estado</th>
-        <th>Llamada</th><th>Comentario</th><th>Tipo cliente</th><th>Etapa embudo</th><th>Estrategia</th><th></th>
+        <th>Llamada</th><th>Intentos</th><th>Comentario</th><th>Tipo cliente</th><th>Etapa embudo</th><th>Estrategia</th><th></th>
       </tr>
     </thead>
     <tbody>
@@ -16,6 +16,11 @@
         <td class="ped-cli">
           <div class="ped-cliente-nombre">{{ p.nombre_cliente|default:"—" }}</div>
           {% if p.telefono %}<div class="ped-cliente-tel">{{ p.telefono }}</div>{% endif %}
+          {% if p.items.all %}
+          <div class="ped-cli-items">
+            {% for it in p.items.all %}<span class="ped-cli-item">{{ it.cantidad }}× {{ it.nombre }}</span>{% endfor %}
+          </div>
+          {% endif %}
         </td>
         <td><span class="ped-fuente">{{ p.integracion.get_proveedor_display }}</span></td>
         <td><span class="ped-estado-txt ped-estado-{{ p.estado }}">{{ p.get_estado_display }}</span></td>
@@ -26,6 +31,11 @@
             <option value="{{ valor }}" {% if seg.llamada_estado == valor %}selected{% endif %}>{{ etiqueta }}</option>
             {% endfor %}
           </select>
+        </td>
+
+        <td>
+          <input type="number" min="0" class="ped-intentos js-seg" data-campo="llamadas_intentadas"
+                 value="{{ seg.llamadas_intentadas|default:0 }}" {% if not puede_editar_seguimiento %}disabled{% endif %}>
         </td>
 
         <td class="ped-coment-cell">
@@ -67,7 +77,7 @@
       </tr>
       {% endwith %}
       {% empty %}
-      <tr><td colspan="10" class="integ-vacio-cell">No hay pedidos con estos filtros.</td></tr>
+      <tr><td colspan="11" class="integ-vacio-cell">No hay pedidos con estos filtros.</td></tr>
       {% endfor %}
     </tbody>
   </table>

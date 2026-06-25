@@ -516,3 +516,31 @@ body {
 /* ── SCROLLBAR ── */
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-thumb { background: var(--border-dark); border-radius: 2px; }
+/* ── NOTIFICACIONES POP-UP (nuevos pedidos) ── */
+.toast-wrap {
+  position: fixed; top: 16px; left: 50%; transform: translateX(-50%);
+  z-index: 9999; display: flex; flex-direction: column; gap: 10px; align-items: center;
+  pointer-events: none;
+}
+.toast-ped {
+  pointer-events: auto; display: flex; align-items: center; gap: 12px;
+  min-width: 320px; max-width: 92vw; padding: 12px 14px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-left: 4px solid var(--success); border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(13,31,51,.22);
+  animation: toastIn .35s cubic-bezier(.2,.8,.2,1);
+}
+.toast-ped.out { animation: toastOut .35s ease forwards; }
+@keyframes toastIn { from { opacity: 0; transform: translateY(-16px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes toastOut { to { opacity: 0; transform: translateY(-16px); } }
+.toast-ico { font-size: 22px; flex-shrink: 0; }
+.toast-body { flex: 1; }
+.toast-titulo { font-size: 13px; font-weight: 700; color: var(--text); }
+.toast-sub { font-size: 12px; color: var(--text-secondary); margin-top: 1px; }
+.toast-ver { display: inline-block; margin-top: 4px; font-size: 12px; font-weight: 600; color: var(--primary); text-decoration: none; }
+.toast-ver:hover { text-decoration: underline; }
+.toast-cerrar {
+  border: none; background: none; font-size: 20px; line-height: 1; color: var(--muted);
+  cursor: pointer; flex-shrink: 0; align-self: flex-start;
+}
+.toast-cerrar:hover { color: var(--text); }

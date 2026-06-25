@@ -25,7 +25,7 @@
   </div>
 
   {# ── Sub-pestañas (persistentes en la URL) ── #}
-  {% with qs="&q="|add:f_q|add:"&fuente="|add:f_fuente|add:"&estado="|add:f_estado|add:"&envio="|add:f_envio|add:"&rango="|add:f_rango %}
+  {% with qs="&q="|add:f_q|add:"&fuente="|add:f_fuente|add:"&estado="|add:f_estado|add:"&envio="|add:f_envio|add:"&rango="|add:f_rango|add:"&orden="|add:f_orden|add:"&desde="|add:f_desde|add:"&hasta="|add:f_hasta %}
   <div class="ped-subtabs">
     {% if tab_listado %}
     <a href="?vista=listado{{ qs }}" class="ped-subtab {% if vista == 'listado' %}active{% endif %}">📋 Listado</a>
@@ -39,8 +39,7 @@
   </div>
   {% endwith %}
 
-  {# ── Filtros (compartidos por Listado y Seguimiento) ── #}
-  {% if vista != 'avances' %}
+  {# ── Filtros (compartidos por Listado, Seguimiento y Avances) ── #}
   <form method="get" class="ped-filtros">
     <input type="hidden" name="vista" value="{{ vista }}">
     <div class="ped-buscar">
@@ -64,13 +63,24 @@
       <option value="{{ e }}" {% if f_envio == e %}selected{% endif %}>{{ e }}</option>
       {% endfor %}
     </select>
+    <select name="orden" class="ped-orden" onchange="this.form.submit()" title="Ordenar por">
+      {% for clave, etiqueta in ordenes %}
+      <option value="{{ clave }}" {% if f_orden == clave %}selected{% endif %}>↕ {{ etiqueta }}</option>
+      {% endfor %}
+    </select>
     <div class="ped-rangos">
       {% for clave, etiqueta in rangos_btn %}
       <button type="submit" name="rango" value="{{ clave }}" class="ped-rango {% if f_rango == clave %}activo{% endif %}">{{ etiqueta }}</button>
       {% endfor %}
     </div>
+    <div class="ped-fechas">
+      <label>Desde <input type="date" name="desde" value="{{ f_desde }}" onchange="this.form.submit()"></label>
+      <label>Hasta <input type="date" name="hasta" value="{{ f_hasta }}" onchange="this.form.submit()"></label>
+      {% if f_desde or f_hasta %}
+      <a class="ped-fechas-limpiar" href="?vista={{ vista }}&q={{ f_q }}&fuente={{ f_fuente }}&estado={{ f_estado }}&envio={{ f_envio }}&orden={{ f_orden }}">✕ limpiar</a>
+      {% endif %}
+    </div>
   </form>
-  {% endif %}
 
   {# ── Contenido de la pestaña activa ── #}
   {% if vista == 'seguimiento' %}

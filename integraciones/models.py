@@ -139,12 +139,18 @@ class Pedido(models.Model):
     # No es una bandera: el pedido avanza por estos estados. 'creado' es la base.
     ESTADO_CREADO = 'creado'
     ESTADO_CONFIRMADO = 'confirmado'
+    ESTADO_DESPACHADO = 'despachado'
     ESTADO_ENTREGADO = 'entregado'
+    ESTADO_SIN_RESPUESTA = 'sin_respuesta'
+    ESTADO_SIN_CONFIRMAR = 'sin_confirmar'
     ESTADO_CANCELADO = 'cancelado'
     ESTADO_CHOICES = [
         (ESTADO_CREADO, 'Pedido creado'),
         (ESTADO_CONFIRMADO, 'Pedido confirmado'),
+        (ESTADO_DESPACHADO, 'Despachado / En camino'),
         (ESTADO_ENTREGADO, 'Entregado'),
+        (ESTADO_SIN_RESPUESTA, 'Sin respuesta'),
+        (ESTADO_SIN_CONFIRMAR, 'No concretó'),
         (ESTADO_CANCELADO, 'Cancelado'),
     ]
 
@@ -267,10 +273,12 @@ class PedidoSeguimiento(models.Model):
     LLAMADA_NO_CONTACTADO = 'no_contactado'
     LLAMADA_SIN_RESPUESTA = 'sin_respuesta'
     LLAMADA_CONTACTADO = 'contactado'
+    LLAMADA_CONTACTADO_SIN_LLAMADA = 'contactado_sin_llamada'
     LLAMADA_CHOICES = [
         (LLAMADA_NO_CONTACTADO, 'No contactado'),
         (LLAMADA_SIN_RESPUESTA, 'Llamado - sin respuesta'),
         (LLAMADA_CONTACTADO, 'Llamado - contactado'),
+        (LLAMADA_CONTACTADO_SIN_LLAMADA, 'Contactado sin llamada'),
     ]
 
     # Tipo de cliente
@@ -294,7 +302,8 @@ class PedidoSeguimiento(models.Model):
     ]
 
     pedido = models.OneToOneField(Pedido, on_delete=models.CASCADE, related_name='seguimiento')
-    llamada_estado = models.CharField(max_length=20, choices=LLAMADA_CHOICES, default=LLAMADA_NO_CONTACTADO)
+    llamada_estado = models.CharField(max_length=30, choices=LLAMADA_CHOICES, default=LLAMADA_NO_CONTACTADO)
+    llamadas_intentadas = models.PositiveSmallIntegerField(default=0)
     comentario = models.TextField(blank=True)
     tipo_cliente = models.CharField(max_length=20, choices=TIPO_CLIENTE_CHOICES, blank=True)
     etapa_embudo = models.CharField(max_length=20, choices=ETAPA_CHOICES, default=ETAPA_CREADO)

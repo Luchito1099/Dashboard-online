@@ -181,6 +181,17 @@
   border-radius: 8px; background: var(--surface); color: var(--text);
 }
 .ped-rangos { display: flex; gap: 4px; margin-left: auto; }
+
+/* Filtro por rango de fechas (desde / hasta) */
+.ped-fechas { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.ped-fechas label { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--text-secondary); font-weight: 600; }
+.ped-fechas input[type="date"] {
+  padding: 7px 9px; font-size: 12px; border: 1px solid var(--border-dark);
+  border-radius: 8px; background: var(--surface); color: var(--text); font-family: inherit;
+}
+.ped-fechas input[type="date"]:focus { outline: none; border-color: var(--primary); }
+.ped-fechas-limpiar { font-size: 12px; color: var(--error); text-decoration: none; font-weight: 600; }
+.ped-fechas-limpiar:hover { text-decoration: underline; }
 .ped-rango {
   padding: 7px 14px; font-size: 13px; font-weight: 600; border-radius: 8px; cursor: pointer;
   border: 1px solid var(--border-dark); background: transparent; color: var(--text-secondary);
@@ -235,7 +246,10 @@
 }
 .ped-estado[data-estado="creado"] { color: var(--text-secondary); }
 .ped-estado[data-estado="confirmado"] { color: var(--success); border-color: var(--success); }
+.ped-estado[data-estado="despachado"] { color: oklch(55% 0.16 200); border-color: oklch(62% 0.16 200); }
 .ped-estado[data-estado="entregado"] { color: oklch(48% 0.15 240); border-color: oklch(60% 0.15 240); }
+.ped-estado[data-estado="sin_respuesta"] { color: oklch(60% 0.16 70); border-color: oklch(68% 0.16 70); }
+.ped-estado[data-estado="sin_confirmar"] { color: var(--muted); border-color: var(--border-dark); }
 .ped-estado[data-estado="cancelado"] { color: var(--error); border-color: var(--error); }
 
 /* Controles en solo lectura (vendedor sin permiso de editar) */
@@ -296,8 +310,30 @@
 .ped-estado-txt { font-size: 12px; font-weight: 600; }
 .ped-estado-creado { color: var(--text-secondary); }
 .ped-estado-confirmado { color: var(--success); }
+.ped-estado-despachado { color: oklch(55% 0.16 200); }
 .ped-estado-entregado { color: oklch(48% 0.15 240); }
+.ped-estado-sin_respuesta { color: oklch(60% 0.16 70); }
+.ped-estado-sin_confirmar { color: var(--muted); }
 .ped-estado-cancelado { color: var(--error); }
+
+/* Productos al lado del cliente */
+.ped-cli-items { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.ped-cli-item {
+  font-size: 10.5px; padding: 1px 7px; border-radius: 5px;
+  background: var(--bg); border: 1px solid var(--border); color: var(--text-secondary);
+}
+
+/* Contador de llamadas intentadas (Seguimiento) */
+.ped-intentos {
+  width: 52px; padding: 6px 7px; font-size: 13px; text-align: center;
+  border: 1px solid var(--border-dark); border-radius: 6px; background: var(--bg);
+  color: var(--text); font-family: inherit; box-sizing: border-box;
+}
+.ped-intentos:focus { outline: none; border-color: var(--primary); background: var(--surface); }
+.ped-intentos:disabled { background: transparent; border-color: transparent; }
+
+/* Selector de orden en filtros */
+.ped-orden { font-weight: 600; color: var(--text-secondary); }
 
 /* ───────────────────────── Avances ───────────────────────── */
 .av-kpis { grid-template-columns: repeat(3, 1fr); }

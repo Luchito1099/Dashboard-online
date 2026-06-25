@@ -10,7 +10,7 @@ from django.contrib import messages
 from django.http import HttpResponseNotAllowed, HttpResponse, JsonResponse
 from django.urls import reverse
 from django.utils import timezone
-from django.db.models import Q, Count, Sum, F, Value, DecimalField
+from django.db.models import Q, Count, Sum, F, Value, DecimalField, Max
 from django.db.models.functions import Coalesce, Greatest, TruncDate
 from django.views.decorators.csrf import csrf_exempt
 
@@ -217,10 +217,27 @@ _RANGOS_FECHA = {'hoy': 0, '7d': 7, '30d': 30, 'todo': None}
 _VISTAS_PEDIDOS = ('listado', 'seguimiento', 'avances')
 
 
+# Opciones de ordenamiento (clave → campo de order_by)
+_ORDEN_PEDIDOS = {
+    'reciente': '-fecha_pedido',
+    'antiguo': 'fecha_pedido',
+    'cliente': 'nombre_cliente',
+    'numero': 'numero',
+    'telefono': 'telefono',
+}
+_ORDEN_LABELS = [
+    ('reciente', 'Más recientes'),
+    ('antiguo', 'Más antiguos'),
+    ('cliente', 'Cliente (A-Z)'),
+    ('numero', 'Nº de pedido'),
+    ('telefono', 'Teléfono'),
+]
+
+
 def _filtrar_pedidos(request):
-    """Aplica los filtros comunes (q, fuente, estado, envío, rango) y devuelve
+    """Aplica los filtros comunes (q, fuente, estado, envío, rango, orden) y devuelve
     (queryset filtrado, dict con la selección actual de filtros)."""
-    qs = Pedido.objects.select_related('integracion', 'editado_por')
+    qs = Pedido.objects.select_related('integracion', 'editado_por').prefetch_related('items')
 
     q = request.GET.get('q', '').strip()
     if q:
@@ -238,18 +255,41 @@ def _filtrar_pedidos(request):
     if envio:
         qs = qs.filter(tipo_envio=envio)
 
-    # Fechas en hora de Perú (America/Lima): usamos la fecha local y el lookup __date,
-    # que Django evalúa en la zona horaria activa (TIME_ZONE). Así "Hoy" coincide con el Inicio.
+    # Rango de fechas explícito (desde / hasta) tiene prioridad sobre los botones rápidos.
+    from django.utils.dateparse import parse_date
+    desde = request.GET.get('desde', '').strip()
+    hasta = request.GET.get('hasta', '').strip()
+    d_desde = parse_date(desde) if desde else None
+    d_hasta = parse_date(hasta) if hasta else None
     rango = request.GET.get('rango', 'todo')
-    dias = _RANGOS_FECHA.get(rango, None)
-    if dias is not None:
-        hoy = timezone.localdate()
-        if dias == 0:   # Hoy
-            qs = qs.filter(fecha_pedido__date=hoy)
-        else:           # Últimos N días (incluye hoy)
-            qs = qs.filter(fecha_pedido__date__gte=hoy - timedelta(days=dias - 1))
 
-    filtros = {'f_q': q, 'f_fuente': fuente, 'f_estado': estado, 'f_envio': envio, 'f_rango': rango}
+    if d_desde or d_hasta:
+        if d_desde:
+            qs = qs.filter(fecha_pedido__date__gte=d_desde)
+        if d_hasta:
+            qs = qs.filter(fecha_pedido__date__lte=d_hasta)
+        rango = ''   # los botones rápidos quedan inactivos cuando hay rango manual
+    else:
+        # Fechas en hora de Perú (America/Lima): usamos la fecha local y el lookup __date,
+        # que Django evalúa en la zona horaria activa (TIME_ZONE). Así "Hoy" coincide con el Inicio.
+        dias = _RANGOS_FECHA.get(rango, None)
+        if dias is not None:
+            hoy = timezone.localdate()
+            if dias == 0:   # Hoy
+                qs = qs.filter(fecha_pedido__date=hoy)
+            else:           # Últimos N días (incluye hoy)
+                qs = qs.filter(fecha_pedido__date__gte=hoy - timedelta(days=dias - 1))
+
+    # Ordenamiento
+    orden = request.GET.get('orden', 'reciente')
+    campo_orden = _ORDEN_PEDIDOS.get(orden)
+    if campo_orden:
+        qs = qs.order_by(campo_orden)
+    else:
+        orden = 'reciente'
+
+    filtros = {'f_q': q, 'f_fuente': fuente, 'f_estado': estado, 'f_envio': envio,
+               'f_rango': rango, 'f_orden': orden, 'f_desde': desde, 'f_hasta': hasta}
     return qs, filtros
 
 
@@ -263,6 +303,7 @@ def _base_context(request, filtros, vista):
         'fuentes': Integracion.objects.filter(categoria=Integracion.CATEGORIA_FUENTE),
         'envios': sorted(Pedido.objects.exclude(tipo_envio='')
                          .values_list('tipo_envio', flat=True).distinct()),
+        'ordenes': _ORDEN_LABELS,
         'puede_editar_pedidos': es_admin(request.user) or puede_editar_seguimiento(request.user),
         'puede_editar_seguimiento': puede_editar_seguimiento(request.user),
         'es_admin': es_admin(request.user),
@@ -514,6 +555,18 @@ def pedido_seguimiento_editar(request, pedido_id):
             seg.comentario = nuevo
             cambios = True
 
+    # Llamadas intentadas (entero ≥ 0)
+    if 'llamadas_intentadas' in request.POST:
+        crudo = (request.POST.get('llamadas_intentadas') or '0').strip()
+        try:
+            nuevo = max(int(crudo), 0)
+        except ValueError:
+            return JsonResponse({'error': 'Número de llamadas inválido.'}, status=400)
+        if nuevo != seg.llamadas_intentadas:
+            registrar_cambio(pedido, request.user, 'llamadas_intentadas', seg.llamadas_intentadas, nuevo)
+            seg.llamadas_intentadas = nuevo
+            cambios = True
+
     # Estrategia (FK)
     if 'estrategia' in request.POST:
         from capacitacion.models import Estrategia
@@ -555,9 +608,9 @@ def pedido_historial(request, pedido_id):
     logs = pedido.historial.select_related('usuario')[:200]
     etiquetas = {
         'estado': 'Estado', 'total': 'Precio final', 'adelanto': 'Adelanto',
-        'llamada_estado': 'Llamada', 'comentario': 'Comentario',
-        'tipo_cliente': 'Tipo de cliente', 'etapa_embudo': 'Etapa del embudo',
-        'estrategia': 'Estrategia',
+        'llamada_estado': 'Llamada', 'llamadas_intentadas': 'Llamadas intentadas',
+        'comentario': 'Comentario', 'tipo_cliente': 'Tipo de cliente',
+        'etapa_embudo': 'Etapa del embudo', 'estrategia': 'Estrategia',
     }
     data = [{
         'id': l.id,
@@ -608,7 +661,8 @@ def pedido_revertir(request, log_id):
         pedido.editado_por = request.user
         pedido.editado_en = timezone.now()
         pedido.save(update_fields=[campo, 'editado_por', 'editado_en'])
-    elif campo in ('llamada_estado', 'tipo_cliente', 'etapa_embudo', 'comentario', 'estrategia'):
+    elif campo in ('llamada_estado', 'tipo_cliente', 'etapa_embudo', 'comentario',
+                   'estrategia', 'llamadas_intentadas'):
         seg = pedido.get_seguimiento()
         if campo == 'estrategia':
             from capacitacion.models import Estrategia
@@ -624,6 +678,11 @@ def pedido_revertir(request, log_id):
             }
             if campo == 'comentario':
                 valor = log.valor_anterior
+            elif campo == 'llamadas_intentadas':
+                try:
+                    valor = max(int(log.valor_anterior or 0), 0)
+                except ValueError:
+                    valor = 0
             else:
                 valor = mapas[campo].get(log.valor_anterior, '')
             registrar_cambio(pedido, request.user, campo, getattr(seg, campo), log.valor_anterior)
@@ -635,6 +694,33 @@ def pedido_revertir(request, log_id):
         return JsonResponse({'error': 'Campo no reversible.'}, status=400)
 
     return JsonResponse({'ok': True})
+
+
+@login_required
+def pedidos_nuevos(request):
+    """Sondeo (polling) de pedidos nuevos llegados por sincronización/webhook (origen
+    automático). Devuelve los pedidos con id mayor al último visto para mostrar el
+    pop-up de "Nuevo pedido". Sin 'desde_id' devuelve solo el id máximo (modo init)."""
+    from core.permisos import puede_ver_pedidos
+    if not puede_ver_pedidos(request.user):
+        return JsonResponse({'ok': False}, status=403)
+
+    qs = Pedido.objects.filter(origen=Pedido.ORIGEN_AUTO)
+    desde = request.GET.get('desde_id')
+    if desde is None or not desde.isdigit():
+        return JsonResponse({'ok': True, 'init': True, 'max_id': qs.aggregate(m=Max('id'))['m'] or 0})
+
+    desde_id = int(desde)
+    nuevos = list(qs.filter(id__gt=desde_id).select_related('integracion').order_by('id')[:20])
+    max_id = nuevos[-1].id if nuevos else desde_id
+    data = [{
+        'id': p.id,
+        'numero': p.numero or p.external_id,
+        'cliente': p.nombre_cliente or 'Cliente',
+        'fuente': p.integracion.get_proveedor_display(),
+    } for p in nuevos]
+    return JsonResponse({'ok': True, 'max_id': max_id, 'pedidos': data,
+                         'url': reverse('integraciones:pedidos_modulo')})
 
 
 # ───────────────────────── Registro de pedidos (alta manual) ─────────────────────────
@@ -649,6 +735,7 @@ def registro_pedidos(request):
 
     qs = (Pedido.objects.filter(origen=Pedido.ORIGEN_MANUAL)
           .select_related('integracion', 'editado_por', 'registrado_por')
+          .prefetch_related('items')
           .annotate(n_historial=Count('historial')))
 
     q = request.GET.get('q', '').strip()
@@ -693,6 +780,11 @@ def registro_crear(request):
         if fuente_manual not in dict(Pedido.FUENTE_MANUAL_CHOICES):
             fuente_manual = Pedido.FUENTE_MANUAL_OTRO
 
+        # Tipo de envío: Agencia / Delivery / Otros (con detalle libre si Otros)
+        tipo_envio = request.POST.get('tipo_envio', '').strip()
+        if tipo_envio == 'Otros':
+            tipo_envio = request.POST.get('tipo_envio_otro', '').strip() or 'Otros'
+
         integ = Integracion.get_manual()
         pedido = Pedido.objects.create(
             integracion=integ,
@@ -703,7 +795,7 @@ def registro_crear(request):
             telefono=request.POST.get('telefono', '').strip(),
             total=_dec('total'),
             adelanto=_dec('adelanto'),
-            tipo_envio=request.POST.get('tipo_envio', '').strip(),
+            tipo_envio=tipo_envio,
             fuente_manual=fuente_manual,
             fuente_manual_detalle=request.POST.get('fuente_manual_detalle', '').strip(),
             registrado_por=request.user,
