@@ -12,6 +12,8 @@ class Perfil(models.Model):
     usuario = models.OneToOneField(User, on_delete=models.CASCADE)
     rol = models.CharField(max_length=10, choices=ROL_CHOICES, default='vendedor')
     activo = models.BooleanField(default=True)
+    # Filtro fijado del módulo Pedidos (querystring), atado al usuario y portable entre dispositivos
+    pedidos_filtro = models.TextField(blank=True, default='')
 
     class Meta:
         verbose_name = 'Perfil'

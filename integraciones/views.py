@@ -234,6 +234,32 @@ _ORDEN_LABELS = [
 ]
 
 
+def _norm(s):
+    """Normaliza un texto para comparar/deduplicar: sin espacios extra y en minúsculas."""
+    return ' '.join((s or '').split()).lower()
+
+
+def _valores_unicos(valores):
+    """Devuelve una lista ordenada de valores únicos ignorando mayúsculas y espacios
+    redundantes (se queda con la primera variante vista como representante)."""
+    vistos = {}
+    for v in valores:
+        clave = _norm(v)
+        if clave and clave not in vistos:
+            vistos[clave] = ' '.join(v.split())
+    return sorted(vistos.values(), key=lambda s: s.lower())
+
+
+def _envios_distintos():
+    return _valores_unicos(Pedido.objects.exclude(tipo_envio='')
+                           .values_list('tipo_envio', flat=True).distinct())
+
+
+def _productos_distintos():
+    return _valores_unicos(PedidoItem.objects.exclude(nombre='')
+                           .values_list('nombre', flat=True).distinct())
+
+
 def _filtrar_pedidos(request):
     """Aplica los filtros comunes (q, fuente, estado, envío, rango, orden) y devuelve
     (queryset filtrado, dict con la selección actual de filtros)."""
@@ -253,7 +279,11 @@ def _filtrar_pedidos(request):
 
     envio = request.GET.get('envio', '').strip()
     if envio:
-        qs = qs.filter(tipo_envio=envio)
+        # Empareja todas las variantes (espacios/mayúsculas) del envío elegido
+        objetivo = _norm(envio)
+        variantes = [v for v in Pedido.objects.exclude(tipo_envio='')
+                     .values_list('tipo_envio', flat=True).distinct() if _norm(v) == objetivo]
+        qs = qs.filter(tipo_envio__in=variantes or [envio])
 
     vendedor = request.GET.get('vendedor', '').strip()
     if vendedor == 'sin':
@@ -261,12 +291,14 @@ def _filtrar_pedidos(request):
     elif vendedor.isdigit():
         qs = qs.filter(vendedor_id=vendedor)
 
-    # Filtro por producto (multi-selección). Usamos subconsulta de ids para no
-    # multiplicar filas en los agregados (KPIs).
-    from .models import PedidoItem
+    # Filtro por producto (multi-selección). Empareja todas las variantes de nombre
+    # (espacios/mayúsculas) y usa subconsulta de ids para no multiplicar filas en los KPIs.
     productos_sel = [p for p in request.GET.getlist('producto') if p.strip()]
     if productos_sel:
-        ids = PedidoItem.objects.filter(nombre__in=productos_sel).values_list('pedido_id', flat=True)
+        objetivos = {_norm(p) for p in productos_sel}
+        nombres = [n for n in PedidoItem.objects.exclude(nombre='')
+                   .values_list('nombre', flat=True).distinct() if _norm(n) in objetivos]
+        ids = PedidoItem.objects.filter(nombre__in=nombres or productos_sel).values_list('pedido_id', flat=True)
         qs = qs.filter(id__in=ids)
 
     # Rango de fechas explícito (desde / hasta) tiene prioridad sobre los botones rápidos.
@@ -316,12 +348,10 @@ def _base_context(request, filtros, vista):
         'estados': Pedido.ESTADO_CHOICES,
         'rangos_btn': [('hoy', 'Hoy'), ('7d', '7d'), ('30d', '30d'), ('todo', 'Todo')],
         'fuentes': Integracion.objects.filter(categoria=Integracion.CATEGORIA_FUENTE),
-        'envios': sorted(Pedido.objects.exclude(tipo_envio='')
-                         .values_list('tipo_envio', flat=True).distinct()),
+        'envios': _envios_distintos(),
         'ordenes': _ORDEN_LABELS,
         'vendedores': _vendedores_qs(),
-        'productos_lista': sorted(PedidoItem.objects.exclude(nombre='')
-                                  .values_list('nombre', flat=True).distinct()),
+        'productos_lista': _productos_distintos(),
         'puede_editar_pedidos': es_admin(request.user) or puede_editar_seguimiento(request.user),
         'puede_editar_seguimiento': puede_editar_seguimiento(request.user),
         'es_admin': es_admin(request.user),
@@ -340,6 +370,12 @@ def pedidos_modulo(request):
     if not puede_ver_pedidos(request.user):
         messages.error(request, 'No tienes permisos para ver los pedidos.')
         return redirect(destino_vendedor(request.user))
+
+    # Filtro fijado por el usuario: al entrar "en limpio" (sin parámetros), se aplica solo.
+    from core.models import Perfil
+    perfil, _ = Perfil.objects.get_or_create(usuario=request.user)
+    if not request.GET and perfil.pedidos_filtro:
+        return redirect(f"{reverse('integraciones:pedidos_modulo')}?{perfil.pedidos_filtro}")
 
     can_listado = puede_ver_listado(request.user)
     can_seguimiento = puede_ver_seguimiento(request.user)
@@ -363,6 +399,7 @@ def pedidos_modulo(request):
     qs_copy = request.GET.copy()
     qs_copy.pop('vista', None)
     context['querystring_filtros'] = qs_copy.urlencode()
+    context['filtro_fijado'] = bool(perfil.pedidos_filtro)
     # Permisos para mostrar/ocultar pestañas
     context['tab_listado'] = can_listado
     context['tab_seguimiento'] = can_seguimiento
@@ -829,6 +866,19 @@ def pedido_revertir(request, log_id):
         return JsonResponse({'error': 'Campo no reversible.'}, status=400)
 
     return JsonResponse({'ok': True})
+
+
+@login_required
+def pedido_filtro(request):
+    """Fija (o limpia) el filtro del módulo Pedidos para el usuario actual. POST con
+    'qs' = querystring a recordar (vacío = limpiar). Se guarda en su Perfil."""
+    if request.method != 'POST':
+        return HttpResponseNotAllowed(['POST'])
+    from core.models import Perfil
+    perfil, _ = Perfil.objects.get_or_create(usuario=request.user)
+    perfil.pedidos_filtro = (request.POST.get('qs') or '').strip().lstrip('?')[:2000]
+    perfil.save(update_fields=['pedidos_filtro'])
+    return JsonResponse({'ok': True, 'fijado': bool(perfil.pedidos_filtro)})
 
 
 @login_required

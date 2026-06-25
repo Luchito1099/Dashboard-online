@@ -1,6 +1,6 @@
 # Esquema de la base de datos · KLYNEA ERP
 
-> Generado automáticamente por `python manage.py esquema_bd` el 2026-06-25 18:30. **No editar a mano** (se sobrescribe). Para análisis y mejoras ver `docs/ESQUEMA_NOTAS.md`.
+> Generado automáticamente por `python manage.py esquema_bd` el 2026-06-25 18:38. **No editar a mano** (se sobrescribe). Para análisis y mejoras ver `docs/ESQUEMA_NOTAS.md`.
 
 ## Cómo visualizarlo
 - **Diagrama ER (rápido):** copia el bloque *Mermaid* en https://mermaid.live
@@ -45,6 +45,7 @@ erDiagram
         int usuario_id FK
         varchar rol
         bool activo
+        text pedidos_filtro
     }
     Bloque {
         bigint id PK
@@ -401,6 +402,7 @@ Table core_perfil {
   usuario_id int [unique, ref: - auth_user.id]
   rol varchar
   activo bool
+  pedidos_filtro text
 }
 
 Table capacitacion_bloque {
@@ -754,7 +756,7 @@ _Meta diaria de un vendedor: cantidad de pedidos y/o monto de venta esperados po
 | monto_dia | DecimalField | no |  |  |
 
 ### `core_perfil` — Perfil
-_Perfil(id, usuario, rol, activo)_
+_Perfil(id, usuario, rol, activo, pedidos_filtro)_
 
 | Columna | Tipo | Nulo | Llave / Relación | Notas |
 |---|---|---|---|---|
@@ -762,6 +764,7 @@ _Perfil(id, usuario, rol, activo)_
 | usuario_id | OneToOneField | no | O2O → `auth_user` (CASCADE) | único |
 | rol | CharField | no |  | máx 10, choices |
 | activo | BooleanField | no |  |  |
+| pedidos_filtro | TextField | no |  |  |
 
 ### `capacitacion_bloque` — Bloque
 _Bloque(id, label, orden)_

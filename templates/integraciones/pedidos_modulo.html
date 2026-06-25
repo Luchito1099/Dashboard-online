@@ -103,8 +103,10 @@
       <button type="button" class="ped-fechas-limpiar" onclick="this.form.desde.value='';this.form.hasta.value='';this.form.submit()">✕ limpiar</button>
       {% endif %}
     </div>
-    {# Fijador: recuerda estos filtros entre sesiones (localStorage) #}
-    <button type="button" class="ped-fijar" id="pedFijar" title="Fijar estos filtros para futuras sesiones">📌 Fijar filtros</button>
+    {# Fijador: recuerda estos filtros (atado a tu usuario, en cualquier dispositivo) #}
+    <button type="button" class="ped-fijar {% if filtro_fijado %}activo{% endif %}" id="pedFijar"
+            data-url="{% url 'integraciones:pedido_filtro' %}" data-fijado="{{ filtro_fijado|yesno:'1,0' }}"
+            title="Fijar estos filtros para tus próximas sesiones">{% if filtro_fijado %}📌 Filtros fijados ✓{% else %}📌 Fijar filtros{% endif %}</button>
   </form>
 
   {# ── Contenido de la pestaña activa ── #}
@@ -274,42 +276,26 @@
     });
   }
 
-  // Fijador: recuerda los filtros entre sesiones (localStorage)
-  var KEY = 'klynea_ped_filtros';
+  // Fijador: recuerda los filtros atados al usuario (guardado en BD)
   var fijarBtn = document.getElementById('pedFijar');
   if (fijarBtn) {
-    var params = new URLSearchParams(location.search);
-    var vistaActual = params.get('vista') || 'listado';
-
-    // Querystring actual SIN 'vista'
-    var actual = new URLSearchParams(location.search);
-    actual.delete('vista');
-    var actualStr = actual.toString();
-
-    var fijado = localStorage.getItem(KEY);
-
-    // Aplicar el filtro fijado si entras "en limpio" (sin filtros en la URL)
-    if (fijado && actualStr === '') {
-      location.replace(location.pathname + '?vista=' + vistaActual + '&' + fijado);
-      return;
-    }
-
-    function pintar() {
-      var hay = localStorage.getItem(KEY) !== null;
-      fijarBtn.classList.toggle('activo', hay);
-      fijarBtn.textContent = hay ? '📌 Filtros fijados ✓' : '📌 Fijar filtros';
-    }
-    pintar();
-
+    var csrf2 = document.querySelector('[name=csrfmiddlewaretoken]').value;
     fijarBtn.addEventListener('click', function () {
-      if (localStorage.getItem(KEY) !== null) {
-        localStorage.removeItem(KEY);
-      } else {
-        var p = new URLSearchParams(location.search);
-        p.delete('vista');
-        localStorage.setItem(KEY, p.toString());
-      }
-      pintar();
+      var yaFijado = fijarBtn.dataset.fijado === '1';
+      // Al fijar guardamos la URL actual (con filtros); al desfijar, vacío.
+      var qs = yaFijado ? '' : location.search.replace(/^\?/, '');
+      var datos = new URLSearchParams({ csrfmiddlewaretoken: csrf2, qs: qs });
+      fetch(fijarBtn.dataset.url, {
+        method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' }, body: datos,
+      })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        if (!j.ok) { alert('No se pudo guardar el filtro.'); return; }
+        fijarBtn.dataset.fijado = j.fijado ? '1' : '0';
+        fijarBtn.classList.toggle('activo', j.fijado);
+        fijarBtn.textContent = j.fijado ? '📌 Filtros fijados ✓' : '📌 Fijar filtros';
+      })
+      .catch(function () { alert('Error de red.'); });
     });
   }
 })();
