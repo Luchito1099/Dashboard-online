@@ -1,0 +1,113 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% comment %} templates/integraciones/registro_crear.html — Alta manual de un pedido {% endcomment %}
+
+{% block title %}Nuevo pedido manual · KLYNEA{% endblock %}
+{% block nav_registro %}active{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'core/css/integraciones.css' %}">
+{% endblock %}
+
+{% block breadcrumb %}
+  <span>›</span><a href="{% url 'integraciones:registro_pedidos' %}">Registro Pedidos</a><span>›</span><span>Nuevo</span>
+{% endblock %}
+
+{% block content %}
+<div class="reg-form-wrap">
+  <div class="integ-header">
+    <h2 class="integ-title">Nuevo pedido manual</h2>
+    <p class="integ-subtitle">Registra un pedido que llegó por un canal no automatizado.</p>
+  </div>
+
+  <form method="post" class="reg-form">
+    {% csrf_token %}
+
+    <div class="reg-seccion">Cliente</div>
+    <div class="reg-grid">
+      <label class="reg-field">
+        <span>Nombre del cliente *</span>
+        <input type="text" name="nombre_cliente" required>
+      </label>
+      <label class="reg-field">
+        <span>Teléfono</span>
+        <input type="text" name="telefono">
+      </label>
+      <label class="reg-field">
+        <span>Nº de pedido (opcional)</span>
+        <input type="text" name="numero" placeholder="ej. WA-001">
+      </label>
+    </div>
+
+    <div class="reg-seccion">Productos</div>
+    <div class="reg-items" id="regItems">
+      <div class="reg-item">
+        <input type="text" name="item_nombre" placeholder="Producto" class="reg-item-nombre">
+        <input type="number" name="item_cantidad" placeholder="Cant." min="1" value="1" class="reg-item-cant">
+        <input type="text" name="item_precio" placeholder="Precio" inputmode="decimal" class="reg-item-precio">
+      </div>
+    </div>
+    <button type="button" class="btn-probar" id="regAddItem">+ Agregar producto</button>
+
+    <div class="reg-seccion">Pago y envío</div>
+    <div class="reg-grid">
+      <label class="reg-field">
+        <span>Precio final (total) *</span>
+        <input type="text" name="total" inputmode="decimal" value="0" required>
+      </label>
+      <label class="reg-field">
+        <span>Adelanto</span>
+        <input type="text" name="adelanto" inputmode="decimal" value="0">
+      </label>
+      <label class="reg-field">
+        <span>Tipo de envío</span>
+        <input type="text" name="tipo_envio" list="enviosList" placeholder="ej. Express, Shalom…">
+        <datalist id="enviosList">
+          {% for e in envios %}<option value="{{ e }}">{% endfor %}
+        </datalist>
+      </label>
+    </div>
+
+    <div class="reg-seccion">Origen</div>
+    <div class="reg-grid">
+      <label class="reg-field">
+        <span>Canal / fuente manual</span>
+        <select name="fuente_manual" id="regFuente">
+          {% for valor, etiqueta in fuentes_manual %}
+          <option value="{{ valor }}">{{ etiqueta }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="reg-field" id="regDetalleWrap" style="display:none;">
+        <span>Detalle (si es «Otro»)</span>
+        <input type="text" name="fuente_manual_detalle" placeholder="Especifica el canal…">
+      </label>
+    </div>
+
+    <div class="reg-acciones">
+      <a href="{% url 'integraciones:registro_pedidos' %}" class="ha-btn-volver">← Cancelar</a>
+      <button type="submit" class="btn-guardar">Registrar pedido</button>
+    </div>
+  </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  // Agregar líneas de producto
+  var cont = document.getElementById('regItems');
+  document.getElementById('regAddItem').addEventListener('click', function () {
+    var row = cont.firstElementChild.cloneNode(true);
+    row.querySelectorAll('input').forEach(function (i) { if (i.name !== 'item_cantidad') i.value = ''; else i.value = '1'; });
+    cont.appendChild(row);
+  });
+  // Mostrar detalle solo si "Otro"
+  var sel = document.getElementById('regFuente');
+  var wrap = document.getElementById('regDetalleWrap');
+  function toggle() { wrap.style.display = (sel.value === 'otro') ? '' : 'none'; }
+  sel.addEventListener('change', toggle); toggle();
+})();
+</script>
+{% endblock %}

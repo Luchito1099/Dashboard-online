@@ -1,0 +1,72 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% comment %} templates/capacitacion/estrategias_admin.html — Administración de estrategias (solo admin) {% endcomment %}
+
+{% block title %}Administrar estrategias · KLYNEA{% endblock %}
+{% block nav_capacitacion %}active{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'core/css/herramientas.css' %}">
+{% endblock %}
+
+{% block breadcrumb %}
+  <span>›</span><a href="{% url 'capacitacion:estrategias' %}">Estrategias</a><span>›</span><span>Administrar</span>
+{% endblock %}
+
+{% block content %}
+
+<div class="herr-admin">
+
+  <div class="herr-admin-header">
+    <div>
+      <h2 class="herr-title">Administrar estrategias</h2>
+      <p class="herr-subtitle">{{ estrategias|length }} estrategias</p>
+    </div>
+    <div class="herr-admin-acciones">
+      <a href="{% url 'capacitacion:estrategias' %}" class="ha-btn-volver">← Volver</a>
+      <form method="post" action="{% url 'capacitacion:crear_estrategia' %}">
+        {% csrf_token %}
+        <button type="submit" class="btn-crear">+ Nueva estrategia</button>
+      </form>
+    </div>
+  </div>
+
+  {% for e in estrategias %}
+  <div class="ha-card">
+    <form method="post" action="{% url 'capacitacion:editar_estrategia' e.id %}">
+      {% csrf_token %}
+      <div class="ha-grid">
+        <label class="ha-field ha-icono-field">
+          <span>Icono</span>
+          <input type="text" name="icono" value="{{ e.icono }}" maxlength="10" placeholder="💡">
+        </label>
+        <label class="ha-field">
+          <span>Nombre</span>
+          <input type="text" name="nombre" value="{{ e.nombre }}" required>
+        </label>
+        <label class="ha-check">
+          <input type="checkbox" name="activo" {% if e.activo %}checked{% endif %}>
+          Activa
+        </label>
+      </div>
+      <label class="ha-field full">
+        <span>Descripción</span>
+        <input type="text" name="descripcion" value="{{ e.descripcion }}" maxlength="300">
+      </label>
+      <button type="submit" class="btn-guardar">Guardar cambios</button>
+    </form>
+
+    <form method="post" action="{% url 'capacitacion:eliminar_estrategia' e.id %}" style="margin-top:10px;"
+          onsubmit="return confirm('¿Eliminar «{{ e.nombre|escapejs }}»?');">
+      {% csrf_token %}
+      <button type="submit" class="btn-eliminar">Eliminar</button>
+    </form>
+  </div>
+  {% empty %}
+  <div class="cat-vacio">No hay estrategias. Crea la primera con «+ Nueva estrategia».</div>
+  {% endfor %}
+
+</div>
+
+{% endblock %}

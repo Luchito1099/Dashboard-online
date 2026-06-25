@@ -20,4 +20,10 @@ urlpatterns = [
     # Gestión de bloques de tareas (solo admin/superuser, POST)
     path('capacitacion/bloque/crear/', views.crear_bloque, name='crear_bloque'),
     path('capacitacion/bloque/editar/<int:bloque_id>/', views.editar_bloque, name='editar_bloque'),
+    # Estrategias de venta (catálogo + CRUD admin)
+    path('estrategias/', views.estrategias, name='estrategias'),
+    path('estrategias/admin/', views.estrategias_admin, name='estrategias_admin'),
+    path('estrategias/crear/', views.crear_estrategia, name='crear_estrategia'),
+    path('estrategias/editar/<int:estrategia_id>/', views.editar_estrategia, name='editar_estrategia'),
+    path('estrategias/eliminar/<int:estrategia_id>/', views.eliminar_estrategia, name='eliminar_estrategia'),
 ]

@@ -1,0 +1,183 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% comment %} templates/integraciones/registro_lista.html — Pedidos dados de alta manualmente {% endcomment %}
+
+{% block title %}Registro Pedidos · KLYNEA{% endblock %}
+{% block nav_registro %}active{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'core/css/integraciones.css' %}">
+{% endblock %}
+
+{% block breadcrumb %}
+  <span>›</span><span>Registro Pedidos</span>
+{% endblock %}
+
+{% block content %}
+<div class="pedidos-mod">
+
+  <div class="integ-header" style="display:flex;justify-content:space-between;align-items:flex-end;">
+    <div>
+      <h2 class="integ-title">Registro Pedidos</h2>
+      <p class="integ-subtitle">Pedidos registrados manualmente (orgánico, WhatsApp, publicidad…). Aparecen también en el módulo Pedidos.</p>
+    </div>
+    <a href="{% url 'integraciones:registro_crear' %}" class="btn-guardar">+ Nuevo pedido manual</a>
+  </div>
+
+  <form method="get" class="ped-filtros">
+    <div class="ped-buscar">
+      <input type="text" name="q" value="{{ f_q }}" placeholder="Buscar cliente o teléfono…">
+    </div>
+    <button type="submit" class="ped-rango activo">Buscar</button>
+  </form>
+
+  <div class="ped-tabla-wrap">
+    <table class="ped-tabla" id="pedTabla">
+      <thead>
+        <tr>
+          <th>Pedido</th><th class="ped-cli">Cliente</th><th>Canal</th><th>Estado</th>
+          <th>Precio final</th><th>Adelanto</th><th>Restante</th><th>Tipo envío</th><th>Registrado por</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in pedidos %}
+        <tr data-id="{{ p.id }}" data-url="{% url 'integraciones:pedido_editar' p.id %}">
+          <td>{{ p.numero|default:p.external_id }}</td>
+          <td class="ped-cli">
+            <div class="ped-cliente-nombre">{{ p.nombre_cliente|default:"—" }}</div>
+            {% if p.telefono %}<div class="ped-cliente-tel">{{ p.telefono }}</div>{% endif %}
+          </td>
+          <td>
+            <span class="ped-canal">{{ p.get_fuente_manual_display|default:"—" }}</span>
+            {% if p.fuente_manual == 'otro' and p.fuente_manual_detalle %}<div class="ped-editado-fecha">{{ p.fuente_manual_detalle }}</div>{% endif %}
+          </td>
+          <td>
+            <select class="ped-estado js-estado" data-estado="{{ p.estado }}" {% if not puede_editar_listado %}disabled{% endif %}>
+              {% for valor, etiqueta in estados %}
+              <option value="{{ valor }}" {% if p.estado == valor %}selected{% endif %}>{{ etiqueta }}</option>
+              {% endfor %}
+            </select>
+          </td>
+          <td class="ped-num"><input type="text" inputmode="decimal" class="ped-monto js-total" value="{{ p.total|floatformat:2 }}" {% if not puede_editar_listado %}disabled{% endif %}></td>
+          <td class="ped-num"><input type="text" inputmode="decimal" class="ped-monto js-adelanto" value="{{ p.adelanto|floatformat:2 }}" {% if not puede_editar_listado %}disabled{% endif %}></td>
+          <td class="ped-num"><span class="js-restante">{{ p.restante|floatformat:2 }}</span></td>
+          <td>{{ p.tipo_envio|default:"—" }}</td>
+          <td>
+            <div class="ped-editado-wrap">
+              <div>
+                {% if p.registrado_por %}<div class="ped-editado">{{ p.registrado_por.get_full_name|default:p.registrado_por.username }}</div>{% endif %}
+                {% if p.editado_en %}<div class="ped-editado-fecha">{{ p.editado_en|timesince }}</div>{% endif %}
+              </div>
+              {% if p.n_historial %}
+              <button type="button" class="ped-hist-btn js-historial" title="Ver historial"
+                      data-url="{% url 'integraciones:pedido_historial' p.id %}">🕑</button>
+              {% endif %}
+              <span class="ped-saved js-saved">✓</span>
+            </div>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="9" class="integ-vacio-cell">Aún no hay pedidos manuales. Crea el primero con «+ Nuevo pedido manual».</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="hist-overlay" id="histOverlay"></div>
+<aside class="hist-panel" id="histPanel">
+  <div class="hist-head">
+    <h3 id="histTitulo">Historial</h3>
+    <button class="hist-cerrar" id="histCerrar" type="button">×</button>
+  </div>
+  <div class="hist-body" id="histBody"></div>
+</aside>
+
+{% csrf_token %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  var csrf = document.querySelector('[name=csrfmiddlewaretoken]').value;
+  function num(v) { var n = parseFloat((v || '').replace(',', '.')); return isNaN(n) ? 0 : n; }
+
+  function guardar(row, payload, onOk) {
+    var saved = row.querySelector('.js-saved');
+    var datos = new URLSearchParams(payload);
+    datos.append('csrfmiddlewaretoken', csrf);
+    fetch(row.dataset.url, { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' }, body: datos })
+    .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+    .then(function (res) {
+      if (!res.ok) { alert(res.j.error || 'No se pudo guardar.'); return; }
+      if (onOk) onOk(res.j);
+      if (saved) { saved.classList.add('show'); setTimeout(function () { saved.classList.remove('show'); }, 1500); }
+    }).catch(function () { alert('Error de red al guardar.'); });
+  }
+
+  document.querySelectorAll('#pedTabla tbody tr[data-url]').forEach(function (row) {
+    var estado = row.querySelector('.js-estado');
+    var total = row.querySelector('.js-total');
+    var adelanto = row.querySelector('.js-adelanto');
+    var restante = row.querySelector('.js-restante');
+    if (estado) estado.addEventListener('change', function () {
+      guardar(row, { estado: estado.value }, function (j) { estado.dataset.estado = j.estado; });
+    });
+    [total, adelanto].forEach(function (inp) {
+      if (!inp) return;
+      inp.addEventListener('input', function () {
+        inp.classList.add('dirty');
+        if (restante) restante.textContent = Math.max(num(total.value) - num(adelanto.value), 0).toFixed(2);
+      });
+      inp.addEventListener('change', function () {
+        guardar(row, { total: total.value, adelanto: adelanto.value }, function (j) {
+          if (restante) restante.textContent = j.restante;
+          total.value = j.total; adelanto.value = j.adelanto;
+          row.querySelectorAll('.ped-monto').forEach(function (i) { i.classList.remove('dirty'); });
+        });
+      });
+    });
+  });
+
+  // Drawer de historial
+  var overlay = document.getElementById('histOverlay'), panel = document.getElementById('histPanel');
+  var body = document.getElementById('histBody'), titulo = document.getElementById('histTitulo');
+  function cerrar() { overlay.classList.remove('show'); panel.classList.remove('show'); }
+  document.getElementById('histCerrar').addEventListener('click', cerrar);
+  overlay.addEventListener('click', cerrar);
+  function pintar(j) {
+    titulo.textContent = 'Historial · ' + j.pedido;
+    if (!j.logs.length) { body.innerHTML = '<div class="hist-vacio">Sin cambios registrados.</div>'; return; }
+    var html = '';
+    j.logs.forEach(function (l) {
+      html += '<div class="hist-item"><div class="hist-item-top"><span class="hist-campo">' + l.campo + '</span><span class="hist-fecha">' + l.cuando + '</span></div>'
+        + '<div class="hist-cambio"><span class="hist-ant">' + l.anterior + '</span> → <span class="hist-nue">' + l.nuevo + '</span></div>'
+        + '<div class="hist-item-bot"><span class="hist-user">' + l.usuario + '</span>'
+        + (j.puede_revertir ? '<button class="hist-revertir" data-log="' + l.id + '">Revertir</button>' : '') + '</div></div>';
+    });
+    body.innerHTML = html;
+    body.querySelectorAll('.hist-revertir').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        if (!confirm('¿Revertir este cambio?')) return;
+        fetch('/pedidos/historial/' + btn.dataset.log + '/revertir/', {
+          method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' },
+          body: new URLSearchParams({ csrfmiddlewaretoken: csrf }),
+        }).then(function (r) { return r.json(); }).then(function (j) {
+          if (j.ok) location.reload(); else alert(j.error || 'No se pudo revertir.');
+        });
+      });
+    });
+  }
+  document.querySelectorAll('.js-historial').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      overlay.classList.add('show'); panel.classList.add('show');
+      body.innerHTML = '<div class="hist-vacio">Cargando…</div>';
+      fetch(btn.dataset.url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+        .then(function (r) { return r.json(); }).then(pintar)
+        .catch(function () { body.innerHTML = '<div class="hist-vacio">Error al cargar.</div>'; });
+    });
+  });
+})();
+</script>
+{% endblock %}

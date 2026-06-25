@@ -15,6 +15,12 @@ urlpatterns = [
     # Módulo Pedidos (vista unificada de todas las fuentes)
     path('pedidos/', views.pedidos_modulo, name='pedidos_modulo'),
     path('pedidos/<int:pedido_id>/editar/', views.pedido_editar, name='pedido_editar'),
+    path('pedidos/<int:pedido_id>/seguimiento/', views.pedido_seguimiento_editar, name='pedido_seguimiento_editar'),
+    path('pedidos/<int:pedido_id>/historial/', views.pedido_historial, name='pedido_historial'),
+    path('pedidos/historial/<int:log_id>/revertir/', views.pedido_revertir, name='pedido_revertir'),
+    # Registro de pedidos (alta manual)
+    path('registro-pedidos/', views.registro_pedidos, name='registro_pedidos'),
+    path('registro-pedidos/crear/', views.registro_crear, name='registro_crear'),
     # OAuth de Shopify
     path('integraciones/oauth/iniciar/<int:integracion_id>/', views.oauth_iniciar, name='oauth_iniciar'),
     path('integraciones/oauth/callback/', views.oauth_callback, name='oauth_callback'),

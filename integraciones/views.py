@@ -11,12 +11,12 @@ from django.http import HttpResponseNotAllowed, HttpResponse, JsonResponse
 from django.urls import reverse
 from django.utils import timezone
 from django.db.models import Q, Count, Sum, F, Value, DecimalField
-from django.db.models.functions import Coalesce, Greatest
+from django.db.models.functions import Coalesce, Greatest, TruncDate
 from django.views.decorators.csrf import csrf_exempt
 
 # Reutilizamos el helper de permisos existente (no lo duplicamos)
 from capacitacion.views import es_admin
-from .models import Integracion, Pedido
+from .models import Integracion, Pedido, PedidoSeguimiento, PedidoEditLog, registrar_cambio
 from . import connectors
 
 
@@ -213,23 +213,15 @@ def pedidos(request, integracion_id):
 # Rangos rápidos de fecha del módulo (clave → días hacia atrás; None = sin límite)
 _RANGOS_FECHA = {'hoy': 0, '7d': 7, '30d': 30, 'todo': None}
 
+# Sub-pestañas del módulo
+_VISTAS_PEDIDOS = ('listado', 'seguimiento', 'avances')
 
-@login_required
-def pedidos_modulo(request):
-    """Vista unificada de pedidos de TODAS las fuentes, con filtros, KPIs y
-    edición en línea por estado (creado/confirmado/entregado/cancelado).
-    Admin siempre; el vendedor según los permisos configurables (ver/editar)."""
-    from core.permisos import puede_ver, destino_vendedor
-    puede_ver_ped = (puede_ver(request.user, 'vendedor_puede_ver_pedidos')
-                     or puede_ver(request.user, 'vendedor_puede_editar_pedidos'))
-    if not puede_ver_ped:
-        messages.error(request, 'No tienes permisos para ver los pedidos.')
-        return redirect(destino_vendedor(request.user))
-    puede_editar_ped = puede_ver(request.user, 'vendedor_puede_editar_pedidos')
 
+def _filtrar_pedidos(request):
+    """Aplica los filtros comunes (q, fuente, estado, envío, rango) y devuelve
+    (queryset filtrado, dict con la selección actual de filtros)."""
     qs = Pedido.objects.select_related('integracion', 'editado_por')
 
-    # ── Filtros ──
     q = request.GET.get('q', '').strip()
     if q:
         qs = qs.filter(Q(nombre_cliente__icontains=q) | Q(telefono__icontains=q) | Q(numero__icontains=q))
@@ -257,9 +249,78 @@ def pedidos_modulo(request):
         else:           # Últimos N días (incluye hoy)
             qs = qs.filter(fecha_pedido__date__gte=hoy - timedelta(days=dias - 1))
 
-    # ── KPIs: se calculan en la base sobre TODO lo filtrado (no solo lo mostrado) ──
+    filtros = {'f_q': q, 'f_fuente': fuente, 'f_estado': estado, 'f_envio': envio, 'f_rango': rango}
+    return qs, filtros
+
+
+def _base_context(request, filtros, vista):
+    """Contexto compartido por todas las sub-vistas (filtros, selectores, permisos)."""
+    from core.permisos import puede_editar_seguimiento
+    ctx = {
+        'vista': vista,
+        'estados': Pedido.ESTADO_CHOICES,
+        'rangos_btn': [('hoy', 'Hoy'), ('7d', '7d'), ('30d', '30d'), ('todo', 'Todo')],
+        'fuentes': Integracion.objects.filter(categoria=Integracion.CATEGORIA_FUENTE),
+        'envios': sorted(Pedido.objects.exclude(tipo_envio='')
+                         .values_list('tipo_envio', flat=True).distinct()),
+        'puede_editar_pedidos': es_admin(request.user) or puede_editar_seguimiento(request.user),
+        'puede_editar_seguimiento': puede_editar_seguimiento(request.user),
+        'es_admin': es_admin(request.user),
+    }
+    ctx.update(filtros)
+    return ctx
+
+
+@login_required
+def pedidos_modulo(request):
+    """Módulo Pedidos con tres sub-pestañas (Listado / Seguimiento / Avances),
+    persistentes en la URL (?vista=...). Admin y analista siempre; vendedor según permisos."""
+    from core.permisos import (puede_ver_pedidos, destino_vendedor, puede_ver_seguimiento,
+                               puede_ver_avances, puede_ver_listado, puede_ver)
+
+    if not puede_ver_pedidos(request.user):
+        messages.error(request, 'No tienes permisos para ver los pedidos.')
+        return redirect(destino_vendedor(request.user))
+
+    can_listado = puede_ver_listado(request.user)
+    can_seguimiento = puede_ver_seguimiento(request.user)
+    can_avances = puede_ver_avances(request.user)
+
+    # Pestaña por defecto: la primera que el usuario pueda ver
+    default_vista = 'listado' if can_listado else ('seguimiento' if can_seguimiento else 'avances')
+    vista = request.GET.get('vista', default_vista)
+    if vista not in _VISTAS_PEDIDOS:
+        vista = default_vista
+    # Si pide una pestaña sin permiso, cae a la pestaña por defecto permitida
+    if (vista == 'listado' and not can_listado) or \
+       (vista == 'seguimiento' and not can_seguimiento) or \
+       (vista == 'avances' and not can_avances):
+        vista = default_vista
+
+    qs, filtros = _filtrar_pedidos(request)
+    context = _base_context(request, filtros, vista)
+    # Permisos para mostrar/ocultar pestañas
+    context['tab_listado'] = can_listado
+    context['tab_seguimiento'] = can_seguimiento
+    context['tab_avances'] = can_avances
+    # Edición de montos/estado en Listado solo con el permiso clásico
+    context['puede_editar_listado'] = puede_ver(request.user, 'vendedor_puede_editar_pedidos')
+
+    if vista == 'seguimiento':
+        _context_seguimiento(qs, context)
+    elif vista == 'avances':
+        _context_avances(qs, context)
+    else:
+        _context_listado(qs, context)
+
+    return render(request, 'integraciones/pedidos_modulo.html', context)
+
+
+def _context_listado(qs, context):
+    """KPIs financieros + lista de pedidos para la pestaña Listado."""
     cero = Value(Decimal('0'), output_field=DecimalField(max_digits=12, decimal_places=2))
-    total_visibles = qs.count()
+    qs = qs.annotate(n_historial=Count('historial'))
+    context['total_visibles'] = qs.count()
     conf = qs.filter(estado=Pedido.ESTADO_CONFIRMADO).aggregate(
         n=Count('id'),
         total=Coalesce(Sum('total'), cero),
@@ -268,32 +329,99 @@ def pedidos_modulo(request):
     restante_expr = Greatest(F('total') - F('adelanto'), cero)
     por_cobrar = qs.exclude(estado=Pedido.ESTADO_CANCELADO).aggregate(
         s=Coalesce(Sum(restante_expr), cero))['s']
-
-    pedidos = list(qs)   # todos los pedidos filtrados
-
-    context = {
-        'pedidos': pedidos,
-        'total_visibles': total_visibles,
+    context.update({
+        'pedidos': list(qs),
         'num_confirmados': conf['n'],
         'total_confirmado': conf['total'],
         'total_cobrado': conf['cobrado'],
         'por_cobrar': por_cobrar,
-        'estados': Pedido.ESTADO_CHOICES,
-        'rangos_btn': [('hoy', 'Hoy'), ('7d', '7d'), ('30d', '30d'), ('todo', 'Todo')],
-        'fuentes': Integracion.objects.filter(categoria=Integracion.CATEGORIA_FUENTE),
-        'envios': sorted(Pedido.objects.exclude(tipo_envio='')
-                         .values_list('tipo_envio', flat=True).distinct()),
-        # Selección actual (para mantener los filtros marcados)
-        'f_q': q, 'f_fuente': fuente, 'f_estado': estado, 'f_envio': envio, 'f_rango': rango,
-        'puede_editar_pedidos': puede_editar_ped,
-    }
-    return render(request, 'integraciones/pedidos_modulo.html', context)
+    })
+
+
+def _context_seguimiento(qs, context):
+    """Lista de pedidos con sus datos de seguimiento (creados al vuelo en plantilla si faltan)."""
+    from capacitacion.models import Estrategia
+    qs = qs.select_related('seguimiento', 'seguimiento__estrategia')
+    context.update({
+        'pedidos': list(qs),
+        'total_visibles': qs.count(),
+        'llamada_choices': PedidoSeguimiento.LLAMADA_CHOICES,
+        'tipo_cliente_choices': PedidoSeguimiento.TIPO_CLIENTE_CHOICES,
+        'etapa_choices': PedidoSeguimiento.ETAPA_CHOICES,
+        'estrategias': Estrategia.objects.filter(activo=True),
+    })
+
+
+def _context_avances(qs, context):
+    """KPIs/funnel agregados para la pestaña Avances."""
+    cero = Value(Decimal('0'), output_field=DecimalField(max_digits=12, decimal_places=2))
+    total = qs.count()
+
+    # Conteo por estado de flujo
+    cuenta_estado = {r['estado']: r['n'] for r in qs.values('estado').annotate(n=Count('id'))}
+    por_estado = [(lbl, cuenta_estado.get(val, 0), val) for val, lbl in Pedido.ESTADO_CHOICES]
+
+    # Funnel por etapa del embudo (los pedidos sin seguimiento cuentan como 'creado')
+    cuenta_etapa_raw = {r['seguimiento__etapa_embudo']: r['n']
+                        for r in qs.values('seguimiento__etapa_embudo').annotate(n=Count('id'))}
+    sin_seg = cuenta_etapa_raw.pop(None, 0)
+    cuenta_etapa = dict(cuenta_etapa_raw)
+    cuenta_etapa['creado'] = cuenta_etapa.get('creado', 0) + sin_seg
+    por_etapa = [(lbl, cuenta_etapa.get(val, 0), val) for val, lbl in PedidoSeguimiento.ETAPA_CHOICES]
+    max_etapa = max([n for _, n, _ in por_etapa] + [1])
+
+    # Conversión
+    n_creado = cuenta_estado.get(Pedido.ESTADO_CREADO, 0)
+    n_conf = cuenta_estado.get(Pedido.ESTADO_CONFIRMADO, 0)
+    n_entreg = cuenta_estado.get(Pedido.ESTADO_ENTREGADO, 0)
+    base_conf = total - cuenta_estado.get(Pedido.ESTADO_CANCELADO, 0)
+    conv_confirmacion = round(n_conf / base_conf * 100) if base_conf else 0
+    conv_entrega = round(n_entreg / n_conf * 100) if n_conf else 0
+
+    # Por fuente
+    por_fuente = list(qs.values('integracion__nombre', 'integracion__proveedor')
+                      .annotate(n=Count('id')).order_by('-n'))
+    max_fuente = max([r['n'] for r in por_fuente] + [1])
+
+    # Por canal manual
+    por_canal = [(dict(Pedido.FUENTE_MANUAL_CHOICES).get(r['fuente_manual'], r['fuente_manual'] or '—'), r['n'])
+                 for r in qs.filter(origen=Pedido.ORIGEN_MANUAL).values('fuente_manual')
+                 .annotate(n=Count('id')).order_by('-n')]
+
+    # Evolución diaria (últimos registros con fecha)
+    evol = list(qs.exclude(fecha_pedido=None).annotate(d=TruncDate('fecha_pedido'))
+                .values('d').annotate(n=Count('id')).order_by('-d')[:14])
+    evol.reverse()
+    max_evol = max([r['n'] for r in evol] + [1])
+
+    # Por vendedor: registros manuales + ediciones
+    por_vendedor_reg = list(qs.filter(origen=Pedido.ORIGEN_MANUAL).exclude(registrado_por=None)
+                            .values('registrado_por__username').annotate(n=Count('id')).order_by('-n'))
+    por_editor = list(qs.exclude(editado_por=None)
+                      .values('editado_por__username').annotate(n=Count('id')).order_by('-n'))
+
+    context.update({
+        'av_total': total,
+        'av_por_estado': por_estado,
+        'av_por_etapa': por_etapa,
+        'av_max_etapa': max_etapa,
+        'av_conv_confirmacion': conv_confirmacion,
+        'av_conv_entrega': conv_entrega,
+        'av_por_fuente': por_fuente,
+        'av_max_fuente': max_fuente,
+        'av_por_canal': por_canal,
+        'av_evol': evol,
+        'av_max_evol': max_evol,
+        'av_por_vendedor_reg': por_vendedor_reg,
+        'av_por_editor': por_editor,
+    })
 
 
 @login_required
 def pedido_editar(request, pedido_id):
     """Edición en línea de un pedido: estado, precio final y adelanto (POST, AJAX).
-    Admin siempre; el vendedor solo si tiene el permiso de editar pedidos."""
+    Admin siempre; el vendedor solo si tiene el permiso de editar pedidos.
+    Cada cambio queda registrado en el historial (PedidoEditLog)."""
     from core.permisos import puede_ver
     if not puede_ver(request.user, 'vendedor_puede_editar_pedidos'):
         return JsonResponse({'error': 'sin permiso'}, status=403)
@@ -305,8 +433,11 @@ def pedido_editar(request, pedido_id):
 
     estado = request.POST.get('estado')
     if estado is not None and estado in dict(Pedido.ESTADO_CHOICES):
-        pedido.estado = estado
-        cambios.append('estado')
+        if estado != pedido.estado:
+            registrar_cambio(pedido, request.user, 'estado',
+                             pedido.get_estado_display(), dict(Pedido.ESTADO_CHOICES)[estado])
+            pedido.estado = estado
+            cambios.append('estado')
 
     for campo in ('total', 'adelanto'):
         crudo = request.POST.get(campo)
@@ -318,8 +449,10 @@ def pedido_editar(request, pedido_id):
             return JsonResponse({'error': f'Valor inválido para {campo}.'}, status=400)
         if valor < 0:
             return JsonResponse({'error': f'{campo} no puede ser negativo.'}, status=400)
-        setattr(pedido, campo, valor)
-        cambios.append(campo)
+        if valor != getattr(pedido, campo):
+            registrar_cambio(pedido, request.user, campo, getattr(pedido, campo), valor)
+            setattr(pedido, campo, valor)
+            cambios.append(campo)
 
     if not cambios:
         return JsonResponse({'error': 'Nada que actualizar.'}, status=400)
@@ -337,6 +470,275 @@ def pedido_editar(request, pedido_id):
         'restante': f'{pedido.restante:.2f}',
         'editado_por': request.user.get_full_name() or request.user.username,
     })
+
+
+@login_required
+def pedido_seguimiento_editar(request, pedido_id):
+    """Edición en línea de los campos de Seguimiento (llamada, comentario, tipo de
+    cliente, etapa del embudo, estrategia). POST/AJAX. Loguea cada cambio."""
+    from core.permisos import puede_editar_seguimiento
+    if not puede_editar_seguimiento(request.user):
+        return JsonResponse({'error': 'sin permiso'}, status=403)
+    if request.method != 'POST':
+        return HttpResponseNotAllowed(['POST'])
+
+    pedido = get_object_or_404(Pedido, id=pedido_id)
+    seg = pedido.get_seguimiento()
+    cambios = False
+
+    # Campos de choices (validamos contra las opciones del modelo)
+    choice_campos = {
+        'llamada_estado': dict(PedidoSeguimiento.LLAMADA_CHOICES),
+        'tipo_cliente': dict(PedidoSeguimiento.TIPO_CLIENTE_CHOICES),
+        'etapa_embudo': dict(PedidoSeguimiento.ETAPA_CHOICES),
+    }
+    for campo, opciones in choice_campos.items():
+        nuevo = request.POST.get(campo)
+        if nuevo is None:
+            continue
+        if nuevo != '' and nuevo not in opciones:
+            return JsonResponse({'error': f'Valor inválido para {campo}.'}, status=400)
+        actual = getattr(seg, campo)
+        if nuevo != actual:
+            ant = opciones.get(actual, actual)
+            nue = opciones.get(nuevo, nuevo)
+            registrar_cambio(pedido, request.user, campo, ant, nue)
+            setattr(seg, campo, nuevo)
+            cambios = True
+
+    # Comentario (texto libre)
+    if 'comentario' in request.POST:
+        nuevo = request.POST.get('comentario', '').strip()
+        if nuevo != seg.comentario:
+            registrar_cambio(pedido, request.user, 'comentario', seg.comentario, nuevo)
+            seg.comentario = nuevo
+            cambios = True
+
+    # Estrategia (FK)
+    if 'estrategia' in request.POST:
+        from capacitacion.models import Estrategia
+        raw = request.POST.get('estrategia', '').strip()
+        nuevo_id = int(raw) if raw.isdigit() else None
+        if nuevo_id != (seg.estrategia_id or None):
+            ant = seg.estrategia.nombre if seg.estrategia else ''
+            nueva = Estrategia.objects.filter(id=nuevo_id).first() if nuevo_id else None
+            if nuevo_id and not nueva:
+                return JsonResponse({'error': 'Estrategia inválida.'}, status=400)
+            registrar_cambio(pedido, request.user, 'estrategia', ant, nueva.nombre if nueva else '')
+            seg.estrategia = nueva
+            cambios = True
+
+    if not cambios:
+        return JsonResponse({'error': 'Nada que actualizar.'}, status=400)
+
+    seg.actualizado_por = request.user
+    seg.actualizado_en = timezone.now()
+    seg.save()
+
+    return JsonResponse({
+        'ok': True,
+        'llamada_estado': seg.llamada_estado,
+        'tipo_cliente': seg.tipo_cliente,
+        'etapa_embudo': seg.etapa_embudo,
+        'actualizado_por': request.user.get_full_name() or request.user.username,
+    })
+
+
+@login_required
+def pedido_historial(request, pedido_id):
+    """Devuelve el historial cronológico de cambios de un pedido (JSON para el drawer)."""
+    from core.permisos import puede_ver_pedidos
+    if not puede_ver_pedidos(request.user):
+        return JsonResponse({'error': 'sin permiso'}, status=403)
+
+    pedido = get_object_or_404(Pedido, id=pedido_id)
+    logs = pedido.historial.select_related('usuario')[:200]
+    etiquetas = {
+        'estado': 'Estado', 'total': 'Precio final', 'adelanto': 'Adelanto',
+        'llamada_estado': 'Llamada', 'comentario': 'Comentario',
+        'tipo_cliente': 'Tipo de cliente', 'etapa_embudo': 'Etapa del embudo',
+        'estrategia': 'Estrategia',
+    }
+    data = [{
+        'id': l.id,
+        'campo': etiquetas.get(l.campo_modificado, l.campo_modificado),
+        'anterior': l.valor_anterior or '—',
+        'nuevo': l.valor_nuevo or '—',
+        'usuario': (l.usuario.get_full_name() or l.usuario.username) if l.usuario else 'Sistema',
+        'cuando': timezone.localtime(l.timestamp).strftime('%d/%m/%Y %H:%M'),
+    } for l in logs]
+    return JsonResponse({
+        'ok': True,
+        'pedido': pedido.numero or pedido.external_id,
+        'puede_revertir': es_admin(request.user),
+        'logs': data,
+    })
+
+
+@login_required
+def pedido_revertir(request, log_id):
+    """Reaplica el valor anterior de un cambio (solo admin). Registra un log inverso."""
+    if not es_admin(request.user):
+        return JsonResponse({'error': 'sin permiso'}, status=403)
+    if request.method != 'POST':
+        return HttpResponseNotAllowed(['POST'])
+
+    log = get_object_or_404(PedidoEditLog, id=log_id)
+    pedido = log.pedido
+    campo = log.campo_modificado
+
+    # Campos del propio Pedido
+    if campo == 'estado':
+        inv = {v: k for k, v in Pedido.ESTADO_CHOICES}
+        clave = inv.get(log.valor_anterior)
+        if clave is None:
+            return JsonResponse({'error': 'No se puede revertir este valor.'}, status=400)
+        registrar_cambio(pedido, request.user, 'estado', pedido.get_estado_display(), log.valor_anterior)
+        pedido.estado = clave
+        pedido.editado_por = request.user
+        pedido.editado_en = timezone.now()
+        pedido.save(update_fields=['estado', 'editado_por', 'editado_en'])
+    elif campo in ('total', 'adelanto'):
+        try:
+            valor = Decimal((log.valor_anterior or '0').replace(',', '.'))
+        except (InvalidOperation, AttributeError):
+            return JsonResponse({'error': 'Valor anterior inválido.'}, status=400)
+        registrar_cambio(pedido, request.user, campo, getattr(pedido, campo), valor)
+        setattr(pedido, campo, valor)
+        pedido.editado_por = request.user
+        pedido.editado_en = timezone.now()
+        pedido.save(update_fields=[campo, 'editado_por', 'editado_en'])
+    elif campo in ('llamada_estado', 'tipo_cliente', 'etapa_embudo', 'comentario', 'estrategia'):
+        seg = pedido.get_seguimiento()
+        if campo == 'estrategia':
+            from capacitacion.models import Estrategia
+            nueva = Estrategia.objects.filter(nombre=log.valor_anterior).first()
+            registrar_cambio(pedido, request.user, 'estrategia',
+                             seg.estrategia.nombre if seg.estrategia else '', log.valor_anterior or '')
+            seg.estrategia = nueva
+        else:
+            mapas = {
+                'llamada_estado': {v: k for k, v in PedidoSeguimiento.LLAMADA_CHOICES},
+                'tipo_cliente': {v: k for k, v in PedidoSeguimiento.TIPO_CLIENTE_CHOICES},
+                'etapa_embudo': {v: k for k, v in PedidoSeguimiento.ETAPA_CHOICES},
+            }
+            if campo == 'comentario':
+                valor = log.valor_anterior
+            else:
+                valor = mapas[campo].get(log.valor_anterior, '')
+            registrar_cambio(pedido, request.user, campo, getattr(seg, campo), log.valor_anterior)
+            setattr(seg, campo, valor)
+        seg.actualizado_por = request.user
+        seg.actualizado_en = timezone.now()
+        seg.save()
+    else:
+        return JsonResponse({'error': 'Campo no reversible.'}, status=400)
+
+    return JsonResponse({'ok': True})
+
+
+# ───────────────────────── Registro de pedidos (alta manual) ─────────────────────────
+
+@login_required
+def registro_pedidos(request):
+    """Listado de los pedidos dados de alta manualmente (con edición inline igual al Listado)."""
+    from core.permisos import puede_registrar_pedidos, destino_vendedor, puede_ver
+    if not (puede_registrar_pedidos(request.user) or es_admin(request.user)):
+        messages.error(request, 'No tienes permisos para el registro de pedidos.')
+        return redirect(destino_vendedor(request.user))
+
+    qs = (Pedido.objects.filter(origen=Pedido.ORIGEN_MANUAL)
+          .select_related('integracion', 'editado_por', 'registrado_por')
+          .annotate(n_historial=Count('historial')))
+
+    q = request.GET.get('q', '').strip()
+    if q:
+        qs = qs.filter(Q(nombre_cliente__icontains=q) | Q(telefono__icontains=q) | Q(numero__icontains=q))
+
+    context = {
+        'pedidos': list(qs),
+        'total_visibles': qs.count(),
+        'estados': Pedido.ESTADO_CHOICES,
+        'f_q': q,
+        'puede_editar_listado': puede_ver(request.user, 'vendedor_puede_editar_pedidos') or es_admin(request.user),
+        'es_admin': es_admin(request.user),
+    }
+    return render(request, 'integraciones/registro_lista.html', context)
+
+
+@login_required
+def registro_crear(request):
+    """Formulario de alta manual de un pedido. Entra al mismo pipeline (fuente 'Registro manual')."""
+    from core.permisos import puede_registrar_pedidos, destino_vendedor
+    if not (puede_registrar_pedidos(request.user) or es_admin(request.user)):
+        messages.error(request, 'No tienes permisos para registrar pedidos.')
+        return redirect(destino_vendedor(request.user))
+
+    if request.method == 'POST':
+        from .models import PedidoItem
+        nombre = request.POST.get('nombre_cliente', '').strip()
+        if not nombre:
+            messages.error(request, 'El nombre del cliente es obligatorio.')
+            return redirect('integraciones:registro_crear')
+
+        def _dec(name):
+            crudo = (request.POST.get(name) or '').strip().replace(',', '.')
+            try:
+                v = Decimal(crudo) if crudo else Decimal('0')
+                return v if v >= 0 else Decimal('0')
+            except InvalidOperation:
+                return Decimal('0')
+
+        fuente_manual = request.POST.get('fuente_manual', '').strip()
+        if fuente_manual not in dict(Pedido.FUENTE_MANUAL_CHOICES):
+            fuente_manual = Pedido.FUENTE_MANUAL_OTRO
+
+        integ = Integracion.get_manual()
+        pedido = Pedido.objects.create(
+            integracion=integ,
+            external_id=f'manual-{secrets.token_hex(6)}',
+            origen=Pedido.ORIGEN_MANUAL,
+            numero=request.POST.get('numero', '').strip(),
+            nombre_cliente=nombre,
+            telefono=request.POST.get('telefono', '').strip(),
+            total=_dec('total'),
+            adelanto=_dec('adelanto'),
+            tipo_envio=request.POST.get('tipo_envio', '').strip(),
+            fuente_manual=fuente_manual,
+            fuente_manual_detalle=request.POST.get('fuente_manual_detalle', '').strip(),
+            registrado_por=request.user,
+            editado_por=request.user,
+            editado_en=timezone.now(),
+            fecha_pedido=timezone.now(),
+        )
+        # Productos (una línea por nombre no vacío)
+        nombres = request.POST.getlist('item_nombre')
+        cantidades = request.POST.getlist('item_cantidad')
+        precios = request.POST.getlist('item_precio')
+        for i, nom in enumerate(nombres):
+            nom = (nom or '').strip()
+            if not nom:
+                continue
+            try:
+                cant = int(cantidades[i]) if i < len(cantidades) and cantidades[i] else 1
+            except ValueError:
+                cant = 1
+            try:
+                prec = Decimal((precios[i] or '0').replace(',', '.')) if i < len(precios) else Decimal('0')
+            except InvalidOperation:
+                prec = Decimal('0')
+            PedidoItem.objects.create(pedido=pedido, nombre=nom, cantidad=max(cant, 1), precio=prec)
+
+        registrar_cambio(pedido, request.user, 'creado', '', f'Pedido manual de {nombre}')
+        messages.success(request, f'Pedido manual de «{nombre}» registrado.')
+        return redirect('integraciones:registro_pedidos')
+
+    context = {
+        'fuentes_manual': Pedido.FUENTE_MANUAL_CHOICES,
+        'envios': sorted(Pedido.objects.exclude(tipo_envio='')
+                         .values_list('tipo_envio', flat=True).distinct()),
+    }
+    return render(request, 'integraciones/registro_crear.html', context)
 
 
 # ───────────────────────── OAuth de Shopify ─────────────────────────

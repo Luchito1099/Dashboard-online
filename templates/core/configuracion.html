@@ -184,6 +184,61 @@
 
       <div class="cfg-toggle">
         <div>
+          <div class="cfg-toggle-label">Puede ver Seguimiento</div>
+          <div class="cfg-toggle-desc">Acceso a la pestaña Seguimiento de Pedidos (llamada, comentario, tipo de cliente, etapa del embudo, estrategia).</div>
+        </div>
+        <label class="switch">
+          <input type="checkbox" name="vendedor_puede_ver_seguimiento" {% if config.vendedor_puede_ver_seguimiento %}checked{% endif %}>
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="cfg-toggle">
+        <div>
+          <div class="cfg-toggle-label">Puede editar Seguimiento</div>
+          <div class="cfg-toggle-desc">Permite gestionar los campos de Seguimiento. Implica poder verlo.</div>
+        </div>
+        <label class="switch">
+          <input type="checkbox" name="vendedor_puede_editar_seguimiento" {% if config.vendedor_puede_editar_seguimiento %}checked{% endif %}>
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="cfg-toggle">
+        <div>
+          <div class="cfg-toggle-label">Puede registrar Pedidos (manual)</div>
+          <div class="cfg-toggle-desc">Acceso al módulo Registro Pedidos para dar de alta pedidos manualmente.</div>
+        </div>
+        <label class="switch">
+          <input type="checkbox" name="vendedor_puede_registrar_pedidos" {% if config.vendedor_puede_registrar_pedidos %}checked{% endif %}>
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="cfg-toggle">
+        <div>
+          <div class="cfg-toggle-label">Puede ver Avances</div>
+          <div class="cfg-toggle-desc">Acceso a la pestaña Avances (KPIs y funnel agregados).</div>
+        </div>
+        <label class="switch">
+          <input type="checkbox" name="vendedor_puede_ver_avances" {% if config.vendedor_puede_ver_avances %}checked{% endif %}>
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="cfg-toggle">
+        <div>
+          <div class="cfg-toggle-label">Analista puede editar Seguimiento</div>
+          <div class="cfg-toggle-desc">El rol Analista ve todo en lectura y Avances completo; con esto además puede editar el Seguimiento.</div>
+        </div>
+        <label class="switch">
+          <input type="checkbox" name="analista_puede_editar_seguimiento" {% if config.analista_puede_editar_seguimiento %}checked{% endif %}>
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="cfg-toggle">
+        <div>
           <div class="cfg-toggle-label">Puede compartir material por WhatsApp</div>
           <div class="cfg-toggle-desc">Muestra los botones de compartir/copiar link en productos y fichas.</div>
         </div>
@@ -213,6 +268,11 @@
         <tr><td>Ver Herramientas</td><td class="{% if config.vendedor_puede_ver_herramientas %}si{% else %}no{% endif %}">{% if config.vendedor_puede_ver_herramientas %}Sí{% else %}No{% endif %}</td><td class="si">Sí</td></tr>
         <tr><td>Ver Pedidos (vista unificada)</td><td class="{% if config.vendedor_puede_ver_pedidos or config.vendedor_puede_editar_pedidos %}si{% else %}no{% endif %}">{% if config.vendedor_puede_ver_pedidos or config.vendedor_puede_editar_pedidos %}Sí{% else %}No{% endif %}</td><td class="si">Sí</td></tr>
         <tr><td>Editar Pedidos (estado, precio, adelanto)</td><td class="{% if config.vendedor_puede_editar_pedidos %}si{% else %}no{% endif %}">{% if config.vendedor_puede_editar_pedidos %}Sí{% else %}No{% endif %}</td><td class="si">Sí</td></tr>
+        <tr><td>Ver Seguimiento (embudo, estrategia)</td><td class="{% if config.vendedor_puede_ver_seguimiento or config.vendedor_puede_editar_seguimiento %}si{% else %}no{% endif %}">{% if config.vendedor_puede_ver_seguimiento or config.vendedor_puede_editar_seguimiento %}Sí{% else %}No{% endif %}</td><td class="si">Sí</td></tr>
+        <tr><td>Editar Seguimiento</td><td class="{% if config.vendedor_puede_editar_seguimiento %}si{% else %}no{% endif %}">{% if config.vendedor_puede_editar_seguimiento %}Sí{% else %}No{% endif %}</td><td class="si">Sí</td></tr>
+        <tr><td>Registrar pedidos manuales</td><td class="{% if config.vendedor_puede_registrar_pedidos %}si{% else %}no{% endif %}">{% if config.vendedor_puede_registrar_pedidos %}Sí{% else %}No{% endif %}</td><td class="si">Sí</td></tr>
+        <tr><td>Ver Avances (KPIs / funnel)</td><td class="{% if config.vendedor_puede_ver_avances %}si{% else %}no{% endif %}">{% if config.vendedor_puede_ver_avances %}Sí{% else %}No{% endif %}</td><td class="si">Sí</td></tr>
+        <tr><td>Revertir cambios del historial</td><td class="no">No</td><td class="si">Sí</td></tr>
         <tr><td>Compartir material por WhatsApp</td><td class="{% if config.vendedor_puede_compartir %}si{% else %}no{% endif %}">{% if config.vendedor_puede_compartir %}Sí{% else %}No{% endif %}</td><td class="si">Sí</td></tr>
         <tr><td>Simular hora / guardar videos</td><td class="si">Sí</td><td class="si">Sí</td></tr>
         <tr><td>Editar tareas del runbook</td><td class="no">No</td><td class="si">Sí</td></tr>

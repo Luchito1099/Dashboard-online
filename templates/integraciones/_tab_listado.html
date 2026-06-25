@@ -1,0 +1,78 @@
+{% comment %} Pestaña Listado — KPIs + tabla con edición inline de estado/montos {% endcomment %}
+
+<div class="ped-kpis">
+  <div class="ped-kpi">
+    <div class="ped-kpi-num">{{ total_visibles }}</div>
+    <div class="ped-kpi-label">Pedidos visibles</div>
+    <div class="ped-kpi-sub">según filtros activos</div>
+  </div>
+  <div class="ped-kpi">
+    <div class="ped-kpi-num">{{ num_confirmados }}</div>
+    <div class="ped-kpi-label">Confirmados</div>
+    <div class="ped-kpi-sub">S/ {{ total_confirmado|floatformat:2 }}</div>
+  </div>
+  <div class="ped-kpi">
+    <div class="ped-kpi-num verde">S/ {{ total_cobrado|floatformat:2 }}</div>
+    <div class="ped-kpi-label">Total cobrado</div>
+    <div class="ped-kpi-sub">de pedidos confirmados</div>
+  </div>
+  <div class="ped-kpi">
+    <div class="ped-kpi-num naranja">S/ {{ por_cobrar|floatformat:2 }}</div>
+    <div class="ped-kpi-label">Por cobrar</div>
+    <div class="ped-kpi-sub">restante pendiente</div>
+  </div>
+</div>
+
+<div class="ped-tabla-wrap">
+  <table class="ped-tabla" id="pedTabla">
+    <thead>
+      <tr>
+        <th>Pedido</th><th class="ped-cli">Cliente</th><th>Fuente</th><th>Estado</th>
+        <th>Precio final</th><th>Adelanto</th><th>Restante</th><th>Tipo envío</th><th>Editado por</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in pedidos %}
+      <tr data-id="{{ p.id }}" data-url="{% url 'integraciones:pedido_editar' p.id %}">
+        <td>{{ p.numero|default:p.external_id }}</td>
+        <td class="ped-cli">
+          <div class="ped-cliente-nombre">{{ p.nombre_cliente|default:"—" }}</div>
+          {% if p.telefono %}<div class="ped-cliente-tel">{{ p.telefono }}</div>{% endif %}
+        </td>
+        <td>
+          <span class="ped-fuente">{{ p.integracion.get_proveedor_display }} · {{ p.integracion.nombre }}</span>
+          {% if p.origen == 'manual' and p.fuente_manual %}<span class="ped-canal">{{ p.get_fuente_manual_display }}</span>{% endif %}
+        </td>
+        <td>
+          <select class="ped-estado js-estado" data-estado="{{ p.estado }}" {% if not puede_editar_listado %}disabled{% endif %}>
+            {% for valor, etiqueta in estados %}
+            <option value="{{ valor }}" {% if p.estado == valor %}selected{% endif %}>{{ etiqueta }}</option>
+            {% endfor %}
+          </select>
+        </td>
+        <td class="ped-num"><input type="text" inputmode="decimal" class="ped-monto js-total" value="{{ p.total|floatformat:2 }}" {% if not puede_editar_listado %}disabled{% endif %}></td>
+        <td class="ped-num"><input type="text" inputmode="decimal" class="ped-monto js-adelanto" value="{{ p.adelanto|floatformat:2 }}" {% if not puede_editar_listado %}disabled{% endif %}></td>
+        <td class="ped-num"><span class="js-restante">{{ p.restante|floatformat:2 }}</span></td>
+        <td>{{ p.tipo_envio|default:"—" }}</td>
+        <td>
+          <div class="ped-editado-wrap">
+            <div>
+              {% if p.editado_por %}
+                <div class="ped-editado">{{ p.editado_por.get_full_name|default:p.editado_por.username }}</div>
+                {% if p.editado_en %}<div class="ped-editado-fecha">{{ p.editado_en|timesince }}</div>{% endif %}
+              {% else %}<span class="ped-editado-fecha">—</span>{% endif %}
+            </div>
+            {% if p.n_historial %}
+            <button type="button" class="ped-hist-btn js-historial" title="Ver historial"
+                    data-url="{% url 'integraciones:pedido_historial' p.id %}">🕑</button>
+            {% endif %}
+            <span class="ped-saved js-saved">✓</span>
+          </div>
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="9" class="integ-vacio-cell">No hay pedidos con estos filtros.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>

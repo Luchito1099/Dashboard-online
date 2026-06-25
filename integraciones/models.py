@@ -26,12 +26,14 @@ class Integracion(models.Model):
     PROVEEDOR_WOOCOMMERCE = 'woocommerce'
     PROVEEDOR_WORDPRESS = 'wordpress'
     PROVEEDOR_SHALOM = 'shalom'
+    PROVEEDOR_MANUAL = 'manual'
     PROVEEDOR_OTRO = 'otro'
     PROVEEDOR_CHOICES = [
         (PROVEEDOR_SHOPIFY, 'Shopify'),
         (PROVEEDOR_WOOCOMMERCE, 'WooCommerce'),
         (PROVEEDOR_WORDPRESS, 'WordPress'),
         (PROVEEDOR_SHALOM, 'Shalom'),
+        (PROVEEDOR_MANUAL, 'Registro manual'),
         (PROVEEDOR_OTRO, 'Otro'),
     ]
 
@@ -112,6 +114,22 @@ class Integracion(models.Model):
     def pedidos_count(self):
         return self.pedidos.count()
 
+    @classmethod
+    def get_manual(cls):
+        """Fuente especial (singleton lógico) a la que cuelgan los pedidos dados de
+        alta manualmente en el módulo "Registro Pedidos". Así entran al mismo pipeline
+        sin romper el código que asume que todo Pedido tiene una Integración."""
+        integ, _ = cls.objects.get_or_create(
+            proveedor=cls.PROVEEDOR_MANUAL,
+            defaults={
+                'nombre': 'Registro manual',
+                'categoria': cls.CATEGORIA_FUENTE,
+                'proposito': cls.PROPOSITO_EXTRACCION,
+                'activo': True,
+            },
+        )
+        return integ
+
 
 class Pedido(models.Model):
     """Pedido extraído de una integración (ej. Shopify). Guarda los campos clave
@@ -130,9 +148,33 @@ class Pedido(models.Model):
         (ESTADO_CANCELADO, 'Cancelado'),
     ]
 
+    # ── Origen del pedido: automático (sync de una fuente) o manual (alta a mano) ──
+    ORIGEN_AUTO = 'auto'
+    ORIGEN_MANUAL = 'manual'
+    ORIGEN_CHOICES = [
+        (ORIGEN_AUTO, 'Automático'),
+        (ORIGEN_MANUAL, 'Manual'),
+    ]
+    # Sub-fuente para pedidos manuales (canal por el que llegó)
+    FUENTE_MANUAL_ORGANICO = 'organico'
+    FUENTE_MANUAL_PUBLICIDAD = 'publicidad'
+    FUENTE_MANUAL_OTRO = 'otro'
+    FUENTE_MANUAL_CHOICES = [
+        (FUENTE_MANUAL_ORGANICO, 'Orgánico'),
+        (FUENTE_MANUAL_PUBLICIDAD, 'Publicidad - Mensajes'),
+        (FUENTE_MANUAL_OTRO, 'Otro'),
+    ]
+
     integracion = models.ForeignKey(Integracion, on_delete=models.CASCADE, related_name='pedidos')
     external_id = models.CharField(max_length=64)       # id del pedido en el origen
     numero = models.CharField(max_length=40, blank=True)  # ej. "#1001"
+
+    # Origen y registro manual
+    origen = models.CharField(max_length=10, choices=ORIGEN_CHOICES, default=ORIGEN_AUTO)
+    fuente_manual = models.CharField(max_length=40, choices=FUENTE_MANUAL_CHOICES, blank=True)
+    fuente_manual_detalle = models.CharField(max_length=120, blank=True)  # texto libre si "Otro"
+    registrado_por = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, blank=True,
+                                       related_name='pedidos_registrados')
 
     # Estado del flujo + montos/edición que se operan a mano desde el módulo Pedidos
     estado = models.CharField(max_length=20, choices=ESTADO_CHOICES, default=ESTADO_CREADO)
@@ -195,6 +237,11 @@ class Pedido(models.Model):
         """Lo que falta cobrar: precio final menos el adelanto (nunca negativo)."""
         return max(self.total - self.adelanto, 0)
 
+    def get_seguimiento(self):
+        """Devuelve (creando si hace falta) el registro de Seguimiento de este pedido."""
+        seg, _ = PedidoSeguimiento.objects.get_or_create(pedido=self)
+        return seg
+
 
 class PedidoItem(models.Model):
     """Producto dentro de un pedido (un pedido puede tener varios)."""
@@ -210,6 +257,95 @@ class PedidoItem(models.Model):
 
     def __str__(self):
         return f'{self.cantidad}× {self.nombre}'
+
+
+class PedidoSeguimiento(models.Model):
+    """Datos de gestión/seguimiento de un pedido (1:1 con Pedido): contacto, etapa
+    del embudo, tipo de cliente, estrategia de venta y notas del vendedor/analista."""
+
+    # Estado de la llamada al cliente
+    LLAMADA_NO_CONTACTADO = 'no_contactado'
+    LLAMADA_SIN_RESPUESTA = 'sin_respuesta'
+    LLAMADA_CONTACTADO = 'contactado'
+    LLAMADA_CHOICES = [
+        (LLAMADA_NO_CONTACTADO, 'No contactado'),
+        (LLAMADA_SIN_RESPUESTA, 'Llamado - sin respuesta'),
+        (LLAMADA_CONTACTADO, 'Llamado - contactado'),
+    ]
+
+    # Tipo de cliente
+    TIPO_CLIENTE_CHOICES = [
+        ('nuevo', 'Nuevo'),
+        ('recurrente', 'Recurrente'),
+        ('vip', 'VIP'),
+        ('recuperado', 'Recuperado'),
+    ]
+
+    # Etapa del embudo
+    ETAPA_CREADO = 'creado'
+    ETAPA_CHOICES = [
+        ('creado', 'Pedido creado'),
+        ('contactado', 'Contactado'),
+        ('confirmado', 'Confirmado'),
+        ('despachado', 'Despachado'),
+        ('entregado', 'Entregado'),
+        ('perdido', 'Perdido/Caído'),
+        ('recuperado', 'Recuperado'),
+    ]
+
+    pedido = models.OneToOneField(Pedido, on_delete=models.CASCADE, related_name='seguimiento')
+    llamada_estado = models.CharField(max_length=20, choices=LLAMADA_CHOICES, default=LLAMADA_NO_CONTACTADO)
+    comentario = models.TextField(blank=True)
+    tipo_cliente = models.CharField(max_length=20, choices=TIPO_CLIENTE_CHOICES, blank=True)
+    etapa_embudo = models.CharField(max_length=20, choices=ETAPA_CHOICES, default=ETAPA_CREADO)
+    estrategia = models.ForeignKey('capacitacion.Estrategia', on_delete=models.SET_NULL,
+                                   null=True, blank=True, related_name='pedidos')
+    actualizado_por = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, blank=True,
+                                        related_name='seguimientos_actualizados')
+    actualizado_en = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        verbose_name = 'Seguimiento de pedido'
+        verbose_name_plural = 'Seguimientos de pedidos'
+
+    def __str__(self):
+        return f'Seguimiento · {self.pedido}'
+
+
+class PedidoEditLog(models.Model):
+    """Registro cronológico de cada cambio en un pedido (cualquier campo editable,
+    de Listado o Seguimiento). Permite ver el historial y revertir (solo admin)."""
+    pedido = models.ForeignKey(Pedido, on_delete=models.CASCADE, related_name='historial')
+    usuario = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, blank=True,
+                                related_name='ediciones_pedido')
+    campo_modificado = models.CharField(max_length=60)   # 'estado', 'adelanto', 'etapa_embudo', ...
+    valor_anterior = models.CharField(max_length=300, blank=True)
+    valor_nuevo = models.CharField(max_length=300, blank=True)
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-timestamp']
+        verbose_name = 'Cambio de pedido'
+        verbose_name_plural = 'Historial de pedidos'
+
+    def __str__(self):
+        return f'{self.pedido} · {self.campo_modificado}: {self.valor_anterior} → {self.valor_nuevo}'
+
+
+def registrar_cambio(pedido, usuario, campo, anterior, nuevo):
+    """Crea un PedidoEditLog si el valor cambió. Centraliza el logueo para todas las
+    ediciones (Listado, Seguimiento, Registro). Normaliza los valores a str."""
+    ant = '' if anterior is None else str(anterior)
+    nue = '' if nuevo is None else str(nuevo)
+    if ant == nue:
+        return None
+    return PedidoEditLog.objects.create(
+        pedido=pedido,
+        usuario=usuario if (usuario and usuario.is_authenticated) else None,
+        campo_modificado=campo,
+        valor_anterior=ant[:300],
+        valor_nuevo=nue[:300],
+    )
 
 
 # ───────────────────────── Shalom (rastreo por scraper) ─────────────────────────

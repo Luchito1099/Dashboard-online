@@ -1,0 +1,118 @@
+{% comment %} Pestaña Avances — KPIs / funnel agregados {% endcomment %}
+
+<div class="ped-kpis av-kpis">
+  <div class="ped-kpi">
+    <div class="ped-kpi-num">{{ av_total }}</div>
+    <div class="ped-kpi-label">Pedidos totales</div>
+    <div class="ped-kpi-sub">según filtros activos</div>
+  </div>
+  <div class="ped-kpi">
+    <div class="ped-kpi-num verde">{{ av_conv_confirmacion }}%</div>
+    <div class="ped-kpi-label">Conversión a confirmado</div>
+    <div class="ped-kpi-sub">confirmados / no cancelados</div>
+  </div>
+  <div class="ped-kpi">
+    <div class="ped-kpi-num">{{ av_conv_entrega }}%</div>
+    <div class="ped-kpi-label">Entrega</div>
+    <div class="ped-kpi-sub">entregados / confirmados</div>
+  </div>
+</div>
+
+<div class="av-grid">
+
+  {# ── Funnel por etapa del embudo ── #}
+  <div class="av-card av-card-wide">
+    <div class="av-card-title">Embudo (etapas)</div>
+    {% for label, n, val in av_por_etapa %}
+    <div class="av-bar-row">
+      <div class="av-bar-label">{{ label }}</div>
+      <div class="av-bar-track">
+        <div class="av-bar-fill etapa-{{ val }}" style="width: {% widthratio n av_max_etapa 100 %}%"></div>
+      </div>
+      <div class="av-bar-num">{{ n }}</div>
+    </div>
+    {% endfor %}
+  </div>
+
+  {# ── Por estado del flujo ── #}
+  <div class="av-card">
+    <div class="av-card-title">Pedidos por estado</div>
+    {% for label, n, val in av_por_estado %}
+    <div class="av-bar-row">
+      <div class="av-bar-label">{{ label }}</div>
+      <div class="av-bar-track">
+        <div class="av-bar-fill estado-{{ val }}" style="width: {% widthratio n av_total 100 %}%"></div>
+      </div>
+      <div class="av-bar-num">{{ n }}</div>
+    </div>
+    {% endfor %}
+  </div>
+
+  {# ── Por fuente ── #}
+  <div class="av-card">
+    <div class="av-card-title">Pedidos por fuente</div>
+    {% for r in av_por_fuente %}
+    <div class="av-bar-row">
+      <div class="av-bar-label">{{ r.integracion__nombre|default:r.integracion__proveedor }}</div>
+      <div class="av-bar-track">
+        <div class="av-bar-fill" style="width: {% widthratio r.n av_max_fuente 100 %}%"></div>
+      </div>
+      <div class="av-bar-num">{{ r.n }}</div>
+    </div>
+    {% empty %}<div class="av-vacio">Sin datos.</div>{% endfor %}
+  </div>
+
+  {# ── Por canal manual ── #}
+  {% if av_por_canal %}
+  <div class="av-card">
+    <div class="av-card-title">Pedidos manuales por canal</div>
+    {% for label, n in av_por_canal %}
+    <div class="av-bar-row">
+      <div class="av-bar-label">{{ label }}</div>
+      <div class="av-bar-track"><div class="av-bar-fill canal" style="width: {% widthratio n av_total 100 %}%"></div></div>
+      <div class="av-bar-num">{{ n }}</div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {# ── Evolución diaria ── #}
+  <div class="av-card av-card-wide">
+    <div class="av-card-title">Evolución diaria (últimos días)</div>
+    {% if av_evol %}
+    <div class="av-evol">
+      {% for r in av_evol %}
+      <div class="av-evol-col" title="{{ r.d }}: {{ r.n }}">
+        <div class="av-evol-bar" style="height: {% widthratio r.n av_max_evol 100 %}%"></div>
+        <div class="av-evol-num">{{ r.n }}</div>
+        <div class="av-evol-fecha">{{ r.d|date:"d/m" }}</div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}<div class="av-vacio">Sin datos de fecha.</div>{% endif %}
+  </div>
+
+  {# ── Por vendedor ── #}
+  <div class="av-card">
+    <div class="av-card-title">Registros manuales por vendedor</div>
+    {% for r in av_por_vendedor_reg %}
+    <div class="av-bar-row">
+      <div class="av-bar-label">{{ r.registrado_por__username }}</div>
+      <div class="av-bar-track"><div class="av-bar-fill" style="width: {% widthratio r.n av_total 100 %}%"></div></div>
+      <div class="av-bar-num">{{ r.n }}</div>
+    </div>
+    {% empty %}<div class="av-vacio">Sin registros manuales.</div>{% endfor %}
+  </div>
+
+  <div class="av-card">
+    <div class="av-card-title">Ediciones por usuario</div>
+    {% for r in av_por_editor %}
+    <div class="av-bar-row">
+      <div class="av-bar-label">{{ r.editado_por__username }}</div>
+      <div class="av-bar-track"><div class="av-bar-fill" style="width: {% widthratio r.n av_total 100 %}%"></div></div>
+      <div class="av-bar-num">{{ r.n }}</div>
+    </div>
+    {% empty %}<div class="av-vacio">Sin ediciones.</div>{% endfor %}
+  </div>
+
+</div>

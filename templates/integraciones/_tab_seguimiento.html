@@ -1,0 +1,74 @@
+{% comment %} Pestaña Seguimiento — gestión de contacto / embudo / estrategia {% endcomment %}
+
+<div class="ped-tabla-wrap">
+  <table class="ped-tabla ped-tabla-seg" id="segTabla">
+    <thead>
+      <tr>
+        <th>Pedido</th><th class="ped-cli">Cliente</th><th>Fuente</th><th>Estado</th>
+        <th>Llamada</th><th>Comentario</th><th>Tipo cliente</th><th>Etapa embudo</th><th>Estrategia</th><th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in pedidos %}
+      {% with seg=p.seguimiento %}
+      <tr data-id="{{ p.id }}" data-url-seg="{% url 'integraciones:pedido_seguimiento_editar' p.id %}">
+        <td>{{ p.numero|default:p.external_id }}</td>
+        <td class="ped-cli">
+          <div class="ped-cliente-nombre">{{ p.nombre_cliente|default:"—" }}</div>
+          {% if p.telefono %}<div class="ped-cliente-tel">{{ p.telefono }}</div>{% endif %}
+        </td>
+        <td><span class="ped-fuente">{{ p.integracion.get_proveedor_display }}</span></td>
+        <td><span class="ped-estado-txt ped-estado-{{ p.estado }}">{{ p.get_estado_display }}</span></td>
+
+        <td>
+          <select class="ped-seg-sel js-seg" data-campo="llamada_estado" {% if not puede_editar_seguimiento %}disabled{% endif %}>
+            {% for valor, etiqueta in llamada_choices %}
+            <option value="{{ valor }}" {% if seg.llamada_estado == valor %}selected{% endif %}>{{ etiqueta }}</option>
+            {% endfor %}
+          </select>
+        </td>
+
+        <td class="ped-coment-cell">
+          <input type="text" class="ped-coment js-seg" data-campo="comentario"
+                 value="{{ seg.comentario }}" placeholder="Nota…" {% if not puede_editar_seguimiento %}disabled{% endif %}>
+        </td>
+
+        <td>
+          <select class="ped-seg-sel js-seg" data-campo="tipo_cliente" {% if not puede_editar_seguimiento %}disabled{% endif %}>
+            <option value="">—</option>
+            {% for valor, etiqueta in tipo_cliente_choices %}
+            <option value="{{ valor }}" {% if seg.tipo_cliente == valor %}selected{% endif %}>{{ etiqueta }}</option>
+            {% endfor %}
+          </select>
+        </td>
+
+        <td>
+          <select class="ped-seg-sel js-seg" data-campo="etapa_embudo" {% if not puede_editar_seguimiento %}disabled{% endif %}>
+            {% for valor, etiqueta in etapa_choices %}
+            <option value="{{ valor }}" {% if seg.etapa_embudo == valor %}selected{% endif %}>{{ etiqueta }}</option>
+            {% endfor %}
+          </select>
+        </td>
+
+        <td>
+          <select class="ped-seg-sel js-seg" data-campo="estrategia" {% if not puede_editar_seguimiento %}disabled{% endif %}>
+            <option value="">—</option>
+            {% for e in estrategias %}
+            <option value="{{ e.id }}" {% if seg.estrategia_id == e.id %}selected{% endif %}>{{ e.icono }} {{ e.nombre }}</option>
+            {% endfor %}
+          </select>
+        </td>
+
+        <td>
+          <button type="button" class="ped-hist-btn js-historial" title="Ver historial"
+                  data-url="{% url 'integraciones:pedido_historial' p.id %}">🕑</button>
+          <span class="ped-saved js-saved">✓</span>
+        </td>
+      </tr>
+      {% endwith %}
+      {% empty %}
+      <tr><td colspan="10" class="integ-vacio-cell">No hay pedidos con estos filtros.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>

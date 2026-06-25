@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% load static %}
 
-{% comment %} templates/integraciones/pedidos_modulo.html — Vista unificada de pedidos (solo admin) {% endcomment %}
+{% comment %} templates/integraciones/pedidos_modulo.html — Módulo Pedidos con sub-pestañas {% endcomment %}
 
 {% block title %}Pedidos · KLYNEA{% endblock %}
 {% block nav_pedidos %}active{% endblock %}
@@ -24,8 +24,25 @@
     </div>
   </div>
 
-  {# ── Filtros ── #}
+  {# ── Sub-pestañas (persistentes en la URL) ── #}
+  {% with qs="&q="|add:f_q|add:"&fuente="|add:f_fuente|add:"&estado="|add:f_estado|add:"&envio="|add:f_envio|add:"&rango="|add:f_rango %}
+  <div class="ped-subtabs">
+    {% if tab_listado %}
+    <a href="?vista=listado{{ qs }}" class="ped-subtab {% if vista == 'listado' %}active{% endif %}">📋 Listado</a>
+    {% endif %}
+    {% if tab_seguimiento %}
+    <a href="?vista=seguimiento{{ qs }}" class="ped-subtab {% if vista == 'seguimiento' %}active{% endif %}">🎯 Seguimiento</a>
+    {% endif %}
+    {% if tab_avances %}
+    <a href="?vista=avances{{ qs }}" class="ped-subtab {% if vista == 'avances' %}active{% endif %}">📈 Avances</a>
+    {% endif %}
+  </div>
+  {% endwith %}
+
+  {# ── Filtros (compartidos por Listado y Seguimiento) ── #}
+  {% if vista != 'avances' %}
   <form method="get" class="ped-filtros">
+    <input type="hidden" name="vista" value="{{ vista }}">
     <div class="ped-buscar">
       <input type="text" name="q" value="{{ f_q }}" placeholder="Buscar cliente o teléfono…">
     </div>
@@ -53,76 +70,28 @@
       {% endfor %}
     </div>
   </form>
+  {% endif %}
 
-  {# ── KPIs ── #}
-  <div class="ped-kpis">
-    <div class="ped-kpi">
-      <div class="ped-kpi-num">{{ total_visibles }}</div>
-      <div class="ped-kpi-label">Pedidos visibles</div>
-      <div class="ped-kpi-sub">según filtros activos</div>
-    </div>
-    <div class="ped-kpi">
-      <div class="ped-kpi-num">{{ num_confirmados }}</div>
-      <div class="ped-kpi-label">Confirmados</div>
-      <div class="ped-kpi-sub">S/ {{ total_confirmado|floatformat:2 }}</div>
-    </div>
-    <div class="ped-kpi">
-      <div class="ped-kpi-num verde">S/ {{ total_cobrado|floatformat:2 }}</div>
-      <div class="ped-kpi-label">Total cobrado</div>
-      <div class="ped-kpi-sub">de pedidos confirmados</div>
-    </div>
-    <div class="ped-kpi">
-      <div class="ped-kpi-num naranja">S/ {{ por_cobrar|floatformat:2 }}</div>
-      <div class="ped-kpi-label">Por cobrar</div>
-      <div class="ped-kpi-sub">restante pendiente</div>
-    </div>
-  </div>
-
-  {# ── Tabla ── #}
-  <div class="ped-tabla-wrap">
-    <table class="ped-tabla" id="pedTabla">
-      <thead>
-        <tr>
-          <th>Pedido</th><th class="ped-cli">Cliente</th><th>Fuente</th><th>Estado</th>
-          <th>Precio final</th><th>Adelanto</th><th>Restante</th><th>Tipo envío</th><th>Editado por</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for p in pedidos %}
-        <tr data-id="{{ p.id }}" data-url="{% url 'integraciones:pedido_editar' p.id %}">
-          <td>{{ p.numero|default:p.external_id }}</td>
-          <td class="ped-cli">
-            <div class="ped-cliente-nombre">{{ p.nombre_cliente|default:"—" }}</div>
-            {% if p.telefono %}<div class="ped-cliente-tel">{{ p.telefono }}</div>{% endif %}
-          </td>
-          <td><span class="ped-fuente">{{ p.integracion.get_proveedor_display }} · {{ p.integracion.nombre }}</span></td>
-          <td>
-            <select class="ped-estado js-estado" data-estado="{{ p.estado }}" {% if not puede_editar_pedidos %}disabled{% endif %}>
-              {% for valor, etiqueta in estados %}
-              <option value="{{ valor }}" {% if p.estado == valor %}selected{% endif %}>{{ etiqueta }}</option>
-              {% endfor %}
-            </select>
-          </td>
-          <td class="ped-num"><input type="text" inputmode="decimal" class="ped-monto js-total" value="{{ p.total|floatformat:2 }}" {% if not puede_editar_pedidos %}disabled{% endif %}></td>
-          <td class="ped-num"><input type="text" inputmode="decimal" class="ped-monto js-adelanto" value="{{ p.adelanto|floatformat:2 }}" {% if not puede_editar_pedidos %}disabled{% endif %}></td>
-          <td class="ped-num"><span class="js-restante">{{ p.restante|floatformat:2 }}</span></td>
-          <td>{{ p.tipo_envio|default:"—" }}</td>
-          <td>
-            {% if p.editado_por %}
-              <div class="ped-editado">{{ p.editado_por.get_full_name|default:p.editado_por.username }}</div>
-              {% if p.editado_en %}<div class="ped-editado-fecha">{{ p.editado_en|timesince }}</div>{% endif %}
-            {% else %}<span class="ped-editado-fecha">—</span>{% endif %}
-            <span class="ped-saved js-saved">✓</span>
-          </td>
-        </tr>
-        {% empty %}
-        <tr><td colspan="9" class="integ-vacio-cell">No hay pedidos con estos filtros.</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
+  {# ── Contenido de la pestaña activa ── #}
+  {% if vista == 'seguimiento' %}
+    {% include 'integraciones/_tab_seguimiento.html' %}
+  {% elif vista == 'avances' %}
+    {% include 'integraciones/_tab_avances.html' %}
+  {% else %}
+    {% include 'integraciones/_tab_listado.html' %}
+  {% endif %}
 
 </div>
+
+{# ── Drawer de historial de cambios ── #}
+<div class="hist-overlay" id="histOverlay"></div>
+<aside class="hist-panel" id="histPanel">
+  <div class="hist-head">
+    <h3 id="histTitulo">Historial</h3>
+    <button class="hist-cerrar" id="histCerrar" type="button">×</button>
+  </div>
+  <div class="hist-body" id="histBody"></div>
+</aside>
 
 {% csrf_token %}
 {% endblock %}
@@ -134,11 +103,12 @@
 
   function num(v) { var n = parseFloat((v || '').replace(',', '.')); return isNaN(n) ? 0 : n; }
 
-  function guardar(row, payload) {
+  // ── Edición inline genérica (Listado y Seguimiento) ──
+  function guardar(row, urlAttr, payload, onOk) {
     var saved = row.querySelector('.js-saved');
     var datos = new URLSearchParams(payload);
     datos.append('csrfmiddlewaretoken', csrf);
-    fetch(row.dataset.url, {
+    fetch(row.dataset[urlAttr], {
       method: 'POST',
       headers: { 'X-Requested-With': 'XMLHttpRequest' },
       body: datos,
@@ -146,38 +116,97 @@
     .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
     .then(function (res) {
       if (!res.ok) { alert(res.j.error || 'No se pudo guardar.'); return; }
-      // Actualizar restante y "editado por" con la respuesta del servidor
-      row.querySelector('.js-restante').textContent = res.j.restante;
-      row.querySelector('.js-total').value = res.j.total;
-      row.querySelector('.js-adelanto').value = res.j.adelanto;
-      var sel = row.querySelector('.js-estado');
-      sel.dataset.estado = res.j.estado;
-      row.querySelectorAll('.ped-monto').forEach(function (i) { i.classList.remove('dirty'); });
+      if (onOk) onOk(res.j);
       if (saved) { saved.classList.add('show'); setTimeout(function () { saved.classList.remove('show'); }, 1500); }
     })
     .catch(function () { alert('Error de red al guardar.'); });
   }
 
-  document.querySelectorAll('#pedTabla tbody tr[data-id]').forEach(function (row) {
+  // ── Listado: estado / total / adelanto ──
+  document.querySelectorAll('#pedTabla tbody tr[data-url]').forEach(function (row) {
     var estado = row.querySelector('.js-estado');
     var total = row.querySelector('.js-total');
     var adelanto = row.querySelector('.js-adelanto');
     var restante = row.querySelector('.js-restante');
 
     if (estado) estado.addEventListener('change', function () {
-      guardar(row, { estado: estado.value });
+      guardar(row, 'url', { estado: estado.value }, function (j) {
+        estado.dataset.estado = j.estado;
+      });
     });
-
     [total, adelanto].forEach(function (inp) {
       if (!inp) return;
       inp.addEventListener('input', function () {
         inp.classList.add('dirty');
-        // Recalcular restante en vivo (previsualización)
-        restante.textContent = Math.max(num(total.value) - num(adelanto.value), 0).toFixed(2);
+        if (restante) restante.textContent = Math.max(num(total.value) - num(adelanto.value), 0).toFixed(2);
       });
       inp.addEventListener('change', function () {
-        guardar(row, { total: total.value, adelanto: adelanto.value });
+        guardar(row, 'url', { total: total.value, adelanto: adelanto.value }, function (j) {
+          if (restante) restante.textContent = j.restante;
+          total.value = j.total; adelanto.value = j.adelanto;
+          row.querySelectorAll('.ped-monto').forEach(function (i) { i.classList.remove('dirty'); });
+        });
       });
+    });
+  });
+
+  // ── Seguimiento: llamada / tipo cliente / etapa / estrategia / comentario ──
+  document.querySelectorAll('#segTabla tbody tr[data-url-seg]').forEach(function (row) {
+    row.querySelectorAll('.js-seg').forEach(function (ctrl) {
+      var campo = ctrl.dataset.campo;
+      var ev = (ctrl.tagName === 'TEXTAREA' || ctrl.type === 'text') ? 'change' : 'change';
+      ctrl.addEventListener(ev, function () {
+        var p = {}; p[campo] = ctrl.value;
+        guardar(row, 'urlSeg', p);
+      });
+    });
+  });
+
+  // ── Drawer de historial ──
+  var overlay = document.getElementById('histOverlay');
+  var panel = document.getElementById('histPanel');
+  var body = document.getElementById('histBody');
+  var titulo = document.getElementById('histTitulo');
+
+  function cerrarHist() { overlay.classList.remove('show'); panel.classList.remove('show'); }
+  document.getElementById('histCerrar').addEventListener('click', cerrarHist);
+  overlay.addEventListener('click', cerrarHist);
+
+  function pintarHist(j) {
+    titulo.textContent = 'Historial · ' + j.pedido;
+    if (!j.logs.length) { body.innerHTML = '<div class="hist-vacio">Sin cambios registrados.</div>'; return; }
+    var html = '';
+    j.logs.forEach(function (l) {
+      html += '<div class="hist-item">'
+        + '<div class="hist-item-top"><span class="hist-campo">' + l.campo + '</span>'
+        + '<span class="hist-fecha">' + l.cuando + '</span></div>'
+        + '<div class="hist-cambio"><span class="hist-ant">' + l.anterior + '</span> → <span class="hist-nue">' + l.nuevo + '</span></div>'
+        + '<div class="hist-item-bot"><span class="hist-user">' + l.usuario + '</span>'
+        + (j.puede_revertir ? '<button class="hist-revertir" data-log="' + l.id + '">Revertir</button>' : '')
+        + '</div></div>';
+    });
+    body.innerHTML = html;
+    body.querySelectorAll('.hist-revertir').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        if (!confirm('¿Revertir este cambio al valor anterior?')) return;
+        var datos = new URLSearchParams({ csrfmiddlewaretoken: csrf });
+        fetch('/pedidos/historial/' + btn.dataset.log + '/revertir/', {
+          method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' }, body: datos,
+        }).then(function (r) { return r.json(); }).then(function (j) {
+          if (j.ok) { location.reload(); } else { alert(j.error || 'No se pudo revertir.'); }
+        }).catch(function () { alert('Error de red.'); });
+      });
+    });
+  }
+
+  document.querySelectorAll('.js-historial').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      overlay.classList.add('show'); panel.classList.add('show');
+      body.innerHTML = '<div class="hist-vacio">Cargando…</div>';
+      fetch(btn.dataset.url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+        .then(function (r) { return r.json(); })
+        .then(pintarHist)
+        .catch(function () { body.innerHTML = '<div class="hist-vacio">Error al cargar.</div>'; });
     });
   });
 })();

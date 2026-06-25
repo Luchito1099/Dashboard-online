@@ -6,7 +6,7 @@ from django.http import JsonResponse, HttpResponseNotAllowed
 from django.urls import reverse
 from django.db.models import Max
 from django.utils import timezone
-from .models import Tarea, Bloque, BloqueTarea, ProgresoTarea
+from .models import Tarea, Bloque, BloqueTarea, ProgresoTarea, Estrategia
 
 
 # ───────────────────────── Datos estáticos (no necesitan BD) ─────────────────────────
@@ -41,6 +41,12 @@ def es_admin(user):
     if user.is_superuser:
         return True
     return hasattr(user, 'perfil') and user.perfil.rol == 'admin'
+
+
+def es_analista(user):
+    """True si el usuario tiene rol 'analista' en su Perfil (el superuser es admin,
+    no analista). El analista ve todo en lectura y los Avances completos."""
+    return hasattr(user, 'perfil') and user.perfil.rol == 'analista'
 
 
 def tareas_completadas_hoy(user):
@@ -344,3 +350,79 @@ def _parsear_tips(texto):
         else:
             tips.append({'k': 'info', 't': linea})
     return tips
+
+
+# ───────────────────────── Estrategias (catálogo) ─────────────────────────
+
+@login_required
+def estrategias(request):
+    """Catálogo de estrategias de venta. Visible para quien puede ver capacitación."""
+    from core.permisos import puede_ver, destino_vendedor
+    if not puede_ver(request.user, 'vendedor_puede_ver_capacitacion'):
+        messages.error(request, 'No tienes permisos para ver las estrategias.')
+        return redirect(destino_vendedor(request.user))
+
+    context = {
+        'estrategias': Estrategia.objects.filter(activo=True),
+        'puede_editar': es_admin(request.user),
+    }
+    return render(request, 'capacitacion/estrategias.html', context)
+
+
+@login_required
+def estrategias_admin(request):
+    """Lista editable de estrategias. Solo admin."""
+    if not es_admin(request.user):
+        messages.error(request, 'No tienes permisos para administrar estrategias.')
+        return redirect('capacitacion:estrategias')
+    return render(request, 'capacitacion/estrategias_admin.html',
+                  {'estrategias': Estrategia.objects.all()})
+
+
+@login_required
+def crear_estrategia(request):
+    """Crea una estrategia vacía para completarla. Solo admin (POST)."""
+    if not es_admin(request.user):
+        messages.error(request, 'No tienes permisos para crear estrategias.')
+        return redirect('capacitacion:estrategias')
+    if request.method != 'POST':
+        return HttpResponseNotAllowed(['POST'])
+
+    Estrategia.objects.create(nombre='Nueva estrategia', orden=Estrategia.objects.count() + 1)
+    messages.success(request, 'Estrategia creada. Edítala abajo.')
+    return redirect('capacitacion:estrategias_admin')
+
+
+@login_required
+def editar_estrategia(request, estrategia_id):
+    """Guarda los cambios de una estrategia. Solo admin (POST)."""
+    if not es_admin(request.user):
+        messages.error(request, 'No tienes permisos para editar estrategias.')
+        return redirect('capacitacion:estrategias')
+    if request.method != 'POST':
+        return HttpResponseNotAllowed(['POST'])
+
+    e = get_object_or_404(Estrategia, id=estrategia_id)
+    e.nombre = request.POST.get('nombre', e.nombre).strip() or e.nombre
+    e.descripcion = request.POST.get('descripcion', e.descripcion).strip()
+    e.icono = request.POST.get('icono', e.icono).strip()
+    e.activo = request.POST.get('activo') == 'on'
+    e.save()
+    messages.success(request, f'Estrategia «{e.nombre}» actualizada.')
+    return redirect('capacitacion:estrategias_admin')
+
+
+@login_required
+def eliminar_estrategia(request, estrategia_id):
+    """Elimina una estrategia. Solo admin (POST)."""
+    if not es_admin(request.user):
+        messages.error(request, 'No tienes permisos para eliminar estrategias.')
+        return redirect('capacitacion:estrategias')
+    if request.method != 'POST':
+        return HttpResponseNotAllowed(['POST'])
+
+    e = get_object_or_404(Estrategia, id=estrategia_id)
+    nombre = e.nombre
+    e.delete()
+    messages.success(request, f'Estrategia «{nombre}» eliminada.')
+    return redirect('capacitacion:estrategias_admin')

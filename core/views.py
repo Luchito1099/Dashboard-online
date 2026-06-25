@@ -126,6 +126,11 @@ def configuracion(request):
             config.vendedor_puede_compartir = request.POST.get('vendedor_puede_compartir') == 'on'
             config.vendedor_puede_ver_pedidos = request.POST.get('vendedor_puede_ver_pedidos') == 'on'
             config.vendedor_puede_editar_pedidos = request.POST.get('vendedor_puede_editar_pedidos') == 'on'
+            config.vendedor_puede_ver_seguimiento = request.POST.get('vendedor_puede_ver_seguimiento') == 'on'
+            config.vendedor_puede_editar_seguimiento = request.POST.get('vendedor_puede_editar_seguimiento') == 'on'
+            config.vendedor_puede_registrar_pedidos = request.POST.get('vendedor_puede_registrar_pedidos') == 'on'
+            config.vendedor_puede_ver_avances = request.POST.get('vendedor_puede_ver_avances') == 'on'
+            config.analista_puede_editar_seguimiento = request.POST.get('analista_puede_editar_seguimiento') == 'on'
             config.save()
             messages.success(request, 'Configuración guardada.')
 

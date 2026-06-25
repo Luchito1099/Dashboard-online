@@ -247,9 +247,149 @@
 .ped-saved { color: var(--success); font-size: 11px; opacity: 0; transition: opacity .2s; }
 .ped-saved.show { opacity: 1; }
 
+/* ───────────────────────── Sub-pestañas de Pedidos ───────────────────────── */
+.ped-subtabs {
+  display: inline-flex; gap: 6px; margin-bottom: 16px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 100px; padding: 4px;
+}
+.ped-subtab {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 18px; border-radius: 100px; border: none; background: none;
+  color: var(--text-secondary); font-size: 13px; font-weight: 600;
+  font-family: inherit; text-decoration: none; cursor: pointer; transition: all .15s;
+}
+.ped-subtab:hover { color: var(--text); }
+.ped-subtab.active { background: var(--primary); color: #fff; }
+
+/* Canal de pedido manual */
+.ped-canal {
+  display: inline-block; font-size: 10px; font-weight: 700; padding: 2px 7px;
+  border-radius: 6px; background: oklch(60% 0.15 300 / .12); color: oklch(48% 0.15 300);
+  margin-top: 3px;
+}
+
+/* Botón "Ver historial" + columna editado */
+.ped-editado-wrap { display: flex; align-items: center; gap: 8px; }
+.ped-hist-btn {
+  border: 1px solid var(--border-dark); background: var(--surface); color: var(--text-secondary);
+  border-radius: 7px; padding: 3px 7px; font-size: 13px; cursor: pointer; line-height: 1;
+}
+.ped-hist-btn:hover { border-color: var(--primary); color: var(--primary); }
+
+/* ── Seguimiento: controles inline ── */
+.ped-tabla-seg td { vertical-align: middle; }
+.ped-seg-sel {
+  padding: 5px 8px; font-size: 12px; font-weight: 600; border-radius: 7px;
+  border: 1px solid var(--border-dark); background: var(--surface); color: var(--text);
+  font-family: inherit; cursor: pointer; max-width: 150px;
+}
+.ped-seg-sel:focus { outline: none; border-color: var(--primary); }
+.ped-seg-sel:disabled { background: transparent; border-color: transparent; cursor: default; -webkit-appearance: none; appearance: none; padding-left: 0; }
+.ped-coment-cell { min-width: 160px; white-space: normal; }
+.ped-coment {
+  width: 100%; min-width: 140px; box-sizing: border-box; padding: 6px 8px; font-size: 12px;
+  border: 1px solid var(--border-dark); border-radius: 7px; background: var(--bg); color: var(--text); font-family: inherit;
+}
+.ped-coment:focus { outline: none; border-color: var(--primary); background: var(--surface); }
+.ped-coment:disabled { background: transparent; border-color: transparent; }
+.ped-estado-txt { font-size: 12px; font-weight: 600; }
+.ped-estado-creado { color: var(--text-secondary); }
+.ped-estado-confirmado { color: var(--success); }
+.ped-estado-entregado { color: oklch(48% 0.15 240); }
+.ped-estado-cancelado { color: var(--error); }
+
+/* ───────────────────────── Avances ───────────────────────── */
+.av-kpis { grid-template-columns: repeat(3, 1fr); }
+.av-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+.av-card {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 16px 18px; box-shadow: var(--shadow);
+}
+.av-card-wide { grid-column: 1 / -1; }
+.av-card-title { font-size: 13px; font-weight: 700; color: var(--text-secondary); margin-bottom: 12px; }
+.av-bar-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.av-bar-label { width: 130px; flex-shrink: 0; font-size: 12px; color: var(--text); text-align: right; }
+.av-bar-track { flex: 1; height: 16px; background: var(--bg); border-radius: 8px; overflow: hidden; }
+.av-bar-fill { height: 100%; background: var(--primary); border-radius: 8px; transition: width .3s; min-width: 2px; }
+.av-bar-num { width: 36px; flex-shrink: 0; font-size: 12px; font-weight: 700; color: var(--text); }
+.av-vacio { font-size: 12px; color: var(--muted); padding: 6px 0; }
+
+/* Colores del funnel por etapa */
+.av-bar-fill.etapa-creado { background: var(--text-secondary); }
+.av-bar-fill.etapa-contactado { background: oklch(65% 0.15 240); }
+.av-bar-fill.etapa-confirmado { background: oklch(62% 0.18 145); }
+.av-bar-fill.etapa-despachado { background: oklch(65% 0.16 200); }
+.av-bar-fill.etapa-entregado { background: var(--success); }
+.av-bar-fill.etapa-perdido { background: var(--error); }
+.av-bar-fill.etapa-recuperado { background: oklch(65% 0.18 55); }
+.av-bar-fill.estado-confirmado { background: var(--success); }
+.av-bar-fill.estado-cancelado { background: var(--error); }
+.av-bar-fill.estado-entregado { background: oklch(60% 0.15 240); }
+.av-bar-fill.canal { background: oklch(55% 0.15 300); }
+
+/* Evolución diaria (mini barras verticales) */
+.av-evol { display: flex; align-items: flex-end; gap: 6px; height: 130px; padding-top: 10px; }
+.av-evol-col { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; }
+.av-evol-bar { width: 70%; background: var(--primary); border-radius: 4px 4px 0 0; min-height: 2px; }
+.av-evol-num { font-size: 10px; font-weight: 700; color: var(--text); margin-top: 3px; }
+.av-evol-fecha { font-size: 9px; color: var(--muted); }
+
+/* ───────────────────────── Drawer de historial ───────────────────────── */
+.hist-overlay { position: fixed; inset: 0; background: rgba(13,31,51,.45); z-index: 200; display: none; }
+.hist-overlay.show { display: block; }
+.hist-panel {
+  position: fixed; top: 0; right: 0; bottom: 0; width: 420px; max-width: 92vw;
+  background: var(--surface); z-index: 201; box-shadow: -8px 0 30px rgba(0,0,0,.18);
+  transform: translateX(100%); transition: transform .25s ease; display: flex; flex-direction: column;
+}
+.hist-panel.show { transform: translateX(0); }
+.hist-head { display: flex; align-items: center; justify-content: space-between; padding: 16px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.hist-head h3 { font-size: 15px; font-weight: 700; color: var(--text); }
+.hist-cerrar { border: none; background: none; font-size: 24px; line-height: 1; color: var(--muted); cursor: pointer; }
+.hist-body { flex: 1; overflow-y: auto; padding: 12px 16px; }
+.hist-vacio { padding: 30px; text-align: center; color: var(--muted); font-size: 13px; }
+.hist-item { border-bottom: 1px solid var(--border); padding: 10px 0; }
+.hist-item-top { display: flex; justify-content: space-between; align-items: center; }
+.hist-campo { font-size: 12px; font-weight: 700; color: var(--text); }
+.hist-fecha { font-size: 11px; color: var(--muted); }
+.hist-cambio { font-size: 12px; margin: 4px 0; }
+.hist-ant { color: var(--error); text-decoration: line-through; }
+.hist-nue { color: var(--success); font-weight: 600; }
+.hist-item-bot { display: flex; justify-content: space-between; align-items: center; }
+.hist-user { font-size: 11px; color: var(--text-secondary); }
+.hist-revertir {
+  border: 1px solid var(--primary); background: transparent; color: var(--primary);
+  border-radius: 6px; padding: 3px 10px; font-size: 11px; font-weight: 600; cursor: pointer; font-family: inherit;
+}
+.hist-revertir:hover { background: var(--primary); color: #fff; }
+
+/* ───────────────────────── Registro manual (formulario) ───────────────────────── */
+.reg-form-wrap { max-width: 760px; }
+.reg-form { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; box-shadow: var(--shadow); }
+.reg-seccion { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--text-secondary); margin: 18px 0 10px; }
+.reg-seccion:first-child { margin-top: 0; }
+.reg-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.reg-field { display: flex; flex-direction: column; gap: 4px; }
+.reg-field > span { font-size: 12px; font-weight: 600; color: var(--text-secondary); }
+.reg-field input, .reg-field select {
+  padding: 8px 10px; border: 1px solid var(--border-dark); border-radius: 8px;
+  font-size: 13px; font-family: inherit; background: var(--surface); color: var(--text);
+}
+.reg-field input:focus, .reg-field select:focus { outline: none; border-color: var(--primary); }
+.reg-items { display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px; }
+.reg-item { display: grid; grid-template-columns: 2fr 70px 100px; gap: 8px; }
+.reg-item input { padding: 8px 10px; border: 1px solid var(--border-dark); border-radius: 8px; font-size: 13px; font-family: inherit; background: var(--surface); color: var(--text); }
+.reg-acciones { display: flex; gap: 10px; align-items: center; margin-top: 20px; padding-top: 16px; border-top: 1px dashed var(--border-dark); }
+.ha-btn-volver { padding: 9px 16px; border-radius: 8px; border: 1px solid var(--border-dark); color: var(--text-secondary); text-decoration: none; font-size: 13px; font-weight: 600; }
+.ha-btn-volver:hover { background: var(--bg); }
+
 @media (max-width: 700px) {
   .integ-grid { grid-template-columns: 1fr; }
   .integ-field-wide { grid-column: span 1; }
   .integ-nueva-grid { grid-template-columns: 1fr; }
   .ped-kpis { grid-template-columns: repeat(2, 1fr); }
+  .av-grid { grid-template-columns: 1fr; }
+  .av-kpis { grid-template-columns: 1fr; }
+  .reg-grid { grid-template-columns: 1fr; }
 }

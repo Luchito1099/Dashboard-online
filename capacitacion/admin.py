@@ -1,3 +1,10 @@
 from django.contrib import admin
 
-# Register your models here.
+from .models import Estrategia
+
+
+@admin.register(Estrategia)
+class EstrategiaAdmin(admin.ModelAdmin):
+    list_display = ('nombre', 'activo', 'orden')
+    list_editable = ('activo', 'orden')
+    search_fields = ('nombre', 'descripcion')

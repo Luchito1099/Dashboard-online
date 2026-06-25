@@ -5,6 +5,7 @@ from django.contrib.auth.models import User
 class Perfil(models.Model):
     ROL_CHOICES = [
         ('admin', 'Administrador'),
+        ('analista', 'Analista'),
         ('vendedor', 'Vendedor'),
     ]
 
@@ -22,6 +23,9 @@ class Perfil(models.Model):
     def es_admin(self):
         return self.rol == 'admin'
 
+    def es_analista(self):
+        return self.rol == 'analista'
+
     def es_vendedor(self):
         return self.rol == 'vendedor'
 
@@ -38,6 +42,13 @@ class ConfiguracionSistema(models.Model):
     # Módulo Pedidos (datos financieros → desactivado por defecto, el admin lo habilita)
     vendedor_puede_ver_pedidos = models.BooleanField(default=False)
     vendedor_puede_editar_pedidos = models.BooleanField(default=False)
+    # Seguimiento, Registro y Avances de Pedidos (rol vendedor)
+    vendedor_puede_ver_seguimiento = models.BooleanField(default=False)
+    vendedor_puede_editar_seguimiento = models.BooleanField(default=False)
+    vendedor_puede_registrar_pedidos = models.BooleanField(default=False)
+    vendedor_puede_ver_avances = models.BooleanField(default=False)
+    # Edición limitada del analista (puede operar Seguimiento aunque sea rol de lectura)
+    analista_puede_editar_seguimiento = models.BooleanField(default=True)
 
     class Meta:
         verbose_name = 'Configuración del sistema'

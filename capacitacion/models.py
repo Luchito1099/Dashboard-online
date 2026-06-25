@@ -63,6 +63,24 @@ class BloqueTarea(models.Model):
         ordering = ['orden']
 
 
+class Estrategia(models.Model):
+    """Estrategia de venta que se puede asociar a un pedido (en Seguimiento).
+    Se gestiona desde Capacitación › Estrategias (CRUD del admin)."""
+    nombre = models.CharField(max_length=120)
+    descripcion = models.CharField(max_length=300, blank=True)
+    icono = models.CharField(max_length=10, blank=True)   # emoji
+    activo = models.BooleanField(default=True)
+    orden = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        ordering = ['orden', 'nombre']
+        verbose_name = 'Estrategia'
+        verbose_name_plural = 'Estrategias'
+
+    def __str__(self):
+        return self.nombre
+
+
 class ProgresoTarea(models.Model):
     # related_name='progreso_set' → permite usuario.progreso_set.all() para consultar el progreso de un usuario
     usuario = models.ForeignKey(User, on_delete=models.CASCADE, related_name='progreso_set')

@@ -1,0 +1,52 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% comment %} templates/capacitacion/estrategias.html — Catálogo de estrategias de venta {% endcomment %}
+
+{% block title %}Estrategias · KLYNEA{% endblock %}
+{% block nav_capacitacion %}active{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'core/css/productos.css' %}">
+<link rel="stylesheet" href="{% static 'core/css/herramientas.css' %}">
+{% endblock %}
+
+{% block breadcrumb %}
+  <span>›</span><span>Estrategias</span>
+{% endblock %}
+
+{% block content %}
+
+<!-- SELECTOR CENTRAL Capacitación / Productos / Estrategias / Herramientas -->
+<div class="view-selector">
+  <a href="{% url 'capacitacion:index' %}" class="vbtn" data-view="capacitacion">📋 Capacitación</a>
+  <a href="{% url 'productos:catalogo' %}" class="vbtn" data-view="productos">📦 Productos</a>
+  <a href="{% url 'capacitacion:estrategias' %}" class="vbtn active" data-view="estrategias">💡 Estrategias</a>
+  <a href="{% url 'herramientas:lista' %}" class="vbtn" data-view="herramientas">🔗 Herramientas</a>
+</div>
+
+<div class="herr-header">
+  <div>
+    <h2 class="herr-title">Estrategias de venta</h2>
+    <p class="herr-subtitle">Tácticas que usas para cerrar pedidos. Se pueden asignar a cada pedido en Seguimiento.</p>
+  </div>
+  {% if puede_editar %}
+  <a href="{% url 'capacitacion:estrategias_admin' %}" class="btn-admin-prod">⚙️ Administrar</a>
+  {% endif %}
+</div>
+
+<div class="herr-grid">
+  {% for e in estrategias %}
+  <div class="herr-card">
+    <div class="herr-icono">{{ e.icono|default:"💡" }}</div>
+    <div class="herr-card-body">
+      <div class="herr-card-nombre">{{ e.nombre }}</div>
+      {% if e.descripcion %}<div class="herr-card-desc">{{ e.descripcion }}</div>{% endif %}
+    </div>
+  </div>
+  {% empty %}
+  <div class="cat-vacio">No hay estrategias configuradas todavía.</div>
+  {% endfor %}
+</div>
+
+{% endblock %}

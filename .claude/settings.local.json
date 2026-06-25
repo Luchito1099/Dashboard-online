@@ -46,7 +46,15 @@
       "Bash(venv/Scripts/python.exe -c \"import django; print\\(django.get_version\\(\\)\\)\")",
       "Bash(venv/Scripts/python.exe manage.py migrate integraciones)",
       "Bash(venv/Scripts/python.exe -c ' *)",
-      "Bash(venv/Scripts/python.exe manage.py migrate core)"
+      "Bash(venv/Scripts/python.exe manage.py migrate core)",
+      "PowerShell(python manage.py makemigrations core capacitacion integraciones)",
+      "PowerShell(Get-ChildItem -Directory -Path . | Select-Object Name; Write-Output \"---python---\"; \\(Get-Command python\\).Source; Write-Output \"---pip django---\"; python -m pip show django 2>$null | Select-String \"Version\")",
+      "PowerShell(python -m pip install \"Django>=6.0,<6.1\" --quiet 2>&1 | Select-Object -Last 5; Write-Output \"exit:$LASTEXITCODE\")",
+      "PowerShell(python manage.py makemigrations core capacitacion integraciones 2>&1; Write-Output \"exit:$LASTEXITCODE\")",
+      "PowerShell(python -m pip install cryptography python-dotenv --quiet 2>&1 | Select-Object -Last 3; Write-Output \"exit:$LASTEXITCODE\")",
+      "PowerShell(python manage.py migrate 2>&1 | Select-Object -Last 20; Write-Output \"exit:$LASTEXITCODE\"; Write-Output \"---check---\"; python manage.py check 2>&1 | Select-Object -Last 5)",
+      "PowerShell(python manage.py check 2>&1)",
+      "PowerShell(python -m pip install whitenoise --quiet 2>&1 | Select-Object -Last 2; Write-Output \"exit:$LASTEXITCODE\")"
     ]
   }
 }
