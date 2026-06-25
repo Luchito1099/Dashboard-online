@@ -265,8 +265,8 @@ def pedidos_modulo(request):
         'estados': Pedido.ESTADO_CHOICES,
         'rangos_btn': [('hoy', 'Hoy'), ('7d', '7d'), ('30d', '30d'), ('todo', 'Todo')],
         'fuentes': Integracion.objects.filter(categoria=Integracion.CATEGORIA_FUENTE),
-        'envios': sorted({p.tipo_envio for p in Pedido.objects.exclude(tipo_envio='')
-                          .values_list('tipo_envio', flat=True).distinct()}),
+        'envios': sorted(Pedido.objects.exclude(tipo_envio='')
+                         .values_list('tipo_envio', flat=True).distinct()),
         # Selección actual (para mantener los filtros marcados)
         'f_q': q, 'f_fuente': fuente, 'f_estado': estado, 'f_envio': envio, 'f_rango': rango,
     }
