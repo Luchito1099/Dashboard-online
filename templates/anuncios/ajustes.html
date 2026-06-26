@@ -37,7 +37,15 @@
           </td>
           <td style="white-space:nowrap;">
             <form method="post" action="{% url 'anuncios:probar_cuenta' c.id %}" style="display:inline;">{% csrf_token %}<button class="btn-probar">Probar</button></form>
-            <form method="post" action="{% url 'anuncios:sincronizar_cuenta' c.id %}" style="display:inline;">{% csrf_token %}<button class="btn-guardar">↻ Sincronizar</button></form>
+            <form method="post" action="{% url 'anuncios:sincronizar_cuenta' c.id %}" style="display:inline-flex;gap:4px;">{% csrf_token %}
+              <select name="dias" title="Rango a descargar">
+                <option value="30">30 días</option>
+                <option value="90">90 días</option>
+                <option value="365">1 año</option>
+                <option value="1095">Todo (~3 años)</option>
+              </select>
+              <button class="btn-guardar">↻ Sincronizar</button>
+            </form>
           </td>
         </tr>
         {% empty %}<tr><td colspan="6" class="integ-vacio-cell">Aún no hay cuentas.</td></tr>{% endfor %}
@@ -62,12 +70,19 @@
       Necesitas un token de <b>System User</b> con permiso <code>ads_read</code> (Business Manager).</p>
   </div>
 
-  {# ── Qué anuncios se extraen ── #}
+  {# ── Filtro de análisis: qué anuncios entran a los dashboards (todo se descarga igual) ── #}
   <div class="av-card av-card-wide" style="margin-top:14px;">
-    <div class="av-card-title">¿Qué anuncios entran al pipeline? <span class="ads-nota-inline">(marca y guarda; los no marcados se descartan al llegar)</span></div>
-    <form method="post">
+    <div class="av-card-title">¿Qué anuncios incluir en el análisis?
+      <span class="ads-nota-inline">(se baja TODO igual; aquí eliges cuáles entran a los dashboards · por defecto, todos)</span></div>
+    <form method="post" id="formExtraccion">
       {% csrf_token %}
       <input type="hidden" name="accion" value="toggle_extraccion">
+      {% if anuncios %}
+      <div class="ads-extraccion-acciones">
+        <button type="button" class="btn-probar" id="selTodos">Seleccionar todos</button>
+        <button type="button" class="btn-probar" id="selNinguno">Ninguno</button>
+      </div>
+      {% endif %}
       <div class="ads-extraccion">
         {% for a in anuncios %}
         <label class="ads-extraccion-item">
@@ -75,7 +90,7 @@
           <span class="ads-ad-nombre">{{ a.ad_name|default:a.adset_name|default:a.campaign_name|default:a.ad_id }}</span>
           <span class="ads-ad-meta">{{ a.campaign_name }} · {{ a.cuenta.nombre }}</span>
         </label>
-        {% empty %}<div class="integ-vacio">No han llegado anuncios todavía (esperando el webhook de n8n).</div>{% endfor %}
+        {% empty %}<div class="integ-vacio">No han llegado anuncios todavía. Sincroniza una cuenta arriba.</div>{% endfor %}
       </div>
       {% if anuncios %}<button type="submit" class="btn-guardar" style="margin-top:12px;">Guardar selección</button>{% endif %}
     </form>
@@ -100,4 +115,18 @@
     el CPA real y dispara el webhook cuando se supera el umbral los días configurados.</p>
   </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  var todos = document.getElementById('selTodos');
+  var ninguno = document.getElementById('selNinguno');
+  function marcar(v) {
+    document.querySelectorAll('#formExtraccion input[name="incluir"]').forEach(function (ch) { ch.checked = v; });
+  }
+  if (todos) todos.addEventListener('click', function () { marcar(true); });
+  if (ninguno) ninguno.addEventListener('click', function () { marcar(false); });
+})();
+</script>
 {% endblock %}

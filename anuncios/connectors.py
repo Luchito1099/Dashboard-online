@@ -73,12 +73,17 @@ def probar_conexion(cuenta):
     return False, _error_msg(resp)
 
 
+# Meta solo retiene insights ~37 meses; topamos el rango para no pedir más de lo permitido.
+MAX_DIAS = 1095   # ~36 meses
+
+
 def sincronizar(cuenta, dias=30):
     """Trae insights diarios + horarios (nivel ad) de los últimos N días y los guarda.
-    Devuelve (ok, mensaje, resumen)."""
+    Se baja TODO (todos los anuncios). Devuelve (ok, mensaje, resumen)."""
     if not cuenta.ad_account_id or not cuenta.access_token:
         return False, 'Falta el ad_account_id o el token.', {}
 
+    dias = max(1, min(int(dias or 30), MAX_DIAS))
     hasta = timezone.localdate()
     desde = hasta - timedelta(days=dias - 1)
     time_range = json.dumps({'since': desde.isoformat(), 'until': hasta.isoformat()})

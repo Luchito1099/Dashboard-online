@@ -53,10 +53,11 @@ def _int(v):
 
 
 def ingerir_payload(data):
-    """Procesa el JSON de n8n. Hace upsert de la cuenta y de cada anuncio (estructura),
-    y guarda los insights SOLO de los anuncios con incluir_en_extraccion=True.
+    """Procesa el payload (de la Graph API o de n8n). Hace upsert de la cuenta y de cada
+    anuncio (estructura) y guarda TODOS sus insights (siempre se baja todo). El filtrado
+    de qué anuncios se muestran ocurre después, en el análisis (incluir_en_extraccion).
     Devuelve un resumen de lo procesado."""
-    resumen = {'anuncios': 0, 'anuncios_nuevos': 0, 'insights_guardados': 0, 'insights_descartados': 0}
+    resumen = {'anuncios': 0, 'anuncios_nuevos': 0, 'insights_guardados': 0}
 
     cuenta_data = data.get('cuenta') or {}
     ad_account_id = (cuenta_data.get('ad_account_id') or '').strip()
@@ -86,12 +87,7 @@ def ingerir_payload(data):
         if creado:
             resumen['anuncios_nuevos'] += 1
 
-        # Insights solo si el admin marcó este anuncio para extracción
-        if not campana.incluir_en_extraccion:
-            resumen['insights_descartados'] += (len(a.get('insights_diarios') or [])
-                                                + len(a.get('insights_horarios') or []))
-            continue
-
+        # Siempre se guardan los insights (se baja todo); el filtro es de análisis.
         for ins in (a.get('insights_diarios') or []):
             if not ins.get('fecha'):
                 continue
@@ -172,6 +168,7 @@ def tabla_productos(fecha_ini, fecha_fin, integracion_id=None):
     """Por producto (con match a algún anuncio): gasto, atribuidos por Meta,
     confirmados reales, entregados, embudo, CPA real y ROAS real."""
     matches = (MatchProductoAnuncio.objects
+               .filter(campana__incluir_en_extraccion=True)   # filtro de análisis
                .select_related('producto', 'campana', 'campana__cuenta'))
     if integracion_id:
         matches = matches.filter(campana__cuenta__integracion_id=integracion_id)

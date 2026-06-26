@@ -42,6 +42,7 @@
   padding: 8px 10px; border: 1px solid var(--border-dark); border-radius: 8px;
   font-size: 13px; font-family: inherit; background: var(--surface); color: var(--text);
 }
+.ads-extraccion-acciones { display: flex; gap: 8px; margin-bottom: 10px; }
 .ads-extraccion { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 8px; }
 .ads-extraccion-item {
   display: flex; align-items: baseline; gap: 8px; padding: 8px 10px; border: 1px solid var(--border);

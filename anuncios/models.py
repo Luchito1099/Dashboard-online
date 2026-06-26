@@ -70,8 +70,9 @@ class CampanaMeta(models.Model):
     ad_id = models.CharField(max_length=64)
     ad_name = models.CharField(max_length=255, blank=True)
 
-    # Control manual: si está en False, el webhook descarta sus insights.
-    incluir_en_extraccion = models.BooleanField(default=False)
+    # Se descarga TODO siempre. Este flag es un filtro de ANÁLISIS: si está en True,
+    # el anuncio entra a los dashboards/tablas. Por defecto True (todos incluidos).
+    incluir_en_extraccion = models.BooleanField(default=True)
 
     primero_visto = models.DateTimeField(auto_now_add=True)
     actualizado = models.DateTimeField(auto_now=True)

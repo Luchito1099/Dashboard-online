@@ -1,6 +1,6 @@
 # Esquema de la base de datos · KLYNEA ERP
 
-> Generado automáticamente por `python manage.py esquema_bd` el 2026-06-26 17:29. **No editar a mano** (se sobrescribe). Para análisis y mejoras ver `docs/ESQUEMA_NOTAS.md`.
+> Generado automáticamente por `python manage.py esquema_bd` el 2026-06-26 18:15. **No editar a mano** (se sobrescribe). Para análisis y mejoras ver `docs/ESQUEMA_NOTAS.md`.
 
 ## Cómo visualizarlo
 - **Diagrama ER (rápido):** copia el bloque *Mermaid* en https://mermaid.live
