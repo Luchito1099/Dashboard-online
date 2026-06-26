@@ -1,5 +1,10 @@
 {% comment %} Pestaña Avances — KPIs / funnel agregados {% endcomment %}
 
+<div class="av-aviso">
+  ℹ️ Estas cifras reflejan los <b>filtros activos</b> (rango de fecha, vendedor, fuente, etc.).
+  {% if f_rango == 'hoy' %}Estás viendo <b>solo HOY</b> — usa <b>Todo</b> arriba para el histórico completo.{% endif %}
+</div>
+
 <div class="ped-kpis av-kpis-4">
   <div class="ped-kpi">
     <div class="ped-kpi-num">{{ av_total }}</div>

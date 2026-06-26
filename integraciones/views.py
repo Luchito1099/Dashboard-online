@@ -472,7 +472,10 @@ def _context_avances(qs, context):
         return round(n / total * 100) if total else 0
 
     # Conteo por estado de flujo (con % del total). Es la base del embudo y las visuales.
-    cuenta_estado = {r['estado']: r['n'] for r in qs.values('estado').annotate(n=Count('id'))}
+    # OJO: .order_by() limpia el orden heredado (-fecha_pedido); si no, Django lo mete en
+    # el GROUP BY y el conteo por estado sale mal (cada estado contaría 1).
+    cuenta_estado = {r['estado']: r['n']
+                     for r in qs.order_by().values('estado').annotate(n=Count('id'))}
     por_estado = [(lbl, cuenta_estado.get(val, 0), _pct(cuenta_estado.get(val, 0)), val)
                   for val, lbl in Pedido.ESTADO_CHOICES]
     max_estado = max([n for _, n, _, _ in por_estado] + [1])
