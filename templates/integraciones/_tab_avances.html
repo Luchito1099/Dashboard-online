@@ -31,7 +31,7 @@
 {# ── Cumplimiento de metas del día ── #}
 {% if av_metas %}
 <div class="av-card av-card-metas">
-  <div class="av-card-title">🎯 Cumplimiento de metas (hoy)</div>
+  <div class="av-card-title">🎯 Cumplimiento de metas (hoy) · solo pedidos confirmados</div>
   <div class="av-metas-grid">
     {% for m in av_metas %}
     <div class="av-meta">
@@ -41,11 +41,11 @@
       </div>
       {% if m.meta %}
       <div class="av-meta-bar"><div class="av-meta-fill {% if m.pct_real >= 100 %}ok{% endif %}" style="width: {{ m.pct }}%"></div></div>
-      <div class="av-meta-sub">{{ m.hechos }} / {{ m.meta }} pedidos</div>
+      <div class="av-meta-sub">{{ m.hechos }} / {{ m.meta }} confirmados</div>
       {% endif %}
       {% if m.meta_monto %}
       <div class="av-meta-bar"><div class="av-meta-fill monto {% if m.pct_monto_real >= 100 %}ok{% endif %}" style="width: {{ m.pct_monto }}%"></div></div>
-      <div class="av-meta-sub">S/ {{ m.monto|floatformat:2 }} / S/ {{ m.meta_monto|floatformat:2 }}</div>
+      <div class="av-meta-sub">S/ {{ m.monto|floatformat:2 }} / S/ {{ m.meta_monto|floatformat:2 }} confirmado</div>
       {% endif %}
     </div>
     {% endfor %}

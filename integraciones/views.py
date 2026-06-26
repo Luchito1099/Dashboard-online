@@ -540,10 +540,13 @@ def _context_avances(qs, context):
 
     # Cumplimiento de metas del día (independiente de los filtros: siempre "hoy")
     from core.models import MetaVendedor
+    # La meta mide ventas CONFIRMADAS (confirmado/despachado/entregado), no todos los pedidos.
+    estados_confirmados = [Pedido.ESTADO_CONFIRMADO, Pedido.ESTADO_DESPACHADO, Pedido.ESTADO_ENTREGADO]
     hoy = timezone.localdate()
     av_metas = []
     for m in MetaVendedor.objects.filter(Q(pedidos_dia__gt=0) | Q(monto_dia__gt=0)).select_related('usuario'):
-        hoy_qs = Pedido.objects.filter(vendedor=m.usuario, fecha_pedido__date=hoy)
+        hoy_qs = Pedido.objects.filter(vendedor=m.usuario, fecha_pedido__date=hoy,
+                                       estado__in=estados_confirmados)
         hechos = hoy_qs.count()
         monto = hoy_qs.aggregate(s=Coalesce(Sum('total'), cero))['s']
         pct = round(hechos / m.pedidos_dia * 100) if m.pedidos_dia else 0
