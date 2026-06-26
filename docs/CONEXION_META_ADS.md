@@ -76,20 +76,40 @@ siempre se guarda para que puedas marcarlo).
 
 ---
 
-## Paso 5 — Automatizar (cron)
+## Paso 5 — Carga histórica (una vez) + sincronización cada 15 min
 
-Para que se actualice solo, programa el comando (en cron del servidor o disparado por n8n):
+La descarga se hace **por ventanas de fechas** (chunks): diarios en bloques de 30 días y horarios
+en bloques de 3 días (solo los últimos ~90 días). Así **no falla** por el error de Meta
+*"Please reduce the amount of data you're asking for"* ni por timeout. El timeout se subió a 120s
+con reintentos.
 
+> ⚠️ La **carga histórica larga** corre desde la **línea de comandos**, no desde el botón de la web:
+> el botón bloquea el request y el servidor web (Gunicorn) lo cortaría a los pocos segundos. El botón
+> de Ajustes es para rangos cortos (7/30/90 días).
+
+### 1) Carga histórica — una sola vez (en el servidor)
 ```bash
-python manage.py sincronizar_ads            # últimos 30 días, todas las cuentas activas con token
-python manage.py sincronizar_ads --dias 7   # ventana corta para correr seguido
+python manage.py sincronizar_ads --dias 1095   # ~3 años (tope de retención de Meta)
 ```
 
-Y para las alertas de CPA alto (→ Telegram vía n8n):
-
-```bash
-python manage.py alertas_ads
+### 2) Sincronización automática — cada 15 minutos (cron del servidor)
+Trae solo los últimos días (rápido, casi tiempo real; los 2-3 días recientes pueden cambiar por
+atribución):
+```cron
+*/15 * * * * cd /ruta/al/proyecto && /ruta/venv/bin/python manage.py sincronizar_ads --dias 3 >> /var/log/ads_sync.log 2>&1
 ```
+
+### 3) Alertas de CPA alto (→ Telegram vía n8n) — cada hora, por ejemplo
+```cron
+0 * * * * cd /ruta/al/proyecto && /ruta/venv/bin/python manage.py alertas_ads >> /var/log/ads_alertas.log 2>&1
+```
+
+> Si despliegas en Dokploy/Coolify, agrega estos como **Cron Jobs / Scheduled tasks** del servicio
+> (o un contenedor cron aparte) en vez del crontab del host. Alternativa: un nodo **Schedule** en
+> n8n que ejecute el comando por SSH o que pegue al endpoint.
+
+**Resumen del flujo que pediste:** corres `--dias 1095` **una vez** (histórico), y de ahí en
+adelante el cron cada 15 min con `--dias 3` mantiene todo al día solo. ✔️
 
 ---
 

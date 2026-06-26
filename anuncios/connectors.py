@@ -11,7 +11,14 @@ from django.utils import timezone
 from . import services
 
 GRAPH = 'https://graph.facebook.com'
-TIMEOUT = 30
+TIMEOUT = 120          # la Graph API puede tardar; damos margen amplio
+REINTENTOS = 2         # reintentos ante timeout/errores de red
+
+# Trozos de fechas: pedir el histórico por ventanas evita el error "reduce the amount
+# of data" y los timeouts. El breakdown horario es 24x más pesado → ventanas más chicas.
+CHUNK_DIARIO = 30      # días por request de insights diarios
+CHUNK_HORARIO = 3      # días por request de insights horarios
+MAX_DIAS_HORARIO = 90  # el heatmap horario solo necesita lo reciente (no 3 años)
 
 # action_type de Meta que cuentan como "resultado" (compra / lead / mensajes)
 ACCIONES_RESULTADO = {
@@ -36,10 +43,21 @@ def _resultados(actions):
     return total
 
 
+def _get_con_reintentos(url, params):
+    """GET con reintentos ante timeout/errores de red transitorios."""
+    ultimo = None
+    for intento in range(REINTENTOS + 1):
+        try:
+            return requests.get(url, params=params, timeout=TIMEOUT)
+        except (requests.Timeout, requests.ConnectionError) as e:
+            ultimo = e
+    raise requests.RequestException(f'Sin respuesta tras {REINTENTOS + 1} intentos: {ultimo}')
+
+
 def _paginar(url, params):
     """Itera todas las páginas de un endpoint de insights (sigue paging.next)."""
     while url:
-        resp = requests.get(url, params=params, timeout=TIMEOUT)
+        resp = _get_con_reintentos(url, params)
         if resp.status_code != 200:
             raise requests.RequestException(_error_msg(resp))
         data = resp.json()
@@ -47,6 +65,15 @@ def _paginar(url, params):
             yield row
         url = (data.get('paging') or {}).get('next')
         params = None   # 'next' ya trae todos los parámetros
+
+
+def _ventanas(desde, hasta, tam):
+    """Genera tuplas (inicio, fin) cubriendo [desde, hasta] en bloques de 'tam' días."""
+    cur = desde
+    while cur <= hasta:
+        fin = min(cur + timedelta(days=tam - 1), hasta)
+        yield cur, fin
+        cur = fin + timedelta(days=1)
 
 
 def _error_msg(resp):
@@ -79,16 +106,16 @@ MAX_DIAS = 1095   # ~36 meses
 
 def sincronizar(cuenta, dias=30):
     """Trae insights diarios + horarios (nivel ad) de los últimos N días y los guarda.
-    Se baja TODO (todos los anuncios). Devuelve (ok, mensaje, resumen)."""
+    Pide el rango por VENTANAS (chunks) para no exceder los límites de la Graph API ni
+    agotar el timeout. Se baja TODO (todos los anuncios). Devuelve (ok, mensaje, resumen)."""
     if not cuenta.ad_account_id or not cuenta.access_token:
         return False, 'Falta el ad_account_id o el token.', {}
 
     dias = max(1, min(int(dias or 30), MAX_DIAS))
     hasta = timezone.localdate()
     desde = hasta - timedelta(days=dias - 1)
-    time_range = json.dumps({'since': desde.isoformat(), 'until': hasta.isoformat()})
-    base = {'access_token': cuenta.access_token, 'time_increment': 1,
-            'level': 'ad', 'limit': 200, 'time_range': time_range}
+    url = f'{GRAPH}/{cuenta.api_version}/{cuenta.ad_account_id}/insights'
+    base = {'access_token': cuenta.access_token, 'time_increment': 1, 'level': 'ad', 'limit': 100}
 
     anuncios = {}
 
@@ -103,40 +130,47 @@ def sincronizar(cuenta, dias=30):
             }
         return anuncios[ad_id]
 
-    url = f'{GRAPH}/{cuenta.api_version}/{cuenta.ad_account_id}/insights'
-    try:
-        # 1) Insights diarios
-        params = dict(base, fields='campaign_id,campaign_name,adset_id,adset_name,ad_id,ad_name,'
-                                    'spend,impressions,clicks,actions,account_currency')
-        for row in _paginar(url, params):
-            if not row.get('ad_id'):
-                continue
-            _ad(row)['insights_diarios'].append({
-                'fecha': row.get('date_start'),
-                'gasto': row.get('spend') or 0,
-                'impresiones': row.get('impressions') or 0,
-                'clicks': row.get('clicks') or 0,
-                'resultados': _resultados(row.get('actions')),
-                'moneda': row.get('account_currency') or '',
-            })
+    def _rango(ini, fin):
+        return json.dumps({'since': ini.isoformat(), 'until': fin.isoformat()})
 
-        # 2) Insights horarios (breakdown por hora del anunciante)
-        params = dict(base, fields='ad_id,spend,impressions,clicks',
-                      breakdowns='hourly_stats_aggregated_by_advertiser_time_zone')
-        for row in _paginar(url, params):
-            if row.get('ad_id') not in anuncios:
-                continue
-            franja = row.get('hourly_stats_aggregated_by_advertiser_time_zone') or '00'
-            try:
-                hora = int(franja[:2])
-            except ValueError:
-                hora = 0
-            _ad(row)['insights_horarios'].append({
-                'fecha': row.get('date_start'), 'hora': hora,
-                'gasto': row.get('spend') or 0,
-                'impresiones': row.get('impressions') or 0,
-                'clicks': row.get('clicks') or 0,
-            })
+    try:
+        # 1) Insights diarios, por ventanas de CHUNK_DIARIO días
+        campos = ('campaign_id,campaign_name,adset_id,adset_name,ad_id,ad_name,'
+                  'spend,impressions,clicks,actions,account_currency')
+        for ini, fin in _ventanas(desde, hasta, CHUNK_DIARIO):
+            params = dict(base, fields=campos, time_range=_rango(ini, fin))
+            for row in _paginar(url, params):
+                if not row.get('ad_id'):
+                    continue
+                _ad(row)['insights_diarios'].append({
+                    'fecha': row.get('date_start'),
+                    'gasto': row.get('spend') or 0,
+                    'impresiones': row.get('impressions') or 0,
+                    'clicks': row.get('clicks') or 0,
+                    'resultados': _resultados(row.get('actions')),
+                    'moneda': row.get('account_currency') or '',
+                })
+
+        # 2) Insights horarios: solo la ventana reciente (no 3 años) y en chunks chicos
+        h_desde = max(desde, hasta - timedelta(days=MAX_DIAS_HORARIO - 1))
+        for ini, fin in _ventanas(h_desde, hasta, CHUNK_HORARIO):
+            params = dict(base, fields='ad_id,spend,impressions,clicks',
+                          breakdowns='hourly_stats_aggregated_by_advertiser_time_zone',
+                          time_range=_rango(ini, fin))
+            for row in _paginar(url, params):
+                if row.get('ad_id') not in anuncios:
+                    continue
+                franja = row.get('hourly_stats_aggregated_by_advertiser_time_zone') or '00'
+                try:
+                    hora = int(franja[:2])
+                except ValueError:
+                    hora = 0
+                _ad(row)['insights_horarios'].append({
+                    'fecha': row.get('date_start'), 'hora': hora,
+                    'gasto': row.get('spend') or 0,
+                    'impresiones': row.get('impressions') or 0,
+                    'clicks': row.get('clicks') or 0,
+                })
     except requests.RequestException as e:
         return False, str(e), {}
 
@@ -146,5 +180,6 @@ def sincronizar(cuenta, dias=30):
     }
     resumen = services.ingerir_payload(payload)
     msg = (f"{resumen.get('anuncios', 0)} anuncio(s), "
-           f"{resumen.get('insights_guardados', 0)} insight(s) guardado(s).")
+           f"{resumen.get('insights_guardados', 0)} insight(s) guardado(s) "
+           f"({desde.isoformat()} → {hasta.isoformat()}).")
     return True, msg, resumen
