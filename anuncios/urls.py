@@ -14,6 +14,8 @@ urlpatterns = [
     path('publicidad/matching/<int:campana_id>/quitar/', views.quitar_match, name='quitar_match'),
     # Ajustes (solo admin)
     path('publicidad/ajustes/', views.ajustes, name='ajustes'),
-    # Webhook de n8n (sin login; autenticado por firma)
+    path('publicidad/cuenta/<int:cuenta_id>/probar/', views.probar_cuenta, name='probar_cuenta'),
+    path('publicidad/cuenta/<int:cuenta_id>/sincronizar/', views.sincronizar_cuenta, name='sincronizar_cuenta'),
+    # Webhook de n8n (alternativa; la extracción principal es directa a la Graph API)
     path('publicidad/webhook/n8n/', views.webhook_n8n_meta, name='webhook_n8n'),
 ]

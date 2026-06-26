@@ -17,29 +17,49 @@
 <div class="pedidos-mod">
   <div class="integ-header"><h2 class="integ-title">Ajustes de Publicidad</h2></div>
 
-  {# ── Cuentas publicitarias ── #}
+  {# ── Cuentas publicitarias (conexión DIRECTA a la Graph API) ── #}
   <div class="av-card av-card-wide">
-    <div class="av-card-title">Cuentas publicitarias</div>
+    <div class="av-card-title">Cuentas publicitarias <span class="ads-nota-inline">(conexión directa a Meta Graph API)</span></div>
     <table class="ped-tabla">
-      <thead><tr><th>Nombre</th><th>ad_account_id</th><th>Tienda</th><th>Activa</th></tr></thead>
+      <thead><tr><th>Nombre</th><th>ad_account_id</th><th>Tienda</th><th>Token</th><th>Última sync</th><th></th></tr></thead>
       <tbody>
         {% for c in cuentas %}
-        <tr><td>{{ c.nombre }}</td><td>{{ c.ad_account_id }}</td>
-          <td>{{ c.integracion.nombre|default:"—" }}</td><td>{% if c.activo %}Sí{% else %}No{% endif %}</td></tr>
-        {% empty %}<tr><td colspan="4" class="integ-vacio-cell">Aún no hay cuentas.</td></tr>{% endfor %}
+        <tr>
+          <td>{{ c.nombre }}</td>
+          <td>{{ c.ad_account_id }}</td>
+          <td>{{ c.integracion.nombre|default:"—" }}</td>
+          <td>{% if c.access_token %}<span class="ads-ok">{{ c.token_enmascarado }}</span>{% else %}<span class="ads-bad-txt">sin token</span>{% endif %}</td>
+          <td>
+            {% if c.ultimo_sync_en %}
+              <span class="{% if c.ultimo_sync_ok %}ads-ok{% else %}ads-bad-txt{% endif %}">{{ c.ultimo_sync_en|timesince }}</span>
+              <div class="ads-ad-meta">{{ c.ultimo_sync_msg }}</div>
+            {% else %}<span class="ads-nota-inline">nunca</span>{% endif %}
+          </td>
+          <td style="white-space:nowrap;">
+            <form method="post" action="{% url 'anuncios:probar_cuenta' c.id %}" style="display:inline;">{% csrf_token %}<button class="btn-probar">Probar</button></form>
+            <form method="post" action="{% url 'anuncios:sincronizar_cuenta' c.id %}" style="display:inline;">{% csrf_token %}<button class="btn-guardar">↻ Sincronizar</button></form>
+          </td>
+        </tr>
+        {% empty %}<tr><td colspan="6" class="integ-vacio-cell">Aún no hay cuentas.</td></tr>{% endfor %}
       </tbody>
     </table>
+
+    <div class="ads-cuenta-titulo">Agregar / actualizar cuenta</div>
     <form method="post" class="ads-cuenta-form">
       {% csrf_token %}
       <input type="hidden" name="accion" value="crear_cuenta">
-      <input type="text" name="ad_account_id" placeholder="act_123456" required>
+      <input type="text" name="ad_account_id" placeholder="act_123456789" required>
       <input type="text" name="nombre" placeholder="Nombre (ej. KLYNEA PE)" required>
       <select name="integracion">
         <option value="">— Tienda asociada —</option>
         {% for t in tiendas %}<option value="{{ t.id }}">{{ t.nombre }}</option>{% endfor %}
       </select>
+      <input type="text" name="api_version" value="v21.0" style="width:90px;" title="Versión de la Graph API">
+      <input type="password" name="access_token" placeholder="Access token (System User, ads_read)" style="min-width:260px;" autocomplete="off">
       <button type="submit" class="btn-guardar">+ Guardar cuenta</button>
     </form>
+    <p class="ads-nota">El token se guarda <b>cifrado</b>. Al editar una cuenta, deja el token vacío para conservar el actual.
+      Necesitas un token de <b>System User</b> con permiso <code>ads_read</code> (Business Manager).</p>
   </div>
 
   {# ── Qué anuncios se extraen ── #}

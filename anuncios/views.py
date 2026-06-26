@@ -194,10 +194,14 @@ def ajustes(request):
             nombre = request.POST.get('nombre', '').strip()
             if ad_account_id and nombre:
                 tienda = request.POST.get('integracion') or None
-                CuentaPublicitaria.objects.update_or_create(
-                    ad_account_id=ad_account_id,
-                    defaults={'nombre': nombre,
-                              'integracion_id': int(tienda) if tienda and tienda.isdigit() else None})
+                defaults = {'nombre': nombre,
+                            'integracion_id': int(tienda) if tienda and tienda.isdigit() else None,
+                            'api_version': request.POST.get('api_version', '').strip() or 'v21.0'}
+                # El token solo se actualiza si se escribió uno nuevo (no se borra al editar)
+                token = request.POST.get('access_token', '').strip()
+                if token:
+                    defaults['access_token'] = token
+                CuentaPublicitaria.objects.update_or_create(ad_account_id=ad_account_id, defaults=defaults)
                 messages.success(request, 'Cuenta guardada.')
             else:
                 messages.error(request, 'Falta el ad_account_id o el nombre.')
@@ -234,3 +238,39 @@ def ajustes(request):
         'umbral': UmbralAlerta.get_solo(),
     }
     return render(request, 'anuncios/ajustes.html', context)
+
+
+@login_required
+def probar_cuenta(request, cuenta_id):
+    """Prueba la conexión directa a la Graph API de la cuenta (solo admin, POST)."""
+    if not puede_admin_ads(request.user):
+        return JsonResponse({'error': 'sin permiso'}, status=403)
+    if request.method != 'POST':
+        return HttpResponseNotAllowed(['POST'])
+    from . import connectors
+    cuenta = get_object_or_404(CuentaPublicitaria, id=cuenta_id)
+    ok, msg = connectors.probar_conexion(cuenta)
+    cuenta.ultimo_test_ok, cuenta.ultimo_test_msg, cuenta.ultimo_test_en = ok, msg[:255], timezone.now()
+    cuenta.save(update_fields=['ultimo_test_ok', 'ultimo_test_msg', 'ultimo_test_en'])
+    (messages.success if ok else messages.error)(request, msg)
+    return redirect('anuncios:ajustes')
+
+
+@login_required
+def sincronizar_cuenta(request, cuenta_id):
+    """Extrae los insights de la cuenta directamente desde la Graph API (solo admin, POST)."""
+    if not puede_admin_ads(request.user):
+        return JsonResponse({'error': 'sin permiso'}, status=403)
+    if request.method != 'POST':
+        return HttpResponseNotAllowed(['POST'])
+    from . import connectors
+    cuenta = get_object_or_404(CuentaPublicitaria, id=cuenta_id)
+    try:
+        dias = int(request.POST.get('dias') or 30)
+    except ValueError:
+        dias = 30
+    ok, msg, _ = connectors.sincronizar(cuenta, dias=dias)
+    cuenta.ultimo_sync_ok, cuenta.ultimo_sync_msg, cuenta.ultimo_sync_en = ok, msg[:255], timezone.now()
+    cuenta.save(update_fields=['ultimo_sync_ok', 'ultimo_sync_msg', 'ultimo_sync_en'])
+    (messages.success if ok else messages.error)(request, f'Sincronización: {msg}')
+    return redirect('anuncios:ajustes')

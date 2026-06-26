@@ -61,7 +61,8 @@
       "Bash(awk '/### `integraciones_pedido` —/,/Únicos compuestos/' docs/ESQUEMA_BD.md)",
       "PowerShell(python manage.py esquema_bd 2>&1)",
       "PowerShell(python manage.py makemigrations core 2>&1)",
-      "PowerShell(python manage.py makemigrations anuncios productos integraciones core 2>&1)"
+      "PowerShell(python manage.py makemigrations anuncios productos integraciones core 2>&1)",
+      "PowerShell(python manage.py makemigrations anuncios 2>&1)"
     ]
   }
 }

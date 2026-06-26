@@ -34,6 +34,9 @@
 }
 
 /* ── Ajustes ── */
+.ads-ok { color: var(--success); font-weight: 600; }
+.ads-bad-txt { color: var(--error); font-weight: 600; }
+.ads-cuenta-titulo { font-size: 12px; font-weight: 700; color: var(--text-secondary); margin: 16px 0 6px; text-transform: uppercase; letter-spacing: .04em; }
 .ads-cuenta-form, .ads-umbral-form { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; margin-top: 12px; }
 .ads-cuenta-form input, .ads-cuenta-form select {
   padding: 8px 10px; border: 1px solid var(--border-dark); border-radius: 8px;

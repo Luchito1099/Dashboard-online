@@ -4,22 +4,41 @@ negocio (pedidos confirmados/entregados). Los datos llegan desde un workflow n8n
 vía webhook; el ERP los guarda, los casa con productos y calcula métricas reales."""
 from django.db import models
 
+from integraciones.crypto import EncryptedTextField
+
 
 class CuentaPublicitaria(models.Model):
-    """Cuenta publicitaria (ad account) de una plataforma. Se asocia opcionalmente a
-    una Integración/tienda (KLYNEA, NovaShop) para poder atribuir y filtrar por tienda."""
+    """Cuenta publicitaria (ad account) de una plataforma. Guarda el token de la Graph
+    API (cifrado) para que el ERP extraiga los datos directamente. Se asocia opcionalmente
+    a una Integración/tienda (KLYNEA, NovaShop) para atribuir y filtrar por tienda."""
     PLATAFORMA_META = 'meta'
     PLATAFORMA_CHOICES = [
         (PLATAFORMA_META, 'Meta (Facebook/Instagram)'),
     ]
 
     plataforma = models.CharField(max_length=20, choices=PLATAFORMA_CHOICES, default=PLATAFORMA_META)
-    ad_account_id = models.CharField(max_length=64, unique=True)
+    ad_account_id = models.CharField(max_length=64, unique=True,
+                                     help_text='Con prefijo act_, ej. act_123456789')
     nombre = models.CharField(max_length=120)
     # Tienda asociada (la fuente de pedidos a la que pertenece esta cuenta)
     integracion = models.ForeignKey('integraciones.Integracion', on_delete=models.SET_NULL,
                                     null=True, blank=True, related_name='cuentas_publicitarias')
+
+    # Conexión directa a la Graph API de Meta
+    access_token = EncryptedTextField(blank=True, default='',
+                                      help_text='Token de System User con permiso ads_read (cifrado en BD)')
+    api_version = models.CharField(max_length=10, default='v21.0')
+
     activo = models.BooleanField(default=True)
+
+    # Resultado de la última "Probar conexión" / "Sincronizar"
+    ultimo_test_ok = models.BooleanField(null=True, blank=True)
+    ultimo_test_msg = models.CharField(max_length=255, blank=True)
+    ultimo_test_en = models.DateTimeField(null=True, blank=True)
+    ultimo_sync_ok = models.BooleanField(null=True, blank=True)
+    ultimo_sync_msg = models.CharField(max_length=255, blank=True)
+    ultimo_sync_en = models.DateTimeField(null=True, blank=True)
+
     creado = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -29,6 +48,13 @@ class CuentaPublicitaria(models.Model):
 
     def __str__(self):
         return f'{self.nombre} ({self.ad_account_id})'
+
+    @property
+    def token_enmascarado(self):
+        t = self.access_token
+        if not t:
+            return ''
+        return f'••••{t[-4:]}' if len(t) > 4 else '••••'
 
 
 class CampanaMeta(models.Model):
