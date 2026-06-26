@@ -1,6 +1,6 @@
 # Esquema de la base de datos · KLYNEA ERP
 
-> Generado automáticamente por `python manage.py esquema_bd` el 2026-06-25 18:51. **No editar a mano** (se sobrescribe). Para análisis y mejoras ver `docs/ESQUEMA_NOTAS.md`.
+> Generado automáticamente por `python manage.py esquema_bd` el 2026-06-26 16:26. **No editar a mano** (se sobrescribe). Para análisis y mejoras ver `docs/ESQUEMA_NOTAS.md`.
 
 ## Cómo visualizarlo
 - **Diagrama ER (rápido):** copia el bloque *Mermaid* en https://mermaid.live
@@ -9,7 +9,7 @@
 ## Tablas por módulo
 - **core**: `core_configuracionsistema`, `core_metavendedor`, `core_perfil`
 - **capacitacion**: `capacitacion_bloque`, `capacitacion_bloquetarea`, `capacitacion_estrategia`, `capacitacion_progresotarea`, `capacitacion_tarea`
-- **productos**: `productos_imagenproducto`, `productos_linkproducto`, `productos_mediaproducto`, `productos_objecionproducto`, `productos_producto`
+- **productos**: `productos_imagenproducto`, `productos_linkproducto`, `productos_mediaproducto`, `productos_objecionproducto`, `productos_producto`, `productos_productoalias`
 - **herramientas**: `herramientas_herramientaexterna`
 - **integraciones**: `integraciones_configshalom`, `integraciones_corridashalom`, `integraciones_envioshalom`, `integraciones_integracion`, `integraciones_pedido`, `integraciones_pedidoeditlog`, `integraciones_pedidoitem`, `integraciones_pedidoseguimiento`
 - **rotulador**: `rotulador_rotuladorconfig`, `rotulador_rotulo`
@@ -132,6 +132,15 @@ erDiagram
         varchar imagen_url
         varchar video_url
         varchar link_pago
+    }
+    ProductoAlias {
+        bigint id PK
+        int producto_id FK
+        varchar nombre_externo
+        varchar sku_externo
+        varchar external_product_id
+        int integracion_id FK
+        datetime creado
     }
     HerramientaExterna {
         bigint id PK
@@ -260,6 +269,10 @@ erDiagram
         varchar tags
         text nota
         varchar order_status_url
+        varchar utm_source
+        varchar utm_campaign
+        varchar utm_content
+        varchar ad_id_origen
         datetime fecha_pedido
         json datos
         datetime creado
@@ -277,6 +290,7 @@ erDiagram
     PedidoItem {
         bigint id PK
         int pedido_id FK
+        int producto_id FK
         varchar nombre
         varchar variante
         varchar sku
@@ -352,6 +366,8 @@ erDiagram
     LinkProducto }o--|| Producto : producto
     MediaProducto }o--|| Producto : producto
     ObjecionProducto }o--|| Producto : producto
+    ProductoAlias }o--|| Producto : producto
+    ProductoAlias }o--|| Integracion : integracion
     ConfigShalom ||--|| Integracion : integracion
     CorridaShalom }o--|| Integracion : integracion
     CorridaShalom }o--|| User : por
@@ -363,6 +379,7 @@ erDiagram
     PedidoEditLog }o--|| Pedido : pedido
     PedidoEditLog }o--|| User : usuario
     PedidoItem }o--|| Pedido : pedido
+    PedidoItem }o--|| Producto : producto
     PedidoSeguimiento ||--|| Pedido : pedido
     PedidoSeguimiento }o--|| Estrategia : estrategia
     PedidoSeguimiento }o--|| User : actualizado_por
@@ -500,6 +517,16 @@ Table productos_producto {
   link_pago varchar
 }
 
+Table productos_productoalias {
+  id bigint [pk]
+  producto_id int [ref: > productos_producto.id]
+  nombre_externo varchar
+  sku_externo varchar
+  external_product_id varchar
+  integracion_id int [null, ref: > integraciones_integracion.id]
+  creado datetime
+}
+
 Table herramientas_herramientaexterna {
   id bigint [pk]
   nombre varchar
@@ -632,6 +659,10 @@ Table integraciones_pedido {
   tags varchar
   nota text
   order_status_url varchar
+  utm_source varchar
+  utm_campaign varchar
+  utm_content varchar
+  ad_id_origen varchar
   fecha_pedido datetime [null]
   datos json
   creado datetime
@@ -651,6 +682,7 @@ Table integraciones_pedidoeditlog {
 Table integraciones_pedidoitem {
   id bigint [pk]
   pedido_id int [ref: > integraciones_pedido.id]
+  producto_id int [null, ref: > productos_producto.id]
   nombre varchar
   variante varchar
   sku varchar
@@ -893,6 +925,21 @@ _Producto del catálogo de KLYNEA (cuidado personal / ortopédicos)._
 | video_url | CharField | no |  | máx 500 |
 | link_pago | CharField | no |  | máx 200 |
 
+### `productos_productoalias` — ProductoAlias
+_Mapea un nombre/identificador de producto tal como llega de una fuente externa_
+
+| Columna | Tipo | Nulo | Llave / Relación | Notas |
+|---|---|---|---|---|
+| id | BigAutoField | no | PK |  |
+| producto_id | ForeignKey | no | FK → `productos_producto` (CASCADE) |  |
+| nombre_externo | CharField | no |  | máx 255 |
+| sku_externo | CharField | no |  | máx 120 |
+| external_product_id | CharField | no |  | máx 64 |
+| integracion_id | ForeignKey | sí | FK → `integraciones_integracion` (CASCADE) |  |
+| creado | DateTimeField | no |  |  |
+
+**Únicos compuestos:** (integracion, nombre_externo)
+
 ### `herramientas_herramientaexterna` — HerramientaExterna
 _Enlace a una herramienta externa aún no integrada (n8n, Chatwoot, Shopify, etc.)._
 
@@ -1046,6 +1093,10 @@ _Pedido extraído de una integración (ej. Shopify). Guarda los campos clave_
 | tags | CharField | no |  | máx 255 |
 | nota | TextField | no |  |  |
 | order_status_url | CharField | no |  | máx 500 |
+| utm_source | CharField | no |  | máx 120 |
+| utm_campaign | CharField | no |  | máx 200 |
+| utm_content | CharField | no |  | máx 200 |
+| ad_id_origen | CharField | no |  | máx 64 |
 | fecha_pedido | DateTimeField | sí |  |  |
 | datos | JSONField | no |  |  |
 | creado | DateTimeField | no |  |  |
@@ -1073,6 +1124,7 @@ _Producto dentro de un pedido (un pedido puede tener varios)._
 |---|---|---|---|---|
 | id | BigAutoField | no | PK |  |
 | pedido_id | ForeignKey | no | FK → `integraciones_pedido` (CASCADE) |  |
+| producto_id | ForeignKey | sí | FK → `productos_producto` (SET_NULL) |  |
 | nombre | CharField | no |  | máx 255 |
 | variante | CharField | no |  | máx 120 |
 | sku | CharField | no |  | máx 120 |

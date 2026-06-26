@@ -9,5 +9,6 @@ urlpatterns = [
     path('', include('herramientas.urls')),
     path('', include('integraciones.urls')),
     path('', include('rotulador.urls')),
+    path('', include('anuncios.urls')),
     path('accounts/', include('django.contrib.auth.urls')),
 ]

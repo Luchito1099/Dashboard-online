@@ -224,6 +224,13 @@ class Pedido(models.Model):
     nota = models.TextField(blank=True)
     order_status_url = models.URLField(max_length=500, blank=True)
 
+    # Atribución publicitaria (extraída del payload del pedido cuando existe; fuente
+    # primaria para cruzar con anuncios de Meta. El match por producto es el respaldo).
+    utm_source = models.CharField(max_length=120, blank=True)
+    utm_campaign = models.CharField(max_length=200, blank=True)
+    utm_content = models.CharField(max_length=200, blank=True)
+    ad_id_origen = models.CharField(max_length=64, blank=True)   # id del anuncio de Meta si viene en el tracking
+
     fecha_pedido = models.DateTimeField(null=True, blank=True)
     datos = models.JSONField(default=dict, blank=True)   # payload completo del origen
     creado = models.DateTimeField(auto_now_add=True)
@@ -257,6 +264,10 @@ class Pedido(models.Model):
 class PedidoItem(models.Model):
     """Producto dentro de un pedido (un pedido puede tener varios)."""
     pedido = models.ForeignKey(Pedido, on_delete=models.CASCADE, related_name='items')
+    # Producto canónico del catálogo (se resuelve por alias en la sincronización; puede
+    # quedar sin vincular si el nombre externo no se reconoce todavía).
+    producto = models.ForeignKey('productos.Producto', on_delete=models.SET_NULL,
+                                 null=True, blank=True, related_name='lineas_pedido')
     nombre = models.CharField(max_length=255)
     variante = models.CharField(max_length=120, blank=True)
     sku = models.CharField(max_length=120, blank=True)

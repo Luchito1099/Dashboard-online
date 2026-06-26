@@ -6,6 +6,7 @@ class Perfil(models.Model):
     ROL_CHOICES = [
         ('admin', 'Administrador'),
         ('analista', 'Analista'),
+        ('marketing', 'Analista de Marketing'),
         ('vendedor', 'Vendedor'),
     ]
 
@@ -27,6 +28,9 @@ class Perfil(models.Model):
 
     def es_analista(self):
         return self.rol == 'analista'
+
+    def es_marketing(self):
+        return self.rol == 'marketing'
 
     def es_vendedor(self):
         return self.rol == 'vendedor'

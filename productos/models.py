@@ -86,6 +86,30 @@ class LinkProducto(models.Model):
         return f"{self.producto.nombre}: {self.titulo}"
 
 
+class ProductoAlias(models.Model):
+    """Mapea un nombre/identificador de producto tal como llega de una fuente externa
+    (Shopify, Novashop, etc.) al Producto canónico del catálogo. Permite que el mismo
+    producto con nombres distintos por tienda se reconozca y se vincule automáticamente
+    en la sincronización de pedidos."""
+    producto = models.ForeignKey(Producto, on_delete=models.CASCADE, related_name='alias')
+    nombre_externo = models.CharField(max_length=255)
+    sku_externo = models.CharField(max_length=120, blank=True)
+    external_product_id = models.CharField(max_length=64, blank=True)
+    # Tienda/fuente del alias (null = alias global, aplica a cualquier fuente)
+    integracion = models.ForeignKey('integraciones.Integracion', on_delete=models.CASCADE,
+                                    null=True, blank=True, related_name='alias_productos')
+    creado = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['nombre_externo']
+        unique_together = ('integracion', 'nombre_externo')
+        verbose_name = 'Alias de producto'
+        verbose_name_plural = 'Alias de productos'
+
+    def __str__(self):
+        return f'{self.nombre_externo} → {self.producto.nombre}'
+
+
 class MediaProducto(models.Model):
     """Imagen o video del producto, listo para compartir con el cliente (WhatsApp / copiar link)."""
     TIPO = [('imagen', 'Imagen'), ('video', 'Video')]
