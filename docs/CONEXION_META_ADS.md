@@ -78,8 +78,10 @@ siempre se guarda para que puedas marcarlo).
 
 ## Paso 5 — Carga histórica (una vez) + sincronización cada 15 min
 
-La descarga se hace **por ventanas de fechas** (chunks): diarios en bloques de 30 días y horarios
-en bloques de 3 días (solo los últimos ~90 días). Así **no falla** por el error de Meta
+La descarga se hace **por ventanas de fechas** (chunks), **de la más antigua a la más reciente**,
+cubriendo **todo el histórico disponible** (hasta el tope de retención de Meta, ~37 meses) a la
+granularidad que haya: **diarios** en bloques de 30 días y **horarios** en bloques de 7 días (el
+horario también baja todo el histórico, no solo lo reciente). Así **no falla** por el error de Meta
 *"Please reduce the amount of data you're asking for"* ni por timeout. El timeout se subió a 120s
 con reintentos.
 

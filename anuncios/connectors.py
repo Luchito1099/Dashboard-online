@@ -14,11 +14,11 @@ GRAPH = 'https://graph.facebook.com'
 TIMEOUT = 120          # la Graph API puede tardar; damos margen amplio
 REINTENTOS = 2         # reintentos ante timeout/errores de red
 
-# Trozos de fechas: pedir el histórico por ventanas evita el error "reduce the amount
-# of data" y los timeouts. El breakdown horario es 24x más pesado → ventanas más chicas.
+# Trozos de fechas: pedir el histórico por ventanas (de viejo a nuevo) evita el error
+# "reduce the amount of data" y los timeouts. El breakdown horario es 24x más pesado →
+# ventanas más chicas. Se baja TODO el rango disponible, a la granularidad que haya.
 CHUNK_DIARIO = 30      # días por request de insights diarios
-CHUNK_HORARIO = 3      # días por request de insights horarios
-MAX_DIAS_HORARIO = 90  # el heatmap horario solo necesita lo reciente (no 3 años)
+CHUNK_HORARIO = 7      # días por request de insights horarios
 
 # action_type de Meta que cuentan como "resultado" (compra / lead / mensajes)
 ACCIONES_RESULTADO = {
@@ -151,9 +151,8 @@ def sincronizar(cuenta, dias=30):
                     'moneda': row.get('account_currency') or '',
                 })
 
-        # 2) Insights horarios: solo la ventana reciente (no 3 años) y en chunks chicos
-        h_desde = max(desde, hasta - timedelta(days=MAX_DIAS_HORARIO - 1))
-        for ini, fin in _ventanas(h_desde, hasta, CHUNK_HORARIO):
+        # 2) Insights horarios: TODO el rango también, de viejo a nuevo, en chunks chicos
+        for ini, fin in _ventanas(desde, hasta, CHUNK_HORARIO):
             params = dict(base, fields='ad_id,spend,impressions,clicks',
                           breakdowns='hourly_stats_aggregated_by_advertiser_time_zone',
                           time_range=_rango(ini, fin))

@@ -112,21 +112,28 @@ def dashboard(request):
 
 @login_required
 def matching_pendiente(request):
-    """Anuncios marcados para extracción que aún no tienen producto asignado, con
-    sugerencias automáticas (difflib) para confirmar con un click."""
+    """Anuncios marcados para análisis que aún no tienen producto asignado, con
+    sugerencias automáticas (difflib). Se puede filtrar por campaña y asignar una
+    campaña completa a un producto (suele ser una campaña por producto)."""
     if not puede_matching(request.user):
         messages.error(request, 'No tienes permisos para hacer matching.')
         return redirect(destino_vendedor(request.user))
 
-    pendientes = (CampanaMeta.objects
-                  .filter(incluir_en_extraccion=True, match__isnull=True)
-                  .select_related('cuenta', 'cuenta__integracion'))
+    base = (CampanaMeta.objects
+            .filter(incluir_en_extraccion=True, match__isnull=True)
+            .select_related('cuenta', 'cuenta__integracion'))
+
+    # Campañas disponibles en la cola (para el filtro)
+    campanas_filtro = (base.order_by('campaign_name')
+                       .values('campaign_id', 'campaign_name').distinct())
+
+    f_campana = request.GET.get('campana', '').strip()
+    pendientes = base.filter(campaign_id=f_campana) if f_campana else base
 
     productos = list(Producto.objects.filter(activo=True))
     items = []
     for c in pendientes:
         texto = c.ad_name or c.adset_name or c.campaign_name
-        # sugerir top-3 productos por similitud de nombre
         scored = sorted(
             ((difflib.SequenceMatcher(None, texto.lower(), p.nombre.lower()).ratio(), p)
              for p in productos), key=lambda x: x[0], reverse=True)
@@ -138,8 +145,32 @@ def matching_pendiente(request):
         'productos': productos,
         'total_pendientes': len(items),
         'ya_casados': MatchProductoAnuncio.objects.count(),
+        'campanas_filtro': campanas_filtro,
+        'f_campana': f_campana,
     }
     return render(request, 'anuncios/matching.html', context)
+
+
+@login_required
+def confirmar_match_campana(request):
+    """Asigna un producto a TODOS los anuncios pendientes de una campaña (POST)."""
+    if not puede_matching(request.user):
+        return JsonResponse({'error': 'sin permiso'}, status=403)
+    if request.method != 'POST':
+        return HttpResponseNotAllowed(['POST'])
+
+    campaign_id = request.POST.get('campaign_id', '').strip()
+    producto = get_object_or_404(Producto, id=request.POST.get('producto_id'))
+    pendientes = CampanaMeta.objects.filter(
+        incluir_en_extraccion=True, match__isnull=True, campaign_id=campaign_id)
+    n = 0
+    for c in pendientes:
+        MatchProductoAnuncio.objects.update_or_create(
+            campana=c, defaults={'producto': producto, 'origen': MatchProductoAnuncio.ORIGEN_MANUAL,
+                                 'confianza': 100, 'creado_por': request.user})
+        n += 1
+    messages.success(request, f'{n} anuncio(s) de la campaña casados con «{producto.nombre}».')
+    return redirect('anuncios:matching')
 
 
 @login_required

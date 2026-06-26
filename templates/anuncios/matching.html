@@ -18,53 +18,81 @@
   <div class="integ-header">
     <h2 class="integ-title">Matching producto ↔ anuncio</h2>
     <p class="integ-subtitle">{{ total_pendientes }} anuncio(s) pendiente(s) · {{ ya_casados }} ya casado(s).
-      Confirma una sugerencia o elige el producto a mano. Queda guardado permanentemente.</p>
+      Confirma una sugerencia, elige el producto a mano, o asigna una campaña completa de una vez.</p>
   </div>
+
+  {# ── Filtro por campaña ── #}
+  <form method="get" class="ped-filtros">
+    <select name="campana" onchange="this.form.submit()">
+      <option value="">Todas las campañas</option>
+      {% for c in campanas_filtro %}
+      <option value="{{ c.campaign_id }}" {% if f_campana == c.campaign_id %}selected{% endif %}>{{ c.campaign_name|default:"(sin campaña)" }}</option>
+      {% endfor %}
+    </select>
+  </form>
 
   {% regroup items by campana.campaign_name as grupos %}
   {% for g in grupos %}
-  <div class="ads-campana-head match-camp-head">📁 {{ g.grouper|default:"(sin campaña)" }}
-    <span class="ads-nota-inline">· {{ g.list|length }} pendiente(s)</span></div>
-  {% for it in g.list %}
-  <div class="match-card">
-    <div class="match-ad">
-      <div class="match-ad-nombre">{{ it.texto }}</div>
-      <div class="match-ad-meta">{{ it.campana.cuenta.nombre }}
-        {% if it.campana.cuenta.integracion %}· {{ it.campana.cuenta.integracion.nombre }}{% endif %}
-        {% if it.campana.etiqueta %}· 🏷️ {{ it.campana.etiqueta }}{% endif %}</div>
-    </div>
-
-    <div class="match-sugerencias">
-      {% for s in it.sugerencias %}
-      <form method="post" action="{% url 'anuncios:confirmar_match' %}" class="match-sug-form">
+  <div class="match-camp-grupo">
+    <div class="ads-campana-head match-camp-head">
+      <span>📁 {{ g.grouper|default:"(sin campaña)" }} <span class="ads-nota-inline">· {{ g.list|length }} pendiente(s)</span></span>
+      {# Asignar toda la campaña a un producto #}
+      <form method="post" action="{% url 'anuncios:confirmar_match_campana' %}" class="match-camp-asignar">
         {% csrf_token %}
-        <input type="hidden" name="campana_id" value="{{ it.campana.id }}">
-        <input type="hidden" name="producto_id" value="{{ s.producto.id }}">
-        <input type="hidden" name="origen" value="sugerido">
-        <input type="hidden" name="score" value="{{ s.score }}">
-        <button type="submit" class="match-sug" title="Confirmar este producto">
-          {{ s.producto.nombre }} <span class="match-score">{{ s.score }}%</span>
-        </button>
+        <input type="hidden" name="campaign_id" value="{{ g.list.0.campana.campaign_id }}">
+        <select name="producto_id" required>
+          <option value="">— Asignar toda la campaña a…</option>
+          {% for p in productos %}<option value="{{ p.id }}">{{ p.nombre }}</option>{% endfor %}
+        </select>
+        <button type="submit" class="btn-guardar">Asignar campaña</button>
       </form>
-      {% empty %}
-      <span class="ads-nota-inline">Sin sugerencias.</span>
-      {% endfor %}
     </div>
 
-    <form method="post" action="{% url 'anuncios:confirmar_match' %}" class="match-manual">
-      {% csrf_token %}
-      <input type="hidden" name="campana_id" value="{{ it.campana.id }}">
-      <input type="hidden" name="origen" value="manual">
-      <select name="producto_id" required>
-        <option value="">— Elegir producto…</option>
-        {% for p in productos %}<option value="{{ p.id }}">{{ p.nombre }}</option>{% endfor %}
-      </select>
-      <button type="submit" class="btn-guardar">Asignar</button>
-    </form>
+    {% for it in g.list %}
+    <div class="match-card">
+      <div class="match-ad">
+        <div class="match-ad-nombre">{{ it.texto }}</div>
+        <div class="match-ad-meta">
+          📁 {{ it.campana.campaign_name|default:"(sin campaña)" }}
+          · {{ it.campana.cuenta.nombre }}{% if it.campana.cuenta.integracion %} · {{ it.campana.cuenta.integracion.nombre }}{% endif %}
+          {% if it.campana.etiqueta %} · 🏷️ {{ it.campana.etiqueta }}{% endif %}
+        </div>
+      </div>
+
+      <div class="match-acciones">
+        <div class="match-sugerencias">
+          {% for s in it.sugerencias %}
+          <form method="post" action="{% url 'anuncios:confirmar_match' %}" class="match-sug-form">
+            {% csrf_token %}
+            <input type="hidden" name="campana_id" value="{{ it.campana.id }}">
+            <input type="hidden" name="producto_id" value="{{ s.producto.id }}">
+            <input type="hidden" name="origen" value="sugerido">
+            <input type="hidden" name="score" value="{{ s.score }}">
+            <button type="submit" class="match-sug" title="Confirmar este producto">
+              {{ s.producto.nombre }} <span class="match-score">{{ s.score }}%</span>
+            </button>
+          </form>
+          {% empty %}
+          <span class="ads-nota-inline">Sin sugerencias.</span>
+          {% endfor %}
+        </div>
+
+        <form method="post" action="{% url 'anuncios:confirmar_match' %}" class="match-manual">
+          {% csrf_token %}
+          <input type="hidden" name="campana_id" value="{{ it.campana.id }}">
+          <input type="hidden" name="origen" value="manual">
+          <select name="producto_id" required>
+            <option value="">— Elegir producto…</option>
+            {% for p in productos %}<option value="{{ p.id }}">{{ p.nombre }}</option>{% endfor %}
+          </select>
+          <button type="submit" class="btn-guardar">Asignar</button>
+        </form>
+      </div>
+    </div>
+    {% endfor %}
   </div>
-  {% endfor %}{# fin anuncios de la campaña #}
   {% empty %}
-  <div class="integ-vacio">No hay anuncios pendientes de matching. Todo lo marcado para extracción ya tiene producto. 🎉</div>
-  {% endfor %}{# fin campañas #}
+  <div class="integ-vacio">No hay anuncios pendientes de matching. Todo lo incluido en el análisis ya tiene producto. 🎉</div>
+  {% endfor %}
 </div>
 {% endblock %}

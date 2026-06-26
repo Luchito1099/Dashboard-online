@@ -11,6 +11,7 @@ urlpatterns = [
     # Matching producto ↔ anuncio
     path('publicidad/matching/', views.matching_pendiente, name='matching'),
     path('publicidad/matching/confirmar/', views.confirmar_match, name='confirmar_match'),
+    path('publicidad/matching/confirmar-campana/', views.confirmar_match_campana, name='confirmar_match_campana'),
     path('publicidad/matching/<int:campana_id>/quitar/', views.quitar_match, name='quitar_match'),
     # Ajustes (solo admin)
     path('publicidad/ajustes/', views.ajustes, name='ajustes'),
