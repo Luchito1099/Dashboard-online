@@ -176,6 +176,74 @@ def _parse_link_next(link_header):
     return None
 
 
+def _norm_txt(s):
+    """Normaliza un texto para comparar (sin espacios extra ni mayúsculas)."""
+    return ' '.join((s or '').split()).lower()
+
+
+def _extraer_utm(o, notas):
+    """Saca la atribución publicitaria del pedido: del landing_site (query params) y,
+    como respaldo, de los note_attributes del formulario. Devuelve los 4 campos UTM."""
+    from urllib.parse import urlparse, parse_qs
+    utm = {'utm_source': '', 'utm_campaign': '', 'utm_content': '', 'ad_id_origen': ''}
+
+    landing = o.get('landing_site') or o.get('referring_site') or ''
+    if landing:
+        try:
+            qs = parse_qs(urlparse(landing).query)
+            utm['utm_source'] = (qs.get('utm_source') or [''])[0]
+            utm['utm_campaign'] = (qs.get('utm_campaign') or [''])[0]
+            utm['utm_content'] = (qs.get('utm_content') or [''])[0]
+            for k in ('ad_id', 'adid', 'ad'):
+                if qs.get(k):
+                    utm['ad_id_origen'] = qs[k][0]
+                    break
+        except (ValueError, KeyError):
+            pass
+
+    for k, v in (notas or {}).items():
+        kl = (k or '').lower()
+        if not utm['utm_source'] and kl == 'utm_source':
+            utm['utm_source'] = v or ''
+        if not utm['utm_campaign'] and kl in ('utm_campaign', 'campaign', 'campaña'):
+            utm['utm_campaign'] = v or ''
+        if not utm['utm_content'] and kl in ('utm_content', 'ad', 'anuncio'):
+            utm['utm_content'] = v or ''
+        if not utm['ad_id_origen'] and kl in ('ad_id', 'adid'):
+            utm['ad_id_origen'] = v or ''
+
+    return {
+        'utm_source': (utm['utm_source'] or '')[:120],
+        'utm_campaign': (utm['utm_campaign'] or '')[:200],
+        'utm_content': (utm['utm_content'] or '')[:200],
+        'ad_id_origen': (utm['ad_id_origen'] or '')[:64],
+    }
+
+
+def _resolver_producto(integ, nombre, sku, external_product_id):
+    """Resuelve el Producto canónico de una línea de pedido usando ProductoAlias
+    (por id externo o por nombre, de esta tienda o global) y, en último caso, por SKU."""
+    from django.db.models import Q
+    from productos.models import Producto, ProductoAlias
+
+    if external_product_id:
+        a = (ProductoAlias.objects.filter(external_product_id=str(external_product_id))
+             .select_related('producto').first())
+        if a:
+            return a.producto
+    if nombre:
+        a = (ProductoAlias.objects
+             .filter(Q(integracion=integ) | Q(integracion__isnull=True), nombre_externo__iexact=nombre.strip())
+             .select_related('producto').first())
+        if a:
+            return a.producto
+    if sku:
+        p = Producto.objects.filter(sku__iexact=sku.strip()).first()
+        if p:
+            return p
+    return None
+
+
 def _guardar_pedido_shopify(integ, o):
     """Upsert de un pedido de Shopify (con sus productos) en la BD.
     Usa los campos estándar y completa lo que falte con note_attributes (formularios COD)."""
@@ -214,11 +282,17 @@ def _guardar_pedido_shopify(integ, o):
     except AttributeError:
         pass
 
+    utm = _extraer_utm(o, notas)
+
     pedido, _creado = Pedido.objects.update_or_create(
         integracion=integ,
         external_id=str(o.get('id')),
         defaults={
             'numero': o.get('name', ''),
+            'utm_source': utm['utm_source'],
+            'utm_campaign': utm['utm_campaign'],
+            'utm_content': utm['utm_content'],
+            'ad_id_origen': utm['ad_id_origen'],
             'nombre_cliente': nombre,
             'telefono': estandar_o_nota(o.get('phone') or envio.get('phone') or cliente.get('phone'), 'Celular', 'Teléfono'),
             'email': o.get('email') or o.get('contact_email') or cliente.get('email') or '',
@@ -246,18 +320,23 @@ def _guardar_pedido_shopify(integ, o):
         },
     )
 
-    # Productos: reemplazamos los items por los actuales del pedido
+    # Productos: reemplazamos los items por los actuales del pedido (vinculando al
+    # catálogo canónico vía ProductoAlias cuando se reconoce).
     pedido.items.all().delete()
     for li in o.get('line_items') or []:
+        nombre_item = li.get('title') or li.get('name') or ''
+        sku_item = li.get('sku') or ''
+        product_id = str(li.get('product_id') or '')
         PedidoItem.objects.create(
             pedido=pedido,
-            nombre=li.get('title') or li.get('name') or '',
+            producto=_resolver_producto(integ, nombre_item, sku_item, product_id),
+            nombre=nombre_item,
             variante=li.get('variant_title') or '',
-            sku=li.get('sku') or '',
+            sku=sku_item,
             cantidad=li.get('quantity') or 1,
             precio=li.get('price') or 0,
             vendor=li.get('vendor') or '',
-            product_id=str(li.get('product_id') or ''),
+            product_id=product_id,
             variant_id=str(li.get('variant_id') or ''),
         )
 

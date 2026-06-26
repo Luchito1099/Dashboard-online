@@ -17,6 +17,29 @@ def _es_analista(user):
     return hasattr(user, 'perfil') and user.perfil.rol == 'analista'
 
 
+def _es_marketing(user):
+    """True si el usuario tiene rol 'marketing' (Analista de Marketing)."""
+    return hasattr(user, 'perfil') and user.perfil.rol == 'marketing'
+
+
+# ── Permisos del módulo Publicidad (Meta Ads) ──
+
+def puede_ver_ads(user):
+    """Acceso a los dashboards de Publicidad. Admin y marketing."""
+    return _es_admin(user) or _es_marketing(user)
+
+
+def puede_matching(user):
+    """Puede hacer matching producto↔anuncio. Admin y marketing."""
+    return _es_admin(user) or _es_marketing(user)
+
+
+def puede_admin_ads(user):
+    """Administración de Publicidad (cuentas, marcar qué se extrae, umbrales de alerta).
+    Solo admin (el marketing NO controla qué campañas entran ni ve costos)."""
+    return _es_admin(user)
+
+
 def puede_ver(user, flag):
     """True si el usuario puede ver el módulo. Admin siempre; vendedor según el flag
     (atributo de ConfiguracionSistema, ej. 'vendedor_puede_ver_inicio')."""
@@ -87,6 +110,10 @@ def destino_vendedor(user):
     devuelve la página 'sin acceso'."""
     if _es_admin(user):
         return reverse('core:home')
+
+    # El analista de marketing aterriza en su módulo de Publicidad.
+    if _es_marketing(user):
+        return reverse('anuncios:dashboard')
 
     cfg = ConfiguracionSistema.get_solo()
     if cfg.vendedor_puede_ver_inicio:

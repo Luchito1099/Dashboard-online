@@ -74,6 +74,15 @@
     </a>
     {% endif %}
 
+    {% if puede_ver_ads %}
+    <a href="{% url 'anuncios:dashboard' %}" class="nav-item {% block nav_publicidad %}{% endblock %}">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <path d="M3 11l18-5v12L3 14v-3zM11.6 16.8a3 3 0 11-5.8-1.6"/>
+      </svg>
+      <span class="nav-label">Publicidad</span>
+    </a>
+    {% endif %}
+
     <div class="nav-section-label">Herramientas</div>
     <a href="{% url 'rotulador:index' %}" class="nav-item {% block nav_rotulador %}{% endblock %}">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">

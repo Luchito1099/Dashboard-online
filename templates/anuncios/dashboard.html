@@ -1,0 +1,108 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% comment %} templates/anuncios/dashboard.html — Publicidad: real vs. Meta {% endcomment %}
+
+{% block title %}Publicidad · KLYNEA{% endblock %}
+{% block nav_publicidad %}active{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'core/css/integraciones.css' %}">
+<link rel="stylesheet" href="{% static 'core/css/anuncios.css' %}">
+{% endblock %}
+
+{% block breadcrumb %}<span>›</span><span>Publicidad</span>{% endblock %}
+
+{% block content %}
+<div class="pedidos-mod">
+
+  <div class="integ-header" style="display:flex;justify-content:space-between;align-items:flex-end;">
+    <div>
+      <h2 class="integ-title">Publicidad · real vs. Meta</h2>
+      <p class="integ-subtitle">Gasto en Meta cruzado con tus pedidos confirmados y entregados.</p>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <a href="{% url 'anuncios:matching' %}" class="btn-probar">🔗 Matching{% if pendientes %} <span class="ads-badge">{{ pendientes }}</span>{% endif %}</a>
+      {% if es_admin_ads %}<a href="{% url 'anuncios:ajustes' %}" class="btn-probar">⚙️ Ajustes</a>{% endif %}
+    </div>
+  </div>
+
+  {# ── Sub-pestañas ── #}
+  {% with qs="&tienda="|add:f_tienda|add:"&desde="|add:f_desde|add:"&hasta="|add:f_hasta %}
+  <div class="ped-subtabs">
+    <a href="?vista=diario{{ qs }}" class="ped-subtab {% if vista == 'diario' %}active{% endif %}">📈 Diario</a>
+    <a href="?vista=productos{{ qs }}" class="ped-subtab {% if vista == 'productos' %}active{% endif %}">📦 Por producto</a>
+    <a href="?vista=heatmap{{ qs }}" class="ped-subtab {% if vista == 'heatmap' %}active{% endif %}">🗓️ Heatmap</a>
+  </div>
+  {% endwith %}
+
+  {# ── Filtros ── #}
+  <form method="get" class="ped-filtros">
+    <input type="hidden" name="vista" value="{{ vista }}">
+    <select name="tienda" onchange="this.form.submit()">
+      <option value="">Todas las tiendas</option>
+      {% for t in tiendas %}
+      <option value="{{ t.id }}" {% if f_tienda == t.id|stringformat:"s" %}selected{% endif %}>{{ t.nombre }}</option>
+      {% endfor %}
+    </select>
+    <div class="ped-fechas">
+      <label>Desde <input type="date" name="desde" value="{{ f_desde }}" onchange="this.form.submit()"></label>
+      <label>Hasta <input type="date" name="hasta" value="{{ f_hasta }}" onchange="this.form.submit()"></label>
+    </div>
+  </form>
+
+  {% if vista == 'productos' %}
+    {% include 'anuncios/_tab_productos.html' %}
+  {% elif vista == 'heatmap' %}
+    {% include 'anuncios/_tab_heatmap.html' %}
+  {% else %}
+    {# ── Diario ── #}
+    <div class="ped-kpis" style="grid-template-columns:repeat(3,1fr);">
+      <div class="ped-kpi"><div class="ped-kpi-num naranja">S/ {{ tot_gasto }}</div><div class="ped-kpi-label">Gasto Meta</div><div class="ped-kpi-sub">en el rango</div></div>
+      <div class="ped-kpi"><div class="ped-kpi-num verde">{{ tot_conf }}</div><div class="ped-kpi-label">Confirmados reales</div><div class="ped-kpi-sub">eventos del periodo</div></div>
+      <div class="ped-kpi"><div class="ped-kpi-num">{{ tot_entr }}</div><div class="ped-kpi-label">Entregados reales</div><div class="ped-kpi-sub">eventos del periodo</div></div>
+    </div>
+    <div class="av-card av-card-wide">
+      <div class="av-card-title">Gasto Meta vs. confirmados vs. entregados (por día)</div>
+      <canvas id="adsChart" height="90"></canvas>
+    </div>
+    {{ serie_json|json_script:"serieData" }}
+  {% endif %}
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{% if vista == 'diario' %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<script>
+(function () {
+  var serie = JSON.parse(document.getElementById('serieData').textContent);
+  var ctx = document.getElementById('adsChart');
+  if (!ctx || !window.Chart) return;
+  new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: serie.map(function (s) { return s.fecha; }),
+      datasets: [
+        { label: 'Gasto Meta (S/)', data: serie.map(function (s) { return s.gasto; }),
+          borderColor: '#e8833a', backgroundColor: 'rgba(232,131,58,.1)', yAxisID: 'y', tension: .3 },
+        { label: 'Confirmados', data: serie.map(function (s) { return s.confirmados; }),
+          borderColor: '#22a06b', yAxisID: 'y1', tension: .3 },
+        { label: 'Entregados', data: serie.map(function (s) { return s.entregados; }),
+          borderColor: '#3b82f6', yAxisID: 'y1', tension: .3 },
+      ],
+    },
+    options: {
+      responsive: true, interaction: { mode: 'index', intersect: false },
+      scales: {
+        y: { type: 'linear', position: 'left', title: { display: true, text: 'Gasto S/' } },
+        y1: { type: 'linear', position: 'right', title: { display: true, text: 'Pedidos' },
+              grid: { drawOnChartArea: false }, beginAtZero: true },
+      },
+    },
+  });
+})();
+</script>
+{% endif %}
+{% endblock %}

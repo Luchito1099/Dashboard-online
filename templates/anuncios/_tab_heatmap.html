@@ -1,0 +1,14 @@
+{% comment %} Heatmap día de semana x hora: gasto Meta vs. confirmaciones reales {% endcomment %}
+
+<div class="av-card av-card-wide">
+  <div class="av-card-title">💸 Gasto de Meta por hora y día <span class="ads-nota-inline">(total S/ {{ hm.total_gasto }})</span></div>
+  {% include 'anuncios/_heatmap_grid.html' with filas=hm.filas_gasto horas=hm.horas clase='gasto' %}
+</div>
+
+<div class="av-card av-card-wide" style="margin-top:14px;">
+  <div class="av-card-title">✅ Confirmaciones reales por hora y día <span class="ads-nota-inline">(total {{ hm.total_conf }})</span></div>
+  {% include 'anuncios/_heatmap_grid.html' with filas=hm.filas_conf horas=hm.horas clase='conf' %}
+</div>
+
+<p class="ads-nota">Compara dónde se gasta (arriba) contra dónde realmente se confirma (abajo) para
+encontrar el horario que mejor convierte, no solo el de más gasto.</p>

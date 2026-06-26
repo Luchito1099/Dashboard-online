@@ -1,0 +1,83 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% comment %} templates/anuncios/ajustes.html — Cuentas, qué se extrae y umbral de alerta (admin) {% endcomment %}
+
+{% block title %}Ajustes Publicidad · KLYNEA{% endblock %}
+{% block nav_publicidad %}active{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'core/css/integraciones.css' %}">
+<link rel="stylesheet" href="{% static 'core/css/anuncios.css' %}">
+{% endblock %}
+
+{% block breadcrumb %}<span>›</span><a href="{% url 'anuncios:dashboard' %}">Publicidad</a><span>›</span><span>Ajustes</span>{% endblock %}
+
+{% block content %}
+<div class="pedidos-mod">
+  <div class="integ-header"><h2 class="integ-title">Ajustes de Publicidad</h2></div>
+
+  {# ── Cuentas publicitarias ── #}
+  <div class="av-card av-card-wide">
+    <div class="av-card-title">Cuentas publicitarias</div>
+    <table class="ped-tabla">
+      <thead><tr><th>Nombre</th><th>ad_account_id</th><th>Tienda</th><th>Activa</th></tr></thead>
+      <tbody>
+        {% for c in cuentas %}
+        <tr><td>{{ c.nombre }}</td><td>{{ c.ad_account_id }}</td>
+          <td>{{ c.integracion.nombre|default:"—" }}</td><td>{% if c.activo %}Sí{% else %}No{% endif %}</td></tr>
+        {% empty %}<tr><td colspan="4" class="integ-vacio-cell">Aún no hay cuentas.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+    <form method="post" class="ads-cuenta-form">
+      {% csrf_token %}
+      <input type="hidden" name="accion" value="crear_cuenta">
+      <input type="text" name="ad_account_id" placeholder="act_123456" required>
+      <input type="text" name="nombre" placeholder="Nombre (ej. KLYNEA PE)" required>
+      <select name="integracion">
+        <option value="">— Tienda asociada —</option>
+        {% for t in tiendas %}<option value="{{ t.id }}">{{ t.nombre }}</option>{% endfor %}
+      </select>
+      <button type="submit" class="btn-guardar">+ Guardar cuenta</button>
+    </form>
+  </div>
+
+  {# ── Qué anuncios se extraen ── #}
+  <div class="av-card av-card-wide" style="margin-top:14px;">
+    <div class="av-card-title">¿Qué anuncios entran al pipeline? <span class="ads-nota-inline">(marca y guarda; los no marcados se descartan al llegar)</span></div>
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="accion" value="toggle_extraccion">
+      <div class="ads-extraccion">
+        {% for a in anuncios %}
+        <label class="ads-extraccion-item">
+          <input type="checkbox" name="incluir" value="{{ a.id }}" {% if a.incluir_en_extraccion %}checked{% endif %}>
+          <span class="ads-ad-nombre">{{ a.ad_name|default:a.adset_name|default:a.campaign_name|default:a.ad_id }}</span>
+          <span class="ads-ad-meta">{{ a.campaign_name }} · {{ a.cuenta.nombre }}</span>
+        </label>
+        {% empty %}<div class="integ-vacio">No han llegado anuncios todavía (esperando el webhook de n8n).</div>{% endfor %}
+      </div>
+      {% if anuncios %}<button type="submit" class="btn-guardar" style="margin-top:12px;">Guardar selección</button>{% endif %}
+    </form>
+  </div>
+
+  {# ── Umbral de alerta ── #}
+  <div class="av-card av-card-wide" style="margin-top:14px;">
+    <div class="av-card-title">Alerta de CPA real alto (→ Telegram vía n8n)</div>
+    <form method="post" class="ads-umbral-form">
+      {% csrf_token %}
+      <input type="hidden" name="accion" value="guardar_umbral">
+      <label class="reg-field"><span>CPA real máximo (S/)</span>
+        <input type="text" name="cpa_max" value="{{ umbral.cpa_max|floatformat:2 }}"></label>
+      <label class="reg-field"><span>Días consecutivos</span>
+        <input type="number" min="1" name="dias_consecutivos" value="{{ umbral.dias_consecutivos }}"></label>
+      <label class="reg-field" style="flex:1;"><span>Webhook de n8n (Telegram)</span>
+        <input type="text" name="n8n_webhook_url" value="{{ umbral.n8n_webhook_url }}" placeholder="https://n8n.tu-dominio/webhook/alerta-ads"></label>
+      <label class="ha-check"><input type="checkbox" name="activo" {% if umbral.activo %}checked{% endif %}> Activa</label>
+      <button type="submit" class="btn-guardar">Guardar umbral</button>
+    </form>
+    <p class="ads-nota">El comando <code>python manage.py alertas_ads</code> (prográmalo en cron/n8n) evalúa
+    el CPA real y dispara el webhook cuando se supera el umbral los días configurados.</p>
+  </div>
+</div>
+{% endblock %}

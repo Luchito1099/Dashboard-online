@@ -1,0 +1,73 @@
+/* core/static/core/css/anuncios.css — Módulo Publicidad (Meta Ads) */
+
+.ads-badge {
+  display: inline-block; min-width: 16px; text-align: center; padding: 0 5px; border-radius: 100px;
+  background: var(--error); color: #fff; font-size: 11px; font-weight: 700;
+}
+.ads-nota { font-size: 12px; color: var(--muted); margin-top: 10px; }
+.ads-nota-inline { font-size: 12px; font-weight: 400; color: var(--muted); }
+.ads-caida { font-size: 11px; color: var(--error); font-weight: 600; }
+.ads-roas { font-weight: 700; padding: 2px 8px; border-radius: 6px; }
+.ads-roas.ok { background: oklch(62% 0.18 145 / .14); color: oklch(45% 0.18 145); }
+.ads-roas.bad { background: oklch(60% 0.2 25 / .14); color: oklch(48% 0.2 25); }
+
+/* ── Matching ── */
+.match-card {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 14px 16px; margin-bottom: 12px; box-shadow: var(--shadow);
+  display: grid; grid-template-columns: 1.2fr 2fr auto; gap: 16px; align-items: center;
+}
+.match-ad-nombre { font-size: 14px; font-weight: 700; color: var(--text); }
+.match-ad-meta { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.match-sugerencias { display: flex; flex-wrap: wrap; gap: 8px; }
+.match-sug-form { display: inline; }
+.match-sug {
+  border: 1px solid var(--primary); background: var(--primary-bg); color: var(--primary-dark);
+  border-radius: 8px; padding: 7px 11px; font-size: 12.5px; font-weight: 600; cursor: pointer; font-family: inherit;
+}
+.match-sug:hover { background: var(--primary); color: #fff; }
+.match-score { font-weight: 800; opacity: .8; }
+.match-manual { display: flex; gap: 8px; align-items: center; }
+.match-manual select {
+  padding: 8px 10px; border: 1px solid var(--border-dark); border-radius: 8px;
+  font-size: 13px; font-family: inherit; background: var(--surface); color: var(--text); max-width: 220px;
+}
+
+/* ── Ajustes ── */
+.ads-cuenta-form, .ads-umbral-form { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; margin-top: 12px; }
+.ads-cuenta-form input, .ads-cuenta-form select {
+  padding: 8px 10px; border: 1px solid var(--border-dark); border-radius: 8px;
+  font-size: 13px; font-family: inherit; background: var(--surface); color: var(--text);
+}
+.ads-extraccion { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 8px; }
+.ads-extraccion-item {
+  display: flex; align-items: baseline; gap: 8px; padding: 8px 10px; border: 1px solid var(--border);
+  border-radius: 8px; background: var(--bg); cursor: pointer; flex-wrap: wrap;
+}
+.ads-ad-nombre { font-size: 13px; font-weight: 600; color: var(--text); }
+.ads-ad-meta { font-size: 11px; color: var(--muted); width: 100%; }
+
+/* ── Heatmap ── */
+.hm-wrap { overflow-x: auto; }
+.hm-grid { border-collapse: collapse; }
+.hm-grid th { font-size: 10px; color: var(--muted); font-weight: 600; }
+.hm-h { width: 22px; text-align: center; }
+.hm-dia { text-align: right; padding-right: 8px; font-size: 11px; color: var(--text-secondary); }
+.hm-corner { width: 34px; }
+.hm-cell { width: 22px; height: 22px; border-radius: 4px; border: 1px solid var(--surface); background: var(--bg); }
+/* niveles de gasto (naranja) */
+.hm-gasto-1 { background: oklch(85% 0.06 55); }
+.hm-gasto-2 { background: oklch(78% 0.10 55); }
+.hm-gasto-3 { background: oklch(72% 0.14 55); }
+.hm-gasto-4 { background: oklch(66% 0.17 55); }
+.hm-gasto-5 { background: oklch(60% 0.19 55); }
+/* niveles de confirmaciones (verde) */
+.hm-conf-1 { background: oklch(88% 0.06 145); }
+.hm-conf-2 { background: oklch(80% 0.10 145); }
+.hm-conf-3 { background: oklch(72% 0.14 145); }
+.hm-conf-4 { background: oklch(64% 0.17 145); }
+.hm-conf-5 { background: oklch(56% 0.18 145); }
+
+@media (max-width: 700px) {
+  .match-card { grid-template-columns: 1fr; }
+}

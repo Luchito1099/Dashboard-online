@@ -1,0 +1,36 @@
+{% comment %} Tabla por producto: embudo, CPA real y ROAS real {% endcomment %}
+<div class="ped-tabla-wrap">
+  <table class="ped-tabla">
+    <thead>
+      <tr>
+        <th>Producto</th><th class="ped-num">Gasto</th><th class="ped-num">Meta dice</th>
+        <th class="ped-num">Confirmados</th><th class="ped-num">Entregados</th>
+        <th class="ped-num">% caída</th><th class="ped-num">CPA real</th><th class="ped-num">ROAS real</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for f in filas %}
+      <tr>
+        <td>
+          <div class="ped-cliente-nombre">{{ f.producto.nombre }}</div>
+          <div class="ped-editado-fecha">{{ f.n_anuncios }} anuncio(s)</div>
+        </td>
+        <td class="ped-num">S/ {{ f.gasto|floatformat:2 }}</td>
+        <td class="ped-num">{{ f.meta_atribuidos }}</td>
+        <td class="ped-num">{{ f.confirmados }}{% if f.caida_conf != None %} <span class="ads-caida">↓{{ f.caida_conf }}%</span>{% endif %}</td>
+        <td class="ped-num">{{ f.entregados }}{% if f.caida_entr != None %} <span class="ads-caida">↓{{ f.caida_entr }}%</span>{% endif %}</td>
+        <td class="ped-num">
+          {% if f.caida_conf != None %}{{ f.caida_conf }}% / {% endif %}{% if f.caida_entr != None %}{{ f.caida_entr }}%{% else %}—{% endif %}
+        </td>
+        <td class="ped-num">{% if f.cpa_real != None %}S/ {{ f.cpa_real }}{% else %}—{% endif %}</td>
+        <td class="ped-num">
+          {% if f.roas_real != None %}<span class="ads-roas {% if f.roas_real >= 1 %}ok{% else %}bad{% endif %}">{{ f.roas_real }}x</span>{% else %}—{% endif %}
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="8" class="integ-vacio-cell">No hay productos con anuncios casados todavía. Ve a «Matching».</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+<p class="ads-nota">CPA real = gasto ÷ entregados (no por clicks). ROAS real = ingreso de entregados ÷ gasto. Ordenado por ROAS real.</p>

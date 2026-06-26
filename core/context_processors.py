@@ -27,6 +27,7 @@ def runbook(request):
     # Próxima tarea = primera tarea activa del día que aún no está completada
     proxima = tareas.exclude(id__in=completadas).first()
 
+    from .permisos import puede_ver_ads
     return {
         'rb_total': total,
         'rb_done': done,
@@ -34,4 +35,6 @@ def runbook(request):
         'puede_editar': es_admin(request.user),
         # Permisos del rol vendedor, disponibles en toda plantilla para ocultar UI
         'cfg': ConfiguracionSistema.get_solo(),
+        # Acceso al módulo Publicidad (admin o marketing), para el sidebar
+        'puede_ver_ads': puede_ver_ads(request.user),
     }

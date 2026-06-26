@@ -1,0 +1,21 @@
+{% comment %} Grilla reutilizable del heatmap (filas=día, columnas=hora 0-23) {% endcomment %}
+<div class="hm-wrap">
+  <table class="hm-grid">
+    <thead>
+      <tr>
+        <th class="hm-corner"></th>
+        {% for h in horas %}<th class="hm-h">{{ h }}</th>{% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for fila in filas %}
+      <tr>
+        <th class="hm-dia">{{ fila.dia }}</th>
+        {% for c in fila.celdas %}
+        <td class="hm-cell hm-{{ clase }}-{{ c.nivel }}" title="{{ fila.dia }} {{ forloop.counter0 }}h: {{ c.val }}"></td>
+        {% endfor %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
