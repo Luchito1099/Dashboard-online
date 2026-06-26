@@ -67,6 +67,37 @@
       <canvas id="adsChart" height="90"></canvas>
     </div>
     {{ serie_json|json_script:"serieData" }}
+
+    {# ── Resumen por campaña (cifras de Meta) ── #}
+    <div class="av-card av-card-wide" style="margin-top:14px;">
+      <div class="av-card-title">📁 Resumen por campaña</div>
+      <div class="ped-tabla-wrap">
+        <table class="ped-tabla">
+          <thead>
+            <tr><th>Campaña</th><th class="ped-num">Anuncios</th><th class="ped-num">Gasto</th>
+              <th class="ped-num">Impresiones</th><th class="ped-num">Clicks</th>
+              <th class="ped-num">Resultados</th><th class="ped-num">CPC</th><th class="ped-num">Costo/result.</th></tr>
+          </thead>
+          <tbody>
+            {% for c in campanas %}
+            <tr>
+              <td>{{ c.campaign_name }}</td>
+              <td class="ped-num">{{ c.n_anuncios }}</td>
+              <td class="ped-num">S/ {{ c.gasto|floatformat:2 }}</td>
+              <td class="ped-num">{{ c.impresiones }}</td>
+              <td class="ped-num">{{ c.clicks }}</td>
+              <td class="ped-num">{{ c.resultados }}</td>
+              <td class="ped-num">{% if c.cpc != None %}S/ {{ c.cpc }}{% else %}—{% endif %}</td>
+              <td class="ped-num">{% if c.cpr != None %}S/ {{ c.cpr }}{% else %}—{% endif %}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="8" class="integ-vacio-cell">Sin gasto en el rango. Sincroniza una cuenta en Ajustes.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <p class="ads-nota">Cifras que reporta Meta (no atribución real). El costo por resultado es el de Meta, no el CPA real de entregados (ese está en «Por producto»).</p>
+    </div>
   {% endif %}
 
 </div>

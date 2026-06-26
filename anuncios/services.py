@@ -216,6 +216,38 @@ def tabla_productos(fecha_ini, fecha_fin, integracion_id=None):
     return filas
 
 
+def tabla_campanas(fecha_ini, fecha_fin, integracion_id=None):
+    """Agrupa el gasto y las métricas de Meta por CAMPAÑA (suma de sus anuncios incluidos).
+    No requiere atribución de pedidos: son las cifras que reporta Meta."""
+    qs = InsightDiarioMeta.objects.filter(
+        campana__incluir_en_extraccion=True, fecha__range=(fecha_ini, fecha_fin))
+    if integracion_id:
+        qs = qs.filter(campana__cuenta__integracion_id=integracion_id)
+
+    rows = (qs.order_by()
+            .values('campana__campaign_id', 'campana__campaign_name')
+            .annotate(gasto=Sum('gasto'), impresiones=Sum('impresiones'),
+                      clicks=Sum('clicks'), resultados=Sum('resultados'),
+                      n_anuncios=Count('campana', distinct=True)))
+    filas = []
+    for r in rows:
+        gasto = float(r['gasto'] or 0)
+        clicks = int(r['clicks'] or 0)
+        impresiones = int(r['impresiones'] or 0)
+        resultados = int(r['resultados'] or 0)
+        filas.append({
+            'campaign_id': r['campana__campaign_id'],
+            'campaign_name': r['campana__campaign_name'] or '(sin nombre)',
+            'gasto': round(gasto, 2), 'impresiones': impresiones, 'clicks': clicks,
+            'resultados': resultados, 'n_anuncios': r['n_anuncios'],
+            'cpc': round(gasto / clicks, 2) if clicks else None,
+            'cpm': round(gasto / impresiones * 1000, 2) if impresiones else None,
+            'cpr': round(gasto / resultados, 2) if resultados else None,   # costo por resultado (Meta)
+        })
+    filas.sort(key=lambda f: -f['gasto'])
+    return filas
+
+
 _DIAS_SEMANA = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
 
 

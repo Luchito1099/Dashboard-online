@@ -21,12 +21,17 @@
       Confirma una sugerencia o elige el producto a mano. Queda guardado permanentemente.</p>
   </div>
 
-  {% for it in items %}
+  {% regroup items by campana.campaign_name as grupos %}
+  {% for g in grupos %}
+  <div class="ads-campana-head match-camp-head">📁 {{ g.grouper|default:"(sin campaña)" }}
+    <span class="ads-nota-inline">· {{ g.list|length }} pendiente(s)</span></div>
+  {% for it in g.list %}
   <div class="match-card">
     <div class="match-ad">
       <div class="match-ad-nombre">{{ it.texto }}</div>
-      <div class="match-ad-meta">{{ it.campana.campaign_name }} · {{ it.campana.cuenta.nombre }}
-        {% if it.campana.cuenta.integracion %}· {{ it.campana.cuenta.integracion.nombre }}{% endif %}</div>
+      <div class="match-ad-meta">{{ it.campana.cuenta.nombre }}
+        {% if it.campana.cuenta.integracion %}· {{ it.campana.cuenta.integracion.nombre }}{% endif %}
+        {% if it.campana.etiqueta %}· 🏷️ {{ it.campana.etiqueta }}{% endif %}</div>
     </div>
 
     <div class="match-sugerencias">
@@ -57,8 +62,9 @@
       <button type="submit" class="btn-guardar">Asignar</button>
     </form>
   </div>
+  {% endfor %}{# fin anuncios de la campaña #}
   {% empty %}
   <div class="integ-vacio">No hay anuncios pendientes de matching. Todo lo marcado para extracción ya tiene producto. 🎉</div>
-  {% endfor %}
+  {% endfor %}{# fin campañas #}
 </div>
 {% endblock %}

@@ -73,6 +73,8 @@ class CampanaMeta(models.Model):
     # Se descarga TODO siempre. Este flag es un filtro de ANÁLISIS: si está en True,
     # el anuncio entra a los dashboards/tablas. Por defecto True (todos incluidos).
     incluir_en_extraccion = models.BooleanField(default=True)
+    # Etiqueta libre para organizar/agrupar anuncios (ej. "Mensajes", "Producto X", "Test")
+    etiqueta = models.CharField(max_length=60, blank=True)
 
     primero_visto = models.DateTimeField(auto_now_add=True)
     actualizado = models.DateTimeField(auto_now=True)

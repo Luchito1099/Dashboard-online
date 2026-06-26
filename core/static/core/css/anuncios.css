@@ -43,7 +43,22 @@
   font-size: 13px; font-family: inherit; background: var(--surface); color: var(--text);
 }
 .ads-extraccion-acciones { display: flex; gap: 8px; margin-bottom: 10px; }
-.ads-extraccion { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 8px; }
+.ads-extraccion { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 8px; }
+
+/* Agrupación por campaña */
+.ads-campana { border: 1px solid var(--border); border-radius: 10px; margin-bottom: 10px; overflow: hidden; }
+.ads-campana-head { background: var(--bg); padding: 9px 12px; border-bottom: 1px solid var(--border); }
+.ads-campana-titulo { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; color: var(--text); cursor: pointer; }
+.ads-campana .ads-extraccion { padding: 10px; }
+.ads-extraccion-item { display: flex; align-items: center; gap: 8px; padding: 7px 9px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
+.ads-ad-check { display: flex; align-items: center; gap: 7px; flex: 1; cursor: pointer; min-width: 0; }
+.ads-ad-check .ads-ad-nombre { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ads-etiqueta {
+  width: 110px; flex-shrink: 0; padding: 5px 7px; font-size: 12px; border: 1px solid var(--border-dark);
+  border-radius: 6px; background: var(--bg); color: var(--text); font-family: inherit;
+}
+.ads-etiqueta:focus { outline: none; border-color: var(--primary); background: var(--surface); }
+.match-camp-head { border-radius: 8px; margin: 14px 0 8px; }
 .ads-extraccion-item {
   display: flex; align-items: baseline; gap: 8px; padding: 8px 10px; border: 1px solid var(--border);
   border-radius: 8px; background: var(--bg); cursor: pointer; flex-wrap: wrap;

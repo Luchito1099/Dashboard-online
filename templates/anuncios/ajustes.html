@@ -86,16 +86,33 @@
         <button type="button" class="btn-probar" id="selNinguno">Ninguno</button>
       </div>
       {% endif %}
-      <div class="ads-extraccion">
-        {% for a in anuncios %}
-        <label class="ads-extraccion-item">
-          <input type="checkbox" name="incluir" value="{{ a.id }}" {% if a.incluir_en_extraccion %}checked{% endif %}>
-          <span class="ads-ad-nombre">{{ a.ad_name|default:a.adset_name|default:a.campaign_name|default:a.ad_id }}</span>
-          <span class="ads-ad-meta">{{ a.campaign_name }} · {{ a.cuenta.nombre }}</span>
-        </label>
-        {% empty %}<div class="integ-vacio">No han llegado anuncios todavía. Sincroniza una cuenta arriba.</div>{% endfor %}
+
+      {# Agrupado por campaña #}
+      {% regroup anuncios by campaign_name as grupos %}
+      {% for g in grupos %}
+      <div class="ads-campana">
+        <div class="ads-campana-head">
+          <label class="ads-campana-titulo">
+            <input type="checkbox" class="js-camp-all" data-camp="{{ forloop.counter }}">
+            📁 {{ g.grouper|default:"(sin campaña)" }}
+            <span class="ads-nota-inline">· {{ g.list|length }} anuncio(s)</span>
+          </label>
+        </div>
+        <div class="ads-extraccion">
+          {% for a in g.list %}
+          <div class="ads-extraccion-item">
+            <label class="ads-ad-check">
+              <input type="checkbox" name="incluir" value="{{ a.id }}" class="js-ad" data-camp="{{ forloop.parentloop.counter }}" {% if a.incluir_en_extraccion %}checked{% endif %}>
+              <span class="ads-ad-nombre">{{ a.ad_name|default:a.adset_name|default:a.ad_id }}</span>
+            </label>
+            <input type="text" name="etiqueta_{{ a.id }}" value="{{ a.etiqueta }}" placeholder="🏷️ etiqueta" class="ads-etiqueta" maxlength="60">
+          </div>
+          {% endfor %}
+        </div>
       </div>
-      {% if anuncios %}<button type="submit" class="btn-guardar" style="margin-top:12px;">Guardar selección</button>{% endif %}
+      {% empty %}<div class="integ-vacio">No han llegado anuncios todavía. Sincroniza una cuenta arriba.</div>{% endfor %}
+
+      {% if anuncios %}<button type="submit" class="btn-guardar" style="margin-top:12px;">Guardar selección y etiquetas</button>{% endif %}
     </form>
   </div>
 
@@ -126,10 +143,19 @@
   var todos = document.getElementById('selTodos');
   var ninguno = document.getElementById('selNinguno');
   function marcar(v) {
-    document.querySelectorAll('#formExtraccion input[name="incluir"]').forEach(function (ch) { ch.checked = v; });
+    document.querySelectorAll('#formExtraccion input.js-ad').forEach(function (ch) { ch.checked = v; });
+    document.querySelectorAll('#formExtraccion input.js-camp-all').forEach(function (ch) { ch.checked = v; });
   }
   if (todos) todos.addEventListener('click', function () { marcar(true); });
   if (ninguno) ninguno.addEventListener('click', function () { marcar(false); });
+
+  // Marcar/desmarcar toda una campaña
+  document.querySelectorAll('#formExtraccion input.js-camp-all').forEach(function (cab) {
+    cab.addEventListener('change', function () {
+      document.querySelectorAll('#formExtraccion input.js-ad[data-camp="' + cab.dataset.camp + '"]')
+        .forEach(function (ch) { ch.checked = cab.checked; });
+    });
+  });
 })();
 </script>
 {% endblock %}

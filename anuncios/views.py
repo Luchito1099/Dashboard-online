@@ -100,6 +100,7 @@ def dashboard(request):
         ctx['tot_gasto'] = round(sum(s['gasto'] for s in serie), 2)
         ctx['tot_conf'] = sum(s['confirmados'] for s in serie)
         ctx['tot_entr'] = sum(s['entregados'] for s in serie)
+        ctx['campanas'] = services.tabla_campanas(desde, hasta, integracion_id)
 
     # contador de matching pendiente (para el badge)
     ctx['pendientes'] = (CampanaMeta.objects.filter(incluir_en_extraccion=True, match__isnull=True)
@@ -211,7 +212,13 @@ def ajustes(request):
             CampanaMeta.objects.update(incluir_en_extraccion=False)
             if ids:
                 CampanaMeta.objects.filter(id__in=ids).update(incluir_en_extraccion=True)
-            messages.success(request, 'Anuncios a extraer actualizados.')
+            # Etiquetas por anuncio (campos etiqueta_<id>)
+            for clave, valor in request.POST.items():
+                if clave.startswith('etiqueta_'):
+                    cid = clave[len('etiqueta_'):]
+                    if cid.isdigit():
+                        CampanaMeta.objects.filter(id=cid).update(etiqueta=valor.strip()[:60])
+            messages.success(request, 'Anuncios actualizados (selección y etiquetas).')
 
         elif accion == 'guardar_umbral':
             from decimal import Decimal, InvalidOperation
@@ -229,8 +236,9 @@ def ajustes(request):
         return redirect('anuncios:ajustes')
 
     cuentas = CuentaPublicitaria.objects.select_related('integracion').all()
+    # Ordenado por campaña para agrupar con {% regroup %} en la plantilla
     anuncios = (CampanaMeta.objects.select_related('cuenta')
-                .order_by('cuenta__nombre', 'campaign_name', 'adset_name', 'ad_name'))
+                .order_by('campaign_name', 'adset_name', 'ad_name'))
     context = {
         'cuentas': cuentas,
         'anuncios': anuncios,
