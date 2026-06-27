@@ -3,7 +3,7 @@
 
 {% comment %} templates/anuncios/ajustes.html — Cuentas, qué se extrae y umbral de alerta (admin) {% endcomment %}
 
-{% block title %}Ajustes Publicidad · KLYNEA{% endblock %}
+{% block title %}Ajustes Publicidad · Dashboard{% endblock %}
 {% block nav_publicidad %}active{% endblock %}
 
 {% block extra_css %}
@@ -58,7 +58,7 @@
       {% csrf_token %}
       <input type="hidden" name="accion" value="crear_cuenta">
       <input type="text" name="ad_account_id" placeholder="act_123456789" required>
-      <input type="text" name="nombre" placeholder="Nombre (ej. KLYNEA PE)" required>
+      <input type="text" name="nombre" placeholder="Nombre (ej. Dashboard PE)" required>
       <select name="integracion">
         <option value="">— Tienda asociada —</option>
         {% for t in tiendas %}<option value="{{ t.id }}">{{ t.nombre }}</option>{% endfor %}

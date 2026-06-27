@@ -1,5 +1,5 @@
 # productos/management/commands/seed_productos.py
-"""Carga productos reales de KLYNEA (cuidado personal / ortopédicos) con objeciones,
+"""Carga productos reales de Dashboard (cuidado personal / ortopédicos) con objeciones,
 enlaces web múltiples y material compartible (imágenes/videos).
 Uso:  python manage.py seed_productos
 """
@@ -31,10 +31,10 @@ PRODUCTOS = [
         ],
         "imagen_url": _img("Removedor+de+callos"),
         "video_url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-        "link_pago": "https://pago.klynea.example/callos",
+        "link_pago": "https://pago.dashboard.example/callos",
         "links": [
-            ("Página principal", "https://klynea.example/removedor-callos"),
-            ("Landing de oferta", "https://klynea.example/oferta/callos"),
+            ("Página principal", "https://dashboard.example/removedor-callos"),
+            ("Landing de oferta", "https://dashboard.example/oferta/callos"),
         ],
         "medios": [
             ("imagen", _img("Callos+frente"), "Foto de frente"),
@@ -67,9 +67,9 @@ PRODUCTOS = [
         ],
         "imagen_url": _img("Rodillera+ortopedica"),
         "video_url": "",
-        "link_pago": "https://pago.klynea.example/rodillera",
+        "link_pago": "https://pago.dashboard.example/rodillera",
         "links": [
-            ("Página principal", "https://klynea.example/rodillera"),
+            ("Página principal", "https://dashboard.example/rodillera"),
         ],
         "medios": [
             ("imagen", _img("Rodillera+frente"), "Foto de frente"),
@@ -102,9 +102,9 @@ PRODUCTOS = [
         ],
         "imagen_url": _img("Tobillera+compresion"),
         "video_url": "",
-        "link_pago": "https://pago.klynea.example/tobillera",
+        "link_pago": "https://pago.dashboard.example/tobillera",
         "links": [
-            ("Página principal", "https://klynea.example/tobillera"),
+            ("Página principal", "https://dashboard.example/tobillera"),
         ],
         "medios": [
             ("imagen", _img("Tobillera+frente"), "Foto de frente"),
@@ -134,10 +134,10 @@ PRODUCTOS = [
         ],
         "imagen_url": _img("Faja+lumbar"),
         "video_url": "",
-        "link_pago": "https://pago.klynea.example/lumbar",
+        "link_pago": "https://pago.dashboard.example/lumbar",
         "links": [
-            ("Página principal", "https://klynea.example/faja-lumbar"),
-            ("Landing de oferta", "https://klynea.example/oferta/lumbar"),
+            ("Página principal", "https://dashboard.example/faja-lumbar"),
+            ("Landing de oferta", "https://dashboard.example/oferta/lumbar"),
         ],
         "medios": [
             ("imagen", _img("Faja+frente"), "Foto de frente"),
@@ -156,7 +156,7 @@ PRODUCTOS = [
 
 
 class Command(BaseCommand):
-    help = 'Carga los productos iniciales de KLYNEA con objeciones, enlaces y medios.'
+    help = 'Carga los productos iniciales de Dashboard con objeciones, enlaces y medios.'
 
     def handle(self, *args, **options):
         # Limpiamos para dejar un estado conocido (objeciones/links/medios caen en cascada)

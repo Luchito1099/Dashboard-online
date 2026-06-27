@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% load static %}
 
-{% block title %}Inicio · KLYNEA{% endblock %}
+{% block title %}Inicio · Dashboard{% endblock %}
 {% block nav_home %}active{% endblock %}
 
 {% block extra_css %}
@@ -16,7 +16,7 @@
 <div class="welcome-banner">
   <div class="welcome-greeting">Bienvenido, {{ request.user.get_full_name|default:request.user.username }}</div>
   <h2 class="welcome-title">Tu <span>centro de control</span></h2>
-  <p class="welcome-desc">Aquí vas a ver todo lo que pasa con KLYNEA en tiempo real.</p>
+  <p class="welcome-desc">Aquí vas a ver todo lo que pasa con Dashboard en tiempo real.</p>
 </div>
 
 <div class="pedidos-resumen" id="pedidosResumen" data-modo="hoy">

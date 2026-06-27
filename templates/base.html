@@ -4,12 +4,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{% block title %}KLYNEA ERP{% endblock %}</title>
+  <title>{% block title %}Dashboard{% endblock %}</title>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{% static 'core/css/base.css' %}">
   <link rel="stylesheet" href="{% static 'core/css/dark.css' %}">
   {# Aplica el tema guardado antes de pintar (evita parpadeo blanco) #}
-  <script>(function(){try{if(localStorage.getItem('klynea_theme')==='dark'){document.documentElement.setAttribute('data-theme','dark');}}catch(e){}})();</script>
+  <script>(function(){try{if(localStorage.getItem('dash_theme')==='dark'){document.documentElement.setAttribute('data-theme','dark');}}catch(e){}})();</script>
   {% block extra_css %}{% endblock %}
 </head>
 <body>
@@ -30,7 +30,7 @@
         <path d="M14 17.5h7M17.5 14v7"/>
       </svg>
     </div>
-    <span class="logo-text">KLYNEA <span>ERP</span></span>
+    <span class="logo-text">Dashboard</span>
   </div>
 
   <nav class="sidebar-nav">
@@ -159,7 +159,7 @@
   <!-- TOPBAR -->
   <header class="topbar">
     <div class="breadcrumb">
-      <a href="{% url 'core:home' %}">KLYNEA</a>
+      <a href="{% url 'core:home' %}">Dashboard</a>
       {% block breadcrumb %}{% endblock %}
     </div>
     <div class="topbar-search">
@@ -264,8 +264,8 @@
   pintar();
   btn.addEventListener('click',function(){
     var oscuro=document.documentElement.getAttribute('data-theme')==='dark';
-    if(oscuro){document.documentElement.removeAttribute('data-theme');localStorage.setItem('klynea_theme','light');}
-    else{document.documentElement.setAttribute('data-theme','dark');localStorage.setItem('klynea_theme','dark');}
+    if(oscuro){document.documentElement.removeAttribute('data-theme');localStorage.setItem('dash_theme','light');}
+    else{document.documentElement.setAttribute('data-theme','dark');localStorage.setItem('dash_theme','dark');}
     pintar();
   });
 })();
@@ -277,7 +277,7 @@
   var cont = document.getElementById('toastWrap');
   if(!cont) return;                       // solo si el usuario tiene acceso a Pedidos
   var endpoint = cont.dataset.pollUrl;
-  var KEY = 'klynea_last_pedido_id';
+  var KEY = 'dash_last_pedido_id';
 
   function beep(){
     try{

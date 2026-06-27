@@ -1,4 +1,4 @@
-# Arquitectura del sistema · KLYNEA ERP
+# Arquitectura del sistema · Dashboard
 
 > Cómo funciona todo: qué stack se usa, cómo se sirve una página, cómo fluyen los datos de cada
 > integración y qué patrones se repiten. Para el detalle de tablas ver [`ESQUEMA_BD.md`](ESQUEMA_BD.md);

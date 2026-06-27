@@ -36,7 +36,7 @@ INTEGRACIONES_FERNET_KEY = os.environ.get('INTEGRACIONES_FERNET_KEY', '')
 ANTHROPIC_API_KEY = os.environ.get('ANTHROPIC_API_KEY', '')
 
 # Secreto compartido para verificar el webhook de n8n (módulo Publicidad/Meta Ads).
-# n8n firma el body con HMAC-SHA256 usando este secreto y lo manda en X-KLYNEA-Sign.
+# n8n firma el body con HMAC-SHA256 usando este secreto y lo manda en X-Dashboard-Sign.
 N8N_WEBHOOK_SECRET = os.environ.get('N8N_WEBHOOK_SECRET', '')
 
 INSTALLED_APPS = [

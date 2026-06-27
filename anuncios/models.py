@@ -10,7 +10,7 @@ from integraciones.crypto import EncryptedTextField
 class CuentaPublicitaria(models.Model):
     """Cuenta publicitaria (ad account) de una plataforma. Guarda el token de la Graph
     API (cifrado) para que el ERP extraiga los datos directamente. Se asocia opcionalmente
-    a una Integración/tienda (KLYNEA, NovaShop) para atribuir y filtrar por tienda."""
+    a una Integración/tienda (Dashboard, NovaShop) para atribuir y filtrar por tienda."""
     PLATAFORMA_META = 'meta'
     PLATAFORMA_CHOICES = [
         (PLATAFORMA_META, 'Meta (Facebook/Instagram)'),

@@ -29,11 +29,11 @@ from .models import (CuentaPublicitaria, CampanaMeta, MatchProductoAnuncio, Umbr
 def webhook_n8n_meta(request):
     """Recibe el payload de Meta Ads desde n8n. Verifica la firma HMAC y delega en
     services.ingerir_payload (que respeta incluir_en_extraccion). Sin login: lo
-    autentica la firma compartida (X-KLYNEA-Sign)."""
+    autentica la firma compartida (X-Dashboard-Sign)."""
     if request.method != 'POST':
         return HttpResponseNotAllowed(['POST'])
 
-    firma = request.headers.get('X-KLYNEA-Sign', '')
+    firma = request.headers.get('X-Dashboard-Sign', '')
     if not services.verificar_firma(request.body, firma):
         return HttpResponse('firma inválida', status=401)
 

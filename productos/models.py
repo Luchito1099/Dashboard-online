@@ -3,7 +3,7 @@ from django.db import models
 
 
 class Producto(models.Model):
-    """Producto del catálogo de KLYNEA (cuidado personal / ortopédicos)."""
+    """Producto del catálogo de Dashboard (cuidado personal / ortopédicos)."""
     nombre = models.CharField(max_length=200)
     sku = models.CharField(max_length=50, blank=True)
     categoria = models.CharField(max_length=100, blank=True)

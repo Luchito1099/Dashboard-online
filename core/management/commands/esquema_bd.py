@@ -103,7 +103,7 @@ class Command(BaseCommand):
     # ── Render ──
     def _render(self, modelos, nombres):
         L = []
-        L.append('# Esquema de la base de datos · KLYNEA ERP')
+        L.append('# Esquema de la base de datos · Dashboard')
         L.append('')
         L.append(f'> Generado automáticamente por `python manage.py esquema_bd` el '
                  f'{datetime.now():%Y-%m-%d %H:%M}. **No editar a mano** (se sobrescribe). '

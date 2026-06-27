@@ -28,7 +28,7 @@ LABEL_ENTREGADO = dict(Pedido.ESTADO_CHOICES)[Pedido.ESTADO_ENTREGADO]     # 'En
 # ───────────────────────── Webhook n8n ─────────────────────────
 
 def verificar_firma(body_bytes, firma_header):
-    """Valida la firma HMAC-SHA256 (base64) que n8n manda en X-KLYNEA-Sign, firmada
+    """Valida la firma HMAC-SHA256 (base64) que n8n manda en X-Dashboard-Sign, firmada
     con settings.N8N_WEBHOOK_SECRET. Mismo patrón que el webhook de Shopify."""
     secret = settings.N8N_WEBHOOK_SECRET
     if not secret or not firma_header:

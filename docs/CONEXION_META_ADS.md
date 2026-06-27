@@ -1,10 +1,10 @@
-# Cómo conectar Meta Ads (Graph API) → KLYNEA ERP — conexión DIRECTA
+# Cómo conectar Meta Ads (Graph API) → Dashboard — conexión DIRECTA
 
 ## La arquitectura
 
 ```
 ┌─────────────┐    Graph API (token)    ┌──────────────────────────┐
-│  Meta Ads   │ ◄──────────────────────►│        KLYNEA ERP        │
+│  Meta Ads   │ ◄──────────────────────►│        Dashboard        │
 │ (Graph API) │   el ERP extrae solo    │  anuncios/connectors.py  │
 └─────────────┘                         │  Probar · Sincronizar    │
                                         └──────────────────────────┘
@@ -36,8 +36,8 @@ de Shopify en Integraciones. **No necesitas n8n para la extracción.**
 
 **Publicidad › Ajustes › Cuentas publicitarias → Agregar / actualizar cuenta:**
 - **ad_account_id:** `act_123456789`
-- **Nombre:** ej. `KLYNEA PE`
-- **Tienda asociada:** la fuente de pedidos (KLYNEA / NovaShop) para atribuir y filtrar.
+- **Nombre:** ej. `Dashboard PE`
+- **Tienda asociada:** la fuente de pedidos (Dashboard / NovaShop) para atribuir y filtrar.
 - **Versión API:** `v21.0` (por defecto).
 - **Access token:** pégalo aquí (se guarda **cifrado**). Al editar, déjalo vacío para conservarlo.
 

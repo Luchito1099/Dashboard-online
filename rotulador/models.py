@@ -32,7 +32,7 @@ DEFAULT_PRODUCTS = [
 class RotuladorConfig(models.Model):
     """Configuración global del rotulador (singleton pk=1): marca, estilo, logos,
     productos y credenciales de IA (cifradas)."""
-    brand = models.CharField(max_length=80, default='KLYNEA')
+    brand = models.CharField(max_length=80, default='Dashboard')
     initial = models.CharField(max_length=2, default='K')
     accent = models.CharField(max_length=20, default='#c0532a')
     label_style = models.CharField(max_length=20, default='classic')  # classic|bold|minimal

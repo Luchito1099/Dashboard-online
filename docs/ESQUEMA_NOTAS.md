@@ -1,4 +1,4 @@
-# Notas de diseño y mejoras · Base de datos KLYNEA
+# Notas de diseño y mejoras · Base de datos Dashboard
 
 > Documento **manual** (no se sobrescribe). El esquema completo y siempre actualizado está en
 > [`ESQUEMA_BD.md`](ESQUEMA_BD.md), generado con `python manage.py esquema_bd`.

@@ -1,4 +1,4 @@
-# PROYECTO KLYNEA — Hoja de contexto
+# PROYECTO Dashboard — Hoja de contexto
 
 > Pega este archivo en futuras conversaciones en vez de todo el proyecto.
 > Última actualización: 2026-06-14.
@@ -95,11 +95,11 @@ DASHBOARD-ONLINE/
 - `{% extends 'base.html' %}` 1ª línea, `{% load static %}` después. JS vanilla inline en `{% block extra_js %}`.
 - Bloques base.html: `title, extra_css, breadcrumb, content, right_panel, extra_js, nav_home, nav_capacitacion, nav_config`.
 - `extras.js`: buscador topbar + reescribe link Configuración (base.html lo tiene en `#`) + helpers globales `compartirWhatsApp(url)` y `copiarLinkMedio(btn,url)`.
-- **Selector central** (3 pills): Capacitación / Productos / Herramientas. Navegación entre `/capacitacion/`, `/productos/`, `/herramientas/`; recuerda `localStorage.klynea_view`. base.html es NO TOCAR, por eso no hay item en el sidebar.
+- **Selector central** (3 pills): Capacitación / Productos / Herramientas. Navegación entre `/capacitacion/`, `/productos/`, `/herramientas/`; recuerda `localStorage.dash_view`. base.html es NO TOCAR, por eso no hay item en el sidebar.
 - Runbook: layout especial `body:has(.cap-layout) .page-content {overflow:hidden}`. Resto = scroll natural.
 - **Compartir a WhatsApp**: `https://wa.me/?text={encodeURIComponent(url)}`.
 - **Video (fix Error 153)**: `parseVideoUrl` → `https://www.youtube.com/embed/<id>?rel=0` o `player.vimeo.com/video/<id>`. iframe con `allow="...; web-share"` + `referrerpolicy="strict-origin-when-cross-origin"`.
-- Videos de tareas: localStorage `klynea_vid_<tarea_id>`.
+- Videos de tareas: localStorage `dash_vid_<tarea_id>`.
 
 ## Variables CSS (base.css)
 ```

@@ -1,5 +1,5 @@
 # herramientas/management/commands/seed_herramientas.py
-"""Carga herramientas externas de ejemplo del stack KLYNEA.
+"""Carga herramientas externas de ejemplo del stack Dashboard.
 Uso:  python manage.py seed_herramientas
 """
 from django.core.management.base import BaseCommand

@@ -1,6 +1,6 @@
-# Esquema de la base de datos · KLYNEA ERP
+# Esquema de la base de datos · Dashboard
 
-> Generado automáticamente por `python manage.py esquema_bd` el 2026-06-26 18:47. **No editar a mano** (se sobrescribe). Para análisis y mejoras ver `docs/ESQUEMA_NOTAS.md`.
+> Generado automáticamente por `python manage.py esquema_bd` el 2026-06-26 19:25. **No editar a mano** (se sobrescribe). Para análisis y mejoras ver `docs/ESQUEMA_NOTAS.md`.
 
 ## Cómo visualizarlo
 - **Diagrama ER (rápido):** copia el bloque *Mermaid* en https://mermaid.live
@@ -906,7 +906,7 @@ _Objeción frecuente del cliente y su respuesta sugerida (para llamadas en vivo)
 | orden | PositiveSmallIntegerField | no |  |  |
 
 ### `productos_producto` — Producto
-_Producto del catálogo de KLYNEA (cuidado personal / ortopédicos)._
+_Producto del catálogo de Dashboard (cuidado personal / ortopédicos)._
 
 | Columna | Tipo | Nulo | Llave / Relación | Notas |
 |---|---|---|---|---|

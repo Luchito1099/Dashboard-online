@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════
-   KLYNEA ERP — admin_cap.css
+   Dashboard — admin_cap.css
    Panel de administración de tareas del runbook.
    Autónomo: NO depende de capacitacion.css ni usa overflow:hidden.
    El scroll lo da el .page-content de base.html (overflow-y:auto), como cualquier página normal.
@@ -130,7 +130,7 @@
   border-top: 1px dashed var(--border-dark);
 }
 
-/* ── Botón guardar (teal KLYNEA) ── */
+/* ── Botón guardar (teal Dashboard) ── */
 .btn-guardar {
   padding: 9px 18px;
   border-radius: 8px;

@@ -3,7 +3,7 @@
 
 {% comment %} templates/productos/catalogo.html — Catálogo de productos {% endcomment %}
 
-{% block title %}Productos · KLYNEA{% endblock %}
+{% block title %}Productos · Dashboard{% endblock %}
 {% block nav_capacitacion %}active{% endblock %}
 
 {% block extra_css %}
@@ -94,7 +94,7 @@
 {% block extra_js %}
 <script src="{% static 'core/js/extras.js' %}"></script>
 <script>
-localStorage.setItem('klynea_view', 'productos');
+localStorage.setItem('dash_view', 'productos');
 
 const PRODUCTOS = JSON.parse(document.getElementById('productos-data').textContent);
 

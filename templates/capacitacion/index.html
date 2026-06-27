@@ -3,7 +3,7 @@
 
 {% comment %} templates/capacitacion/index.html — Runbook diario {% endcomment %}
 
-{% block title %}Capacitación · KLYNEA{% endblock %}
+{% block title %}Capacitación · Dashboard{% endblock %}
 {% block nav_capacitacion %}active{% endblock %}
 
 {% block extra_css %}
@@ -244,7 +244,7 @@
 <script src="{% static 'core/js/extras.js' %}"></script>
 <script>
 // Guarda la vista activa para el selector central
-localStorage.setItem('klynea_view', 'capacitacion');
+localStorage.setItem('dash_view', 'capacitacion');
 
 // ═══════════════════════════════════════
 //  DATOS Y ESTADO
@@ -279,7 +279,7 @@ function calcularTurno(simMins) {
 // ═══════════════════════════════════════
 //  1 · SIMULADOR DE HORA + REFRESCO GENERAL
 // ═══════════════════════════════════════
-const SIM_KEY = 'klynea_sim';
+const SIM_KEY = 'dash_sim';
 
 // Recalcula TODA la UI dependiente del estado: puntos, cards, embudo, sidebar
 function refrescarUI() {
@@ -362,7 +362,7 @@ function toggleTarea(id) {
 // ═══════════════════════════════════════
 //  4 · VIDEO SLOT (localStorage por tarea)
 // ═══════════════════════════════════════
-function videoKey(id) { return 'klynea_vid_' + id; }
+function videoKey(id) { return 'dash_vid_' + id; }
 
 // Convierte un link de YouTube/Vimeo a su URL embebible. Devuelve null si no es válido.
 // Soporta: youtube.com/watch?v=ID(&params), youtu.be/ID, youtube.com/embed|shorts/ID y vimeo.com/ID
@@ -418,7 +418,7 @@ function cargarVideos() {
 // ═══════════════════════════════════════
 //  5 · SIDEBAR · TABS
 // ═══════════════════════════════════════
-const TAB_KEY = 'klynea_tab';
+const TAB_KEY = 'dash_tab';
 
 function cambiarTab(tab) {
   document.querySelectorAll('.cap-sidebar-tab').forEach(b =>

@@ -5,7 +5,7 @@
   const rightToggle = document.getElementById('rightPanelToggle');
 
   // ── Sidebar collapse
-  const SIDEBAR_KEY = 'klynea_sidebar_collapsed';
+  const SIDEBAR_KEY = 'dash_sidebar_collapsed';
   if (localStorage.getItem(SIDEBAR_KEY) === 'true') {
     sidebar.classList.add('collapsed');
   }
@@ -17,7 +17,7 @@
   }
 
   // ── Right panel toggle
-  const PANEL_KEY = 'klynea_panel_collapsed';
+  const PANEL_KEY = 'dash_panel_collapsed';
   if (localStorage.getItem(PANEL_KEY) === 'true') {
     rightPanel.classList.add('collapsed');
   }
