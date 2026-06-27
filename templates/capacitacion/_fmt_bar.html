@@ -1,0 +1,12 @@
+{% comment %} Barra de formato reutilizable para los textareas con .js-fmt {% endcomment %}
+<div class="fmt-bar">
+  <button type="button" class="fmt-btn" onclick="fmtWrap(this,'**','**')" title="Negrita"><b>B</b></button>
+  <button type="button" class="fmt-btn" onclick="fmtWrap(this,'*','*')" title="Cursiva"><i>I</i></button>
+  <button type="button" class="fmt-btn" onclick="fmtWrap(this,'__','__')" title="Subrayado"><u>U</u></button>
+  <span class="fmt-sep"></span>
+  <button type="button" class="fmt-btn fmt-color" style="color:#dc2626" onclick="fmtWrap(this,'{rojo:','}')" title="Rojo">A</button>
+  <button type="button" class="fmt-btn fmt-color" style="color:#16a34a" onclick="fmtWrap(this,'{verde:','}')" title="Verde">A</button>
+  <button type="button" class="fmt-btn fmt-color" style="color:#2563eb" onclick="fmtWrap(this,'{azul:','}')" title="Azul">A</button>
+  <button type="button" class="fmt-btn fmt-color" style="color:#ea580c" onclick="fmtWrap(this,'{naranja:','}')" title="Naranja">A</button>
+  <button type="button" class="fmt-btn fmt-color" style="color:#7c3aed" onclick="fmtWrap(this,'{morado:','}')" title="Morado">A</button>
+</div>

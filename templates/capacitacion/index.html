@@ -1,5 +1,6 @@
 {% extends 'base.html' %}
 {% load static %}
+{% load cap_formato %}
 
 {% comment %} templates/capacitacion/index.html — Runbook diario {% endcomment %}
 
@@ -113,14 +114,14 @@
             <!-- Bloque expandible (animación max-height) -->
             <div class="tarea-exp" id="exp-{{ tarea.id }}">
               <div class="exp-inner">
-                <p class="exp-desc">{{ tarea.descripcion }}</p>
+                <p class="exp-desc">{{ tarea.descripcion|formato_runbook }}</p>
 
                 <div class="exp-h">Cómo hacerlo — paso a paso</div>
                 <div class="exp-steps">
                   {% for paso in tarea.pasos %}
                   <div class="exp-step">
                     <div class="exp-n">{{ forloop.counter }}</div>
-                    <div class="exp-t">{{ paso }}</div>
+                    <div class="exp-t">{{ paso|formato_runbook }}</div>
                   </div>
                   {% endfor %}
                 </div>
@@ -129,7 +130,7 @@
                 <div class="exp-h">Tips importantes</div>
                 <div class="exp-tips">
                   {% for tip in tarea.tips %}
-                  <div class="exp-tip {{ tip.k }}">{{ tip.t }}</div>
+                  <div class="exp-tip {{ tip.k }}">{{ tip.t|formato_runbook }}</div>
                   {% endfor %}
                 </div>
                 {% endif %}

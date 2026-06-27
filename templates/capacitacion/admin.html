@@ -25,7 +25,10 @@
       <h2 class="admin-cap-title">Administrar tareas del Runbook</h2>
       <p class="admin-cap-subtitle">{{ tareas.count }} tareas · edita y guarda los cambios de cada una</p>
     </div>
-    <a href="{% url 'capacitacion:index' %}" class="btn-volver">← Volver al runbook</a>
+    <div style="display:flex;gap:8px;align-items:center;flex-shrink:0;">
+      <button type="button" class="btn-volver" id="btnColapsarTodas">⊟ Minimizar todas</button>
+      <a href="{% url 'capacitacion:index' %}" class="btn-volver">← Volver al runbook</a>
+    </div>
   </div>
 
   {# ── Gestión de bloques: editar nombres y agregar nuevos ── #}
@@ -114,15 +117,18 @@
 
   {# Lista simple de tareas (no agrupadas por bloque), una card-formulario por tarea #}
   {% for tarea in tareas %}
-  <div class="admin-tarea-card" id="tarea-{{ tarea.id }}">
+  <div class="admin-tarea-card js-colapsable" id="tarea-{{ tarea.id }}">
+    <div class="admin-tarea-head" onclick="toggleAdminCard(this)" title="Click para minimizar/expandir">
+      <span class="admin-tarea-orden">#{{ tarea.orden }}</span>
+      <span class="admin-badge badge-{{ tarea.tipo|lower }}">{{ tarea.tipo }}</span>
+      <span class="admin-tarea-nombre">{{ tarea.nombre }}</span>
+      <span class="admin-tarea-hora-mini">🕑 {{ tarea.hora }}</span>
+      <span class="admin-card-chev">▾</span>
+    </div>
+
+    <div class="admin-tarea-body">
     <form method="post" action="{% url 'capacitacion:editar_tarea' tarea.id %}">
       {% csrf_token %}
-
-      <div class="admin-tarea-head">
-        <span class="admin-tarea-orden">#{{ tarea.orden }}</span>
-        <span class="admin-badge badge-{{ tarea.tipo|lower }}">{{ tarea.tipo }}</span>
-        <span class="admin-tarea-nombre">{{ tarea.nombre }}</span>
-      </div>
 
       <div class="admin-grid">
         <label class="admin-field admin-field-wide">
@@ -156,19 +162,25 @@
 
       <label class="admin-field">
         <span>Descripción</span>
-        <textarea name="descripcion" rows="2">{{ tarea.descripcion }}</textarea>
+        {% include 'capacitacion/_fmt_bar.html' %}
+        <textarea name="descripcion" rows="2" class="js-fmt">{{ tarea.descripcion }}</textarea>
+        <div class="fmt-preview js-fmt-preview"></div>
       </label>
 
       <label class="admin-field">
         <span>Pasos <em>(uno por línea)</em></span>
-        <textarea name="pasos" rows="6">{% for paso in tarea.pasos %}{{ paso }}
+        {% include 'capacitacion/_fmt_bar.html' %}
+        <textarea name="pasos" rows="6" class="js-fmt">{% for paso in tarea.pasos %}{{ paso }}
 {% endfor %}</textarea>
+        <div class="fmt-preview js-fmt-preview"></div>
       </label>
 
       <label class="admin-field">
         <span>Tips <em>(uno por línea, formato <code>tip|texto</code>, <code>warn|texto</code> o <code>info|texto</code>)</em></span>
-        <textarea name="tips" rows="3">{% for tip in tarea.tips %}{{ tip.k }}|{{ tip.t }}
+        {% include 'capacitacion/_fmt_bar.html' %}
+        <textarea name="tips" rows="3" class="js-fmt">{% for tip in tarea.tips %}{{ tip.k }}|{{ tip.t }}
 {% endfor %}</textarea>
+        <div class="fmt-preview js-fmt-preview"></div>
       </label>
 
       <button type="submit" class="btn-guardar">Guardar cambios</button>
@@ -180,9 +192,71 @@
       {% csrf_token %}
       <button type="submit" class="btn-eliminar">Eliminar tarea</button>
     </form>
+    </div>{# /admin-tarea-body #}
   </div>
   {% endfor %}
 
 </div>
 
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// ═══════════ Barra de formato (markdown-lite) ═══════════
+const FMT_COLORS = { rojo:'#dc2626', verde:'#16a34a', azul:'#2563eb', naranja:'#ea580c', morado:'#7c3aed' };
+
+// Envuelve la selección del textarea asociado con los marcadores dados
+function fmtWrap(btn, pre, post) {
+  const ta = btn.closest('.admin-field').querySelector('textarea');
+  if (!ta) return;
+  const s = ta.selectionStart, e = ta.selectionEnd;
+  const sel = ta.value.slice(s, e) || 'texto';
+  ta.value = ta.value.slice(0, s) + pre + sel + post + ta.value.slice(e);
+  ta.focus();
+  ta.selectionStart = s + pre.length;
+  ta.selectionEnd = s + pre.length + sel.length;
+  ta.dispatchEvent(new Event('input'));   // refresca la vista previa
+}
+
+// Convierte el formato a HTML para la vista previa (mismo criterio que el filtro de Python)
+function fmtToHtml(text) {
+  let s = (text || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  s = s.replace(/\{(rojo|verde|azul|naranja|morado):(.+?)\}/g,
+        (m,c,t) => '<span style="color:'+FMT_COLORS[c]+'">'+t+'</span>');
+  s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  s = s.replace(/__(.+?)__/g, '<u>$1</u>');
+  s = s.replace(/\*(.+?)\*/g, '<em>$1</em>');
+  return s.replace(/\n/g, '<br>');
+}
+
+// Conecta cada textarea .js-fmt con su vista previa
+document.querySelectorAll('.js-fmt').forEach(function (ta) {
+  const prev = ta.parentElement.querySelector('.js-fmt-preview');
+  if (!prev) return;
+  function render() {
+    if (!ta.value.trim()) { prev.innerHTML = ''; prev.classList.remove('show'); return; }
+    prev.innerHTML = '<span class="fmt-preview-lbl">Vista previa:</span> ' + fmtToHtml(ta.value);
+    prev.classList.add('show');
+  }
+  ta.addEventListener('input', render);
+  render();
+});
+
+// ═══════════ Minimizar / expandir tarjetas ═══════════
+function toggleAdminCard(head) {
+  head.closest('.admin-tarea-card').classList.toggle('collapsed');
+}
+
+(function () {
+  const btn = document.getElementById('btnColapsarTodas');
+  if (!btn) return;
+  const cards = document.querySelectorAll('.admin-tarea-card.js-colapsable');
+  btn.addEventListener('click', function () {
+    // Si hay alguna expandida, las minimiza todas; si todas están minimizadas, las expande
+    const algunaAbierta = [...cards].some(c => !c.classList.contains('collapsed'));
+    cards.forEach(c => c.classList.toggle('collapsed', algunaAbierta));
+    btn.textContent = algunaAbierta ? '⊞ Expandir todas' : '⊟ Minimizar todas';
+  });
+})();
+</script>
 {% endblock %}

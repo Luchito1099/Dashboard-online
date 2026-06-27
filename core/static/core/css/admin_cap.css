@@ -56,9 +56,70 @@
   padding-bottom: 12px;
   border-bottom: 1px solid var(--border);
 }
+/* Cabecera clickeable (minimizar/expandir) en las tarjetas de tarea */
+.js-colapsable .admin-tarea-head {
+  cursor: pointer;
+  user-select: none;
+  margin-bottom: 0;
+  transition: padding .15s;
+}
+.js-colapsable .admin-tarea-head:hover { color: var(--primary); }
+.admin-tarea-body { margin-top: 14px; }
 
 .admin-tarea-orden { font-size: 12px; font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums; }
 .admin-tarea-nombre { font-size: 14px; font-weight: 600; color: var(--text); }
+.admin-tarea-hora-mini { font-size: 11.5px; color: var(--muted); margin-left: 4px; }
+.admin-card-chev { margin-left: auto; font-size: 13px; color: var(--muted); transition: transform .2s; }
+
+/* Estado minimizado: oculta el cuerpo, deja solo la cabecera */
+.admin-tarea-card.collapsed { padding-bottom: 14px; }
+.admin-tarea-card.collapsed .admin-tarea-head { padding-bottom: 0; border-bottom: none; }
+.admin-tarea-card.collapsed .admin-tarea-body { display: none; }
+.admin-tarea-card.collapsed .admin-card-chev { transform: rotate(-90deg); }
+
+/* ── Barra de formato (negrita / cursiva / subrayado / colores) ── */
+.fmt-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+}
+.fmt-btn {
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--border-dark);
+  background: var(--surface);
+  color: var(--text);
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: inherit;
+  transition: all .12s;
+  padding: 0;
+}
+.fmt-btn:hover { border-color: var(--primary); background: var(--bg); }
+.fmt-btn b, .fmt-btn i, .fmt-btn u { pointer-events: none; }
+.fmt-color { font-weight: 800; }
+.fmt-sep { width: 1px; height: 18px; background: var(--border-dark); margin: 0 4px; }
+
+/* ── Vista previa del formato ── */
+.fmt-preview {
+  display: none;
+  margin-top: 6px;
+  padding: 8px 10px;
+  background: var(--bg);
+  border: 1px dashed var(--border-dark);
+  border-radius: 7px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text);
+}
+.fmt-preview.show { display: block; }
+.fmt-preview-lbl { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin-right: 4px; }
 
 /* Badge de tipo (autónomo, no depende de capacitacion.css) */
 .admin-badge {
