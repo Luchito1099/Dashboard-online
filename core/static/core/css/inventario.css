@@ -2,13 +2,23 @@
 
 .inv-tabla th, .inv-tabla td { vertical-align: middle; }
 
+/* Producto con variantes: cabecera + sub-filas */
+.inv-grupo td { background: var(--bg); }
+.inv-fila-variante .inv-variante-nombre { padding-left: 18px; font-size: 13px; color: var(--text-secondary); }
+.inv-fila-total { font-weight: 600; color: var(--text-secondary); }
+
 .inv-stock-input {
   width: 72px; padding: 6px 8px; border: 1px solid var(--border-dark); border-radius: 7px;
   font-size: 13px; font-family: inherit; text-align: right; background: var(--surface); color: var(--text);
 }
 .inv-stock-input:focus { outline: none; border-color: var(--primary); }
-.inv-ajuste-form { display: inline; }
 .inv-cero { color: var(--error); }
+
+/* Feedback de guardado del stock */
+.inv-stock-input.inv-saving { border-color: var(--primary); opacity: .7; }
+.inv-stock-input.inv-ok { border-color: var(--success, #22a06b); background: oklch(62% 0.13 145 / 0.10); }
+.inv-stock-input.inv-err { border-color: var(--error); background: oklch(60% 0.2 25 / 0.08); }
+.inv-total { transition: color .2s; }
 
 /* Reposición */
 .inv-urgente { background: oklch(60% 0.2 25 / 0.06); }

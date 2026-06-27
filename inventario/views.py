@@ -4,7 +4,7 @@ almacenes/config de reposición."""
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
-from django.http import HttpResponseNotAllowed
+from django.http import HttpResponseNotAllowed, JsonResponse
 from django.db.models import Sum
 
 from capacitacion.views import es_admin
@@ -28,16 +28,31 @@ def inventario(request):
         return redirect('core:home')
 
     almacenes = list(Almacen.objects.filter(activo=True))
-    productos = list(Producto.objects.filter(activo=True))
+    productos = list(Producto.objects.filter(activo=True)
+                     .prefetch_related('variantes'))
 
-    # Mapa (producto_id, almacen_id) → cantidad
-    stock_map = {(s.producto_id, s.almacen_id): s.cantidad
+    # Mapa (producto_id, variante_id|None, almacen_id) → cantidad
+    stock_map = {(s.producto_id, s.variante_id, s.almacen_id): s.cantidad
                  for s in StockProducto.objects.all()}
+
+    def _celdas(pid, vid):
+        return [{'almacen': a, 'cantidad': stock_map.get((pid, vid, a.id), 0)} for a in almacenes]
+
     filas = []
     for p in productos:
-        celdas = [{'almacen': a, 'cantidad': stock_map.get((p.id, a.id), 0)} for a in almacenes]
-        total = sum(c['cantidad'] for c in celdas)
-        filas.append({'producto': p, 'celdas': celdas, 'total': total})
+        variantes = [v for v in p.variantes.all() if v.activo]
+        # Total del producto = todo su stock (con o sin variantes)
+        total_prod = sum(c for (pid, vid, aid), c in stock_map.items() if pid == p.id)
+        if variantes:
+            filas.append({'tipo': 'grupo', 'producto': p, 'total': total_prod})
+            for v in variantes:
+                celdas = _celdas(p.id, v.id)
+                filas.append({'tipo': 'variante', 'producto': p, 'variante': v,
+                              'celdas': celdas, 'total': sum(c['cantidad'] for c in celdas)})
+        else:
+            celdas = _celdas(p.id, None)
+            filas.append({'tipo': 'simple', 'producto': p,
+                          'celdas': celdas, 'total': sum(c['cantidad'] for c in celdas)})
 
     context = {
         'almacenes': almacenes,
@@ -57,18 +72,28 @@ def ajustar_stock(request):
 
     producto = get_object_or_404(Producto, id=request.POST.get('producto_id'))
     almacen = get_object_or_404(Almacen, id=request.POST.get('almacen_id'))
+    # Variante opcional (color/talla)
+    variante = None
+    vid = request.POST.get('variante_id') or ''
+    if vid.isdigit():
+        from productos.models import VarianteProducto
+        variante = VarianteProducto.objects.filter(id=vid, producto=producto).first()
     try:
         nuevo = int(request.POST.get('cantidad', '0') or 0)
     except ValueError:
         nuevo = 0
 
-    actual = (StockProducto.objects.filter(producto=producto, almacen=almacen)
+    actual = (StockProducto.objects.filter(producto=producto, variante=variante, almacen=almacen)
               .values_list('cantidad', flat=True).first() or 0)
     delta = nuevo - actual
     if delta != 0:
         services.aplicar_movimiento(producto, almacen, delta, MovimientoStock.MOTIVO_AJUSTE,
-                                    usuario=request.user, nota='Ajuste manual de stock')
+                                    variante=variante, usuario=request.user, nota='Ajuste manual de stock')
         messages.success(request, f'Stock de «{producto.nombre}» en {almacen.nombre}: {actual} → {nuevo}.')
+
+    # Guardado fluido (AJAX): devuelve el nuevo total del producto, sin recargar
+    if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+        return JsonResponse({'ok': True, 'cantidad': nuevo, 'total': services.stock_total(producto)})
     return redirect('inventario:inventario')
 
 

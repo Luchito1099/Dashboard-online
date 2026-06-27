@@ -12,7 +12,8 @@ from django.http import JsonResponse
 # Reutilizamos el helper de permisos ya existente (no lo duplicamos)
 from capacitacion.views import es_admin
 from core.models import ConfiguracionSistema
-from .models import Producto, ObjecionProducto, LinkProducto, MediaProducto, ProductoAlias
+from .models import (Producto, ObjecionProducto, LinkProducto, MediaProducto, ProductoAlias,
+                     AtributoProducto, ValorAtributo, generar_variantes)
 
 
 # ───────────────────────── Helpers ─────────────────────────
@@ -266,6 +267,37 @@ def vincular_producto(request):
     n = PedidoItem.objects.filter(nombre__iexact=nombre, producto__isnull=True).update(producto=producto)
     messages.success(request, f'«{nombre}» vinculado a «{producto.nombre}» ({n} línea(s) de pedido).')
     return redirect('productos:reconocer')
+
+
+@login_required
+def editar_atributos(request, producto_id):
+    """Define los atributos (Color, Talla…) de un producto desde un textarea y regenera
+    las variantes (combinaciones). Formato por línea: «Atributo: val1, val2». Solo admin (POST)."""
+    if not es_admin(request.user):
+        messages.error(request, 'No tienes permisos.')
+        return redirect('productos:catalogo')
+    if request.method != 'POST':
+        return HttpResponseNotAllowed(['POST'])
+
+    producto = get_object_or_404(Producto, id=producto_id)
+    producto.atributos.all().delete()   # borra atributos+valores; las variantes se regeneran
+    for i, linea in enumerate(request.POST.get('atributos', '').splitlines()):
+        linea = linea.strip()
+        if not linea or ':' not in linea:
+            continue
+        nombre, valores = linea.split(':', 1)
+        nombre = nombre.strip()
+        vals = [v.strip() for v in valores.split(',') if v.strip()]
+        if not nombre or not vals:
+            continue
+        attr = AtributoProducto.objects.create(producto=producto, nombre=nombre, orden=i)
+        for j, val in enumerate(vals):
+            ValorAtributo.objects.create(atributo=attr, valor=val, orden=j)
+
+    n = generar_variantes(producto)
+    messages.success(request, f'Variantes de «{producto.nombre}»: {n} combinación(es).')
+    from django.urls import reverse
+    return redirect(reverse('productos:admin') + f'#producto-{producto.id}')
 
 
 @login_required

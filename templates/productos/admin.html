@@ -123,6 +123,28 @@
       <button type="submit" class="btn-guardar">Guardar cambios</button>
     </form>
 
+    {# ── Variantes (atributos combinables: color, talla…) ── #}
+    <div class="pa-variantes">
+      <div class="pa-var-titulo">🎨 Variantes (color, talla…)</div>
+      <form method="post" action="{% url 'productos:editar_atributos' p.id %}">
+        {% csrf_token %}
+        <label class="pa-field full">
+          <span>Atributos <em>(uno por línea, formato <code>Atributo: valor1, valor2</code> — ej. <code>Color: Negro, Rojo</code>)</em></span>
+          <textarea name="atributos" rows="3" placeholder="Color: Negro, Rojo&#10;Talla: S, M, L">{% for a in p.atributos.all %}{{ a.nombre }}: {% for v in a.valores.all %}{{ v.valor }}{% if not forloop.last %}, {% endif %}{% endfor %}
+{% endfor %}</textarea>
+        </label>
+        <button type="submit" class="btn-guardar">Generar / guardar variantes</button>
+      </form>
+      {% with vs=p.variantes.all %}
+      {% if vs %}
+      <div class="pa-var-lista">Combinaciones:
+        {% for v in vs %}{% if v.activo %}<span class="pa-var-chip">{{ v.nombre }}</span>{% endif %}{% endfor %}
+      </div>
+      <p class="pa-var-nota">El stock de cada combinación se gestiona en <a href="{% url 'inventario:inventario' %}"><b>Inventario</b></a>.</p>
+      {% endif %}
+      {% endwith %}
+    </div>
+
     {# Eliminar va en un formulario aparte (no se pueden anidar formularios) #}
     <form method="post" action="{% url 'productos:eliminar' p.id %}" style="margin-top:10px;"
           onsubmit="return confirm('¿Eliminar «{{ p.nombre|escapejs }}»? Esta acción no se puede deshacer.');">
@@ -165,5 +187,10 @@
   .pa-card.open .pa-card-editar { display: none; }
   .pa-card-body { display: none; }
   .pa-card.open .pa-card-body { display: block; }
+  .pa-variantes { margin-top: 16px; padding-top: 14px; border-top: 1px dashed var(--border); }
+  .pa-var-titulo { font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 8px; }
+  .pa-var-lista { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 12px; color: var(--muted); }
+  .pa-var-chip { background: var(--primary-bg, oklch(62% 0.18 195 / .1)); color: var(--primary-dark, var(--primary)); padding: 3px 9px; border-radius: 999px; font-weight: 600; font-size: 12px; }
+  .pa-var-nota { font-size: 12px; color: var(--muted); margin-top: 8px; }
 </style>
 {% endblock %}

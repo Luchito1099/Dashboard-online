@@ -18,16 +18,18 @@ ESTADOS_CONSUMO = [Pedido.ESTADO_CONFIRMADO, Pedido.ESTADO_DESPACHADO, Pedido.ES
 # ───────────────────────── Movimientos de stock ─────────────────────────
 
 @transaction.atomic
-def aplicar_movimiento(producto, almacen, delta, motivo, pedido=None, usuario=None, nota=''):
-    """Suma/resta `delta` al stock del producto en el almacén y deja la traza. Atómico."""
+def aplicar_movimiento(producto, almacen, delta, motivo, variante=None,
+                       pedido=None, usuario=None, nota=''):
+    """Suma/resta `delta` al stock del producto (variante opcional) en el almacén y deja
+    la traza. Atómico."""
     if delta == 0:
         return None
     sp, _ = (StockProducto.objects.select_for_update()
-             .get_or_create(producto=producto, almacen=almacen))
+             .get_or_create(producto=producto, variante=variante, almacen=almacen))
     sp.cantidad = sp.cantidad + delta
     sp.save(update_fields=['cantidad', 'actualizado'])
     return MovimientoStock.objects.create(
-        producto=producto, almacen=almacen, delta=delta, motivo=motivo,
+        producto=producto, variante=variante, almacen=almacen, delta=delta, motivo=motivo,
         pedido=pedido, usuario=usuario, nota=nota[:255])
 
 
@@ -105,6 +107,26 @@ def plan_reposicion(ventana=30):
 
 # ───────────────────────── Auto-descuento al entregar ─────────────────────────
 
+def _variante_para_item(item):
+    """Mejor esfuerzo: si el producto tiene variantes, intenta casar el texto de variante
+    del pedido (item.variante) con una VarianteProducto. Si no coincide, devuelve None
+    (descuenta del stock sin variante)."""
+    variantes = list(item.producto.variantes.filter(activo=True))
+    if not variantes:
+        return None
+    txt = (item.variante or '').strip().lower()
+    if not txt:
+        return None
+    # Coincidencia por palabras: la variante cuyos valores aparezcan todos en el texto
+    mejor = None
+    for v in variantes:
+        partes = [p for p in v.clave.split('|') if p]
+        if partes and all(p in txt for p in partes):
+            mejor = v
+            break
+    return mejor
+
+
 def _almacen_para_pedido(pedido):
     """Almacén del que se descuenta un pedido: el ligado a su integración (fuente), si no
     el marcado principal, si no el primer almacén activo. None si no hay almacenes."""
@@ -131,8 +153,9 @@ def sincronizar_stock_pedido(pedido):
             return  # sin almacenes configurados: no hay de dónde descontar
         for it in pedido.items.all():
             if it.producto_id and it.cantidad:
+                variante = _variante_para_item(it)
                 aplicar_movimiento(it.producto, almacen, -it.cantidad,
-                                   MovimientoStock.MOTIVO_VENTA, pedido=pedido,
+                                   MovimientoStock.MOTIVO_VENTA, variante=variante, pedido=pedido,
                                    nota=f'Pedido {pedido.numero or pedido.external_id} entregado')
     elif not entregado and ya_descontado:
         # Revertir: re-sumar lo que se restó y borrar esos movimientos
@@ -140,7 +163,7 @@ def sincronizar_stock_pedido(pedido):
             pedido=pedido, motivo=MovimientoStock.MOTIVO_VENTA))
         for m in movs:
             aplicar_movimiento(m.producto, m.almacen, -m.delta,
-                               MovimientoStock.MOTIVO_DEVOLUCION, pedido=pedido,
+                               MovimientoStock.MOTIVO_DEVOLUCION, variante=m.variante, pedido=pedido,
                                nota='Reversa: el pedido dejó de estar entregado')
         MovimientoStock.objects.filter(
             pedido=pedido, motivo=MovimientoStock.MOTIVO_VENTA).delete()

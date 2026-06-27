@@ -40,20 +40,37 @@
       </thead>
       <tbody>
         {% for f in filas %}
+        {% if f.tipo == 'grupo' %}
+        {# Producto CON variantes: cabecera sin inputs, solo total agregado #}
+        <tr class="inv-grupo">
+          <td><div class="ped-cliente-nombre">{{ f.producto.nombre }}</div><div class="ped-editado-fecha">por variante ↓</div></td>
+          {% for a in almacenes %}<td></td>{% endfor %}
+          <td class="ped-num"><b class="inv-total {% if f.total <= 0 %}inv-cero{% endif %}" id="inv-total-{{ f.producto.id }}">{{ f.total }}</b></td>
+        </tr>
+        {% elif f.tipo == 'variante' %}
+        <tr class="inv-fila-variante">
+          <td class="inv-variante-nombre">↳ {{ f.variante.nombre }}</td>
+          {% for c in f.celdas %}
+          <td class="ped-num">
+            <input type="number" class="inv-stock-input" step="1" value="{{ c.cantidad }}"
+                   data-producto="{{ f.producto.id }}" data-variante="{{ f.variante.id }}" data-almacen="{{ c.almacen.id }}">
+          </td>
+          {% endfor %}
+          <td class="ped-num"><b class="inv-fila-total">{{ f.total }}</b></td>
+        </tr>
+        {% else %}
+        {# Producto SIN variantes #}
         <tr>
           <td><div class="ped-cliente-nombre">{{ f.producto.nombre }}</div>{% if f.producto.sku %}<div class="ped-editado-fecha">{{ f.producto.sku }}</div>{% endif %}</td>
           {% for c in f.celdas %}
           <td class="ped-num">
-            <form method="post" action="{% url 'inventario:ajustar_stock' %}" class="inv-ajuste-form">
-              {% csrf_token %}
-              <input type="hidden" name="producto_id" value="{{ f.producto.id }}">
-              <input type="hidden" name="almacen_id" value="{{ c.almacen.id }}">
-              <input type="number" name="cantidad" value="{{ c.cantidad }}" class="inv-stock-input" step="1">
-            </form>
+            <input type="number" class="inv-stock-input" step="1" value="{{ c.cantidad }}"
+                   data-producto="{{ f.producto.id }}" data-almacen="{{ c.almacen.id }}">
           </td>
           {% endfor %}
-          <td class="ped-num"><b class="{% if f.total <= 0 %}inv-cero{% endif %}">{{ f.total }}</b></td>
+          <td class="ped-num"><b class="inv-total {% if f.total <= 0 %}inv-cero{% endif %}" id="inv-total-{{ f.producto.id }}">{{ f.total }}</b></td>
         </tr>
+        {% endif %}
         {% empty %}
         <tr><td colspan="{{ almacenes|length|add:2 }}" class="integ-vacio-cell">No hay productos activos.</td></tr>
         {% endfor %}
@@ -67,11 +84,54 @@
 
 {% block extra_js %}
 <script>
-// Enter en un input de stock → envía solo ese formulario (guarda ese ajuste)
-document.querySelectorAll('.inv-stock-input').forEach(function (inp) {
-  inp.addEventListener('keydown', function (e) {
-    if (e.key === 'Enter') { e.preventDefault(); inp.closest('form').submit(); }
+// Guardado fluido del stock: al cambiar el valor (o Enter) se guarda por AJAX y se
+// actualiza el total, con feedback visual. Sin recargar la página.
+(function () {
+  var URL = '{% url 'inventario:ajustar_stock' %}';
+  var CSRF = '{{ csrf_token }}';
+
+  function guardar(inp) {
+    var prev = inp.dataset.guardado || inp.defaultValue;
+    if (inp.value === prev) return;            // sin cambios reales
+    inp.classList.remove('inv-ok', 'inv-err');
+    inp.classList.add('inv-saving');
+    fetch(URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded',
+                 'X-CSRFToken': CSRF, 'X-Requested-With': 'XMLHttpRequest' },
+      body: 'producto_id=' + inp.dataset.producto + '&almacen_id=' + inp.dataset.almacen +
+            '&variante_id=' + (inp.dataset.variante || '') +
+            '&cantidad=' + encodeURIComponent(inp.value),
+    })
+    .then(function (r) { return r.json(); })
+    .then(function (j) {
+      inp.classList.remove('inv-saving');
+      if (!j.ok) { inp.classList.add('inv-err'); return; }
+      inp.dataset.guardado = inp.value;
+      inp.classList.add('inv-ok');
+      setTimeout(function () { inp.classList.remove('inv-ok'); }, 1200);
+      // Total del producto (lo devuelve el servidor, suma todas las variantes)
+      var tot = document.getElementById('inv-total-' + inp.dataset.producto);
+      if (tot) { tot.textContent = j.total; tot.classList.toggle('inv-cero', j.total <= 0); }
+      // Total de la fila de variante (suma client-side de sus inputs)
+      var fila = inp.closest('tr');
+      var totFila = fila.querySelector('.inv-fila-total');
+      if (totFila) {
+        var s = 0;
+        fila.querySelectorAll('.inv-stock-input').forEach(function (i) { s += parseInt(i.value || 0, 10) || 0; });
+        totFila.textContent = s;
+      }
+    })
+    .catch(function () { inp.classList.remove('inv-saving'); inp.classList.add('inv-err'); });
+  }
+
+  document.querySelectorAll('.inv-stock-input').forEach(function (inp) {
+    inp.dataset.guardado = inp.value;
+    inp.addEventListener('change', function () { guardar(inp); });   // al salir / cambiar
+    inp.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); inp.blur(); guardar(inp); }
+    });
   });
-});
+})();
 </script>
 {% endblock %}

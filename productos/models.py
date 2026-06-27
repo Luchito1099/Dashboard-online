@@ -125,3 +125,74 @@ class MediaProducto(models.Model):
 
     def __str__(self):
         return f"{self.producto.nombre}: {self.get_tipo_display()}"
+
+
+# ───────────────────────── Variantes (atributos combinables) ─────────────────────────
+
+class AtributoProducto(models.Model):
+    """Una dimensión de variación de un producto: ej. «Color», «Talla»."""
+    producto = models.ForeignKey(Producto, on_delete=models.CASCADE, related_name='atributos')
+    nombre = models.CharField(max_length=60)
+    orden = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        ordering = ['orden', 'id']
+
+    def __str__(self):
+        return f'{self.producto.nombre} · {self.nombre}'
+
+
+class ValorAtributo(models.Model):
+    """Un valor posible de un atributo: ej. «Negro», «M»."""
+    atributo = models.ForeignKey(AtributoProducto, on_delete=models.CASCADE, related_name='valores')
+    valor = models.CharField(max_length=60)
+    orden = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        ordering = ['orden', 'id']
+
+    def __str__(self):
+        return self.valor
+
+
+class VarianteProducto(models.Model):
+    """Una combinación concreta de valores de atributos (ej. «Negro · M»). El stock se
+    lleva por variante (ver inventario.StockProducto). Se generan desde los atributos."""
+    producto = models.ForeignKey(Producto, on_delete=models.CASCADE, related_name='variantes')
+    clave = models.CharField(max_length=255)    # 'negro|m' (normalizada, para idempotencia/match)
+    nombre = models.CharField(max_length=255)    # 'Negro · M' (para mostrar)
+    sku = models.CharField(max_length=120, blank=True)
+    activo = models.BooleanField(default=True)
+    orden = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        ordering = ['orden', 'id']
+        unique_together = ('producto', 'clave')
+        verbose_name = 'Variante de producto'
+        verbose_name_plural = 'Variantes de producto'
+
+    def __str__(self):
+        return f'{self.producto.nombre} · {self.nombre}'
+
+
+def generar_variantes(producto):
+    """(Re)genera las variantes de un producto como el producto cartesiano de los valores
+    de sus atributos. Las combinaciones que ya no aplican quedan inactivas (no se borran,
+    para preservar stock e historial)."""
+    import itertools
+    atributos = [a for a in producto.atributos.prefetch_related('valores').all()
+                 if a.valores.exists()]
+    if not atributos:
+        producto.variantes.update(activo=False)
+        return 0
+    listas = [[v.valor for v in a.valores.all()] for a in atributos]
+    combos = list(itertools.product(*listas))
+    claves = set()
+    for i, combo in enumerate(combos):
+        clave = '|'.join(c.strip().lower() for c in combo)
+        claves.add(clave)
+        VarianteProducto.objects.update_or_create(
+            producto=producto, clave=clave,
+            defaults={'nombre': ' · '.join(combo), 'activo': True, 'orden': i})
+    producto.variantes.exclude(clave__in=claves).update(activo=False)
+    return len(combos)

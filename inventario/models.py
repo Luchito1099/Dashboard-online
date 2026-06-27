@@ -30,17 +30,21 @@ class StockProducto(models.Model):
     """Existencias de un producto en un almacén. El stock total de un producto es la
     suma de sus filas en todos los almacenes."""
     producto = models.ForeignKey('productos.Producto', on_delete=models.CASCADE, related_name='stocks')
+    # Variante concreta (color/talla…). Null = producto sin variantes.
+    variante = models.ForeignKey('productos.VarianteProducto', on_delete=models.CASCADE,
+                                 null=True, blank=True, related_name='stocks')
     almacen = models.ForeignKey(Almacen, on_delete=models.CASCADE, related_name='stocks')
     cantidad = models.IntegerField(default=0)
     actualizado = models.DateTimeField(auto_now=True)
 
     class Meta:
-        unique_together = ('producto', 'almacen')
+        unique_together = ('producto', 'variante', 'almacen')
         verbose_name = 'Stock por almacén'
         verbose_name_plural = 'Stock por almacén'
 
     def __str__(self):
-        return f'{self.producto} @ {self.almacen}: {self.cantidad}'
+        v = f' [{self.variante.nombre}]' if self.variante_id else ''
+        return f'{self.producto}{v} @ {self.almacen}: {self.cantidad}'
 
 
 class MovimientoStock(models.Model):
@@ -58,6 +62,8 @@ class MovimientoStock(models.Model):
     ]
 
     producto = models.ForeignKey('productos.Producto', on_delete=models.CASCADE, related_name='movimientos')
+    variante = models.ForeignKey('productos.VarianteProducto', on_delete=models.SET_NULL,
+                                 null=True, blank=True, related_name='movimientos')
     almacen = models.ForeignKey(Almacen, on_delete=models.CASCADE, related_name='movimientos')
     delta = models.IntegerField(help_text='Positivo suma, negativo resta.')
     motivo = models.CharField(max_length=15, choices=MOTIVO_CHOICES, default=MOTIVO_AJUSTE)
