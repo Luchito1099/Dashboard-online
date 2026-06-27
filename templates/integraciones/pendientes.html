@@ -13,6 +13,7 @@
 {% block breadcrumb %}<span>›</span><a href="{% url 'integraciones:pedidos_modulo' %}">Pedidos</a><span>›</span><span>Pendientes de cruce</span>{% endblock %}
 
 {% block content %}
+{{ estados|json_script:"estadosData" }}
 <div class="pedidos-mod"
      data-url-previa="{% url 'integraciones:cruce_excel_preview' %}"
      data-url-aplicar="{% url 'integraciones:cruce_excel_aplicar' %}"
@@ -80,6 +81,11 @@
   var progTxt = document.getElementById('pendProgTxt');
   var ful = document.getElementById('pendFulfillment');
   ful.value = localStorage.getItem('cruce_fulfillment') || '';
+  var ESTADOS = JSON.parse(document.getElementById('estadosData').textContent);
+  function selEstadoHtml(sel) {
+    return '<select class="js-estado">' + '<option value="">— elegir estado —</option>' +
+      ESTADOS.map(function (e) { return '<option value="' + e[0] + '"' + (e[0] === sel ? ' selected' : '') + '>' + e[1] + '</option>'; }).join('') + '</select>';
+  }
 
   function seleccionados() { return Array.prototype.slice.call(document.querySelectorAll('.js-pend:checked')); }
   function escapeHtml(s) { return (s == null ? '' : String(s)).replace(/[&<>]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]; }); }
@@ -136,25 +142,34 @@
       '<div class="cruce-acciones"><div class="ads-nota-inline">' + matches.length + ' cruzaron</div>' +
       '<button type="button" class="btn-guardar" id="pendAplicar" style="margin-left:auto;">✓ Aplicar y quitar de pendientes</button></div>' +
       matches.map(function (m) {
-        return '<div class="cruce-card"><label class="cruce-check"><input type="checkbox" class="js-rc" checked ' +
-          'data-pedido="' + m.pedido.id + '" data-estado="' + (m.estado_nuevo || '') + '" ' +
-          'data-delivery="' + escapeHtml(m.excel.delivery || '') + '" data-ref="' + (m.ref == null ? '' : m.ref) + '"></label>' +
+        return '<div class="cruce-card"><label class="cruce-check"><input type="checkbox" class="js-rc" ' + (m.estado_nuevo ? 'checked' : '') + ' ' +
+          'data-pedido="' + m.pedido.id + '" data-delivery="' + escapeHtml(m.excel.delivery || '') + '" data-ref="' + (m.ref == null ? '' : m.ref) + '"></label>' +
           '<div class="cruce-info"><div class="cruce-fila"><span class="cruce-tag">PEDIDO</span> <b>' + escapeHtml(m.pedido.nombre) +
           '</b> · ' + escapeHtml(m.pedido.celular) + ' · ' + escapeHtml(m.pedido.productos) + ' · estado: ' + escapeHtml(m.pedido.estado_actual) +
           '</div><div class="cruce-fila cruce-fila-xls"><span class="cruce-tag xls">EXCEL</span> ' + escapeHtml(m.excel.nombre) +
-          ' · → <b class="cruce-estado-nuevo">' + escapeHtml(m.estado_nuevo_label) + '</b></div></div></div>';
+          ' · → ' + selEstadoHtml(m.estado_nuevo) + '</div></div></div>';
       }).join('');
     document.getElementById('pendAplicar').addEventListener('click', aplicar);
+    previa.querySelectorAll('.cruce-card').forEach(function (card) {
+      var sel = card.querySelector('.js-estado'), chk = card.querySelector('.js-rc');
+      var upd = function () { chk.disabled = !sel.value; if (!sel.value) chk.checked = false; };
+      upd(); sel.addEventListener('change', upd);
+    });
   }
 
   function aplicar() {
     var f = (ful.value || '').trim();
     var rows = Array.prototype.slice.call(previa.querySelectorAll('.js-rc:checked'));
     if (!rows.length) { alert('Marca al menos uno.'); return; }
-    var cambios = rows.map(function (c) {
-      return { pedido_id: parseInt(c.dataset.pedido, 10), estado: c.dataset.estado,
-               costo_delivery: c.dataset.delivery || '', costo_fulfillment: f };
+    var cambios = [];
+    rows.forEach(function (c) {
+      var sel = c.closest('.cruce-card').querySelector('.js-estado');
+      var estado = sel ? sel.value : '';
+      if (!estado) return;
+      cambios.push({ pedido_id: parseInt(c.dataset.pedido, 10), estado: estado,
+                     costo_delivery: c.dataset.delivery || '', costo_fulfillment: f });
     });
+    if (!cambios.length) { alert('Marca al menos uno con estado elegido.'); return; }
     var refs = rows.map(function (c) { return parseInt(c.dataset.ref, 10); }).filter(function (x) { return !isNaN(x); });
     var btn = this; btn.disabled = true; btn.textContent = 'Aplicando…';
     fetch(root.dataset.urlAplicar, {

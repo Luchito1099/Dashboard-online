@@ -13,6 +13,7 @@
 {% block breadcrumb %}<span>›</span><a href="{% url 'integraciones:pedidos_modulo' %}">Pedidos</a><span>›</span><span>Cruzar por Excel</span>{% endblock %}
 
 {% block content %}
+{{ estados|json_script:"estadosData" }}
 <div class="pedidos-mod"
      data-url-previa="{% url 'integraciones:cruce_excel_preview' %}"
      data-url-ia="{% url 'integraciones:cruce_excel_ia' %}"
@@ -85,7 +86,26 @@
 (function () {
   var root = document.getElementById('cruceRoot');
   var CSRF = '{{ csrf_token }}';
+  var ESTADOS = JSON.parse(document.getElementById('estadosData').textContent);  // [[val,label],...]
   var fileInput = document.getElementById('cruceFile');
+
+  // Selector de estado por cruce (editable; permite elegir si el Excel no lo trae/ reconoce)
+  function selEstadoHtml(sel) {
+    var opts = '<option value="">— elegir estado —</option>' + ESTADOS.map(function (e) {
+      return '<option value="' + e[0] + '"' + (e[0] === sel ? ' selected' : '') + '>' + e[1] + '</option>';
+    }).join('');
+    return '<select class="js-estado">' + opts + '</select>';
+  }
+  // Habilita el check solo si hay estado elegido; reacciona al cambiar el selector
+  function sincronizarChecks() {
+    previa.querySelectorAll('.cruce-card').forEach(function (card) {
+      var sel = card.querySelector('.js-estado'), chk = card.querySelector('.js-cruce');
+      if (!sel || !chk) return;
+      var upd = function () { chk.disabled = !sel.value; if (!sel.value) chk.checked = false; };
+      upd();
+      sel.addEventListener('change', upd);
+    });
+  }
   var fileLabel = document.getElementById('cruceFileLabel');
   var info = document.getElementById('cruceInfo');
   var previaWrap = document.getElementById('crucePreviaWrap');
@@ -209,15 +229,14 @@
 
     previa.innerHTML = ESTADO.matches.map(function (m, i) {
       var conf = { alta: '✓ alta', media: '~ media', ia: '🤖 IA' }[m.confianza] || '';
-      var preMarcado = (m.confianza === 'alta') ? 'checked' : '';
-      var estadoOk = !!m.estado_nuevo;
+      var preMarcado = (m.confianza === 'alta' && m.estado_nuevo) ? 'checked' : '';
       var precioDif = Math.abs(parseFloat(m.pedido.total || 0) - parseFloat(m.excel.precio || 0)) > 0.5;
+      var aviso = m.estado_nuevo ? '' : ' <span class="cruce-precio-dif">(estado del Excel «' + escapeHtml(m.excel.estado_texto) + '» no reconocido — elígelo)</span>';
       return '' +
       '<div class="cruce-card">' +
         '<label class="cruce-check"><input type="checkbox" class="js-cruce" data-i="' + i + '" ' +
-            'data-pedido="' + m.pedido.id + '" data-estado="' + (m.estado_nuevo || '') + '" ' +
-            'data-delivery="' + escapeHtml(m.excel.delivery || '') + '" data-conf="' + m.confianza + '" ' +
-            (estadoOk ? preMarcado : 'disabled') + '></label>' +
+            'data-pedido="' + m.pedido.id + '" data-delivery="' + escapeHtml(m.excel.delivery || '') + '" ' +
+            'data-conf="' + m.confianza + '" ' + preMarcado + '></label>' +
         '<div class="cruce-info">' +
           '<div class="cruce-fila cruce-fila-ped">' +
             '<span class="cruce-tag">PEDIDO</span> <b>' + escapeHtml(m.pedido.nombre) + '</b> · ' +
@@ -231,12 +250,12 @@
             escapeHtml(m.excel.celular) + ' · ' + escapeHtml(m.excel.producto) +
             ' · <span class="' + (precioDif ? 'cruce-precio-dif' : '') + '">S/ ' + escapeHtml(m.excel.precio) + '</span>' +
             (m.excel.delivery ? ' · delivery: S/ ' + escapeHtml(m.excel.delivery) : '') +
-            ' · → ' + (estadoOk ? '<b class="cruce-estado-nuevo">' + escapeHtml(m.estado_nuevo_label) + '</b>'
-                                : '<span class="cruce-precio-dif">estado no reconocido: ' + escapeHtml(m.excel.estado_texto) + '</span>') +
+            ' · → ' + selEstadoHtml(m.estado_nuevo) + aviso +
           '</div>' +
         '</div>' +
       '</div>';
     }).join('') || '<div class="integ-vacio">Ningún pedido cruzó con el Excel.</div>';
+    sincronizarChecks();
 
     var sinWrap = document.getElementById('cruceSinWrap');
     var iaBtn = document.getElementById('cruceIaBtn');
@@ -305,10 +324,13 @@
     var ful = (fulInput.value || '').trim();
     var cambios = [];
     previa.querySelectorAll('.js-cruce:checked').forEach(function (c) {
-      cambios.push({ pedido_id: parseInt(c.dataset.pedido, 10), estado: c.dataset.estado,
+      var sel = c.closest('.cruce-card').querySelector('.js-estado');
+      var estado = sel ? sel.value : '';
+      if (!estado) return;   // sin estado elegido → no se aplica
+      cambios.push({ pedido_id: parseInt(c.dataset.pedido, 10), estado: estado,
                      costo_delivery: c.dataset.delivery || '', costo_fulfillment: ful });
     });
-    if (!cambios.length) { alert('Marca al menos un cruce.'); return; }
+    if (!cambios.length) { alert('Marca al menos un cruce con un estado elegido.'); return; }
     if (!confirm('¿Aplicar el cambio de estado a ' + cambios.length + ' pedido(s)?')) return;
     var btn = this; btn.disabled = true; btn.textContent = 'Aplicando…';
     fetch(root.dataset.urlAplicar, {

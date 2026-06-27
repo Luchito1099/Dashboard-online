@@ -1418,6 +1418,7 @@ def pendientes(request):
     from core.models import HerramientaIA
     return render(request, 'integraciones/pendientes.html', {
         'pendientes': FilaPendiente.objects.all(),
+        'estados': Pedido.ESTADO_CHOICES,
         'ia_activa': HerramientaIA.matching_pedidos().lista_para_usar,
     })
 
