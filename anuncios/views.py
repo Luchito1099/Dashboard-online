@@ -162,17 +162,29 @@ def dashboard(request):
 @login_required
 def api_inicio_serie(request):
     """JSON para el gráfico del Inicio (Gasto Meta vs Pedidos). Protegido: solo quien
-    puede ver Publicidad (el gasto es sensible). Lee ?desde=&hasta= (YYYY-MM-DD);
-    por defecto, hoy. Dispara el auto-sync para mantener los datos frescos."""
+    puede ver Publicidad (el gasto es sensible).
+
+    El rango lo calcula el SERVIDOR en hora de Perú (America/Lima) según ?modo=:
+      - 'hoy' (default): solo hoy → granularidad por hora.
+      - '7d': últimos 7 días (incluye hoy) → por día.
+      - 'rango': usa ?desde=&hasta= (YYYY-MM-DD, fechas de calendario locales).
+    Así "hoy"/"7d" no dependen de la zona horaria del navegador."""
     if not puede_ver_ads(request.user):
         return JsonResponse({'error': 'sin permiso'}, status=403)
 
     from django.utils.dateparse import parse_date
     hoy = timezone.localdate()
-    desde = parse_date(request.GET.get('desde', '') or '') or hoy
-    hasta = parse_date(request.GET.get('hasta', '') or '') or hoy
-    if hasta < desde:
-        desde, hasta = hasta, desde
+    modo = request.GET.get('modo', 'hoy')
+
+    if modo == '7d':
+        desde, hasta = hoy - timedelta(days=6), hoy
+    elif modo == 'rango':
+        desde = parse_date(request.GET.get('desde', '') or '') or hoy
+        hasta = parse_date(request.GET.get('hasta', '') or '') or desde
+        if hasta < desde:
+            desde, hasta = hasta, desde
+    else:   # hoy
+        desde = hasta = hoy
 
     _auto_sync_si_necesario()
     return JsonResponse(services.serie_meta_vs_pedidos(desde, hasta))

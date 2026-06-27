@@ -151,20 +151,15 @@
   const canvas = document.getElementById('metaPedChart');
   let chart = null;
 
-  function ymd(d) { return d.toISOString().slice(0, 10); }
-
-  function rangoDe(modo) {
-    const hoy = new Date();
-    if (modo === '7d') {
-      const ini = new Date(hoy); ini.setDate(hoy.getDate() - 6);
-      return { desde: ymd(ini), hasta: ymd(hoy) };
-    }
+  // El servidor calcula hoy/7d en hora de Perú; aquí solo mandamos el modo.
+  // Para 'rango' enviamos las fechas elegidas (que ya son fechas de calendario locales).
+  function paramsDe(modo) {
     if (modo === 'rango') {
       const d = document.getElementById('mpDesde').value;
       const h = document.getElementById('mpHasta').value;
-      return { desde: d || ymd(hoy), hasta: h || d || ymd(hoy) };
+      return `modo=rango&desde=${d}&hasta=${h || d}`;
     }
-    return { desde: ymd(hoy), hasta: ymd(hoy) };   // hoy
+    return `modo=${modo}`;
   }
 
   function pintar(data) {
@@ -205,9 +200,8 @@
   }
 
   function cargar(modo) {
-    const { desde, hasta } = rangoDe(modo);
     resumen.innerHTML = '<span class="mp-gran">Cargando…</span>';
-    fetch(`${base}?desde=${desde}&hasta=${hasta}`, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+    fetch(`${base}?${paramsDe(modo)}`, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
       .then(r => r.ok ? r.json() : Promise.reject())
       .then(pintar)
       .catch(() => { resumen.innerHTML = '<span class="mp-gran">No se pudo cargar.</span>'; });
