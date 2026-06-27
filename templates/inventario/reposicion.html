@@ -1,0 +1,105 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% comment %} templates/inventario/reposicion.html — Planificador de reposición (solo admin) {% endcomment %}
+
+{% block title %}Reposición · Inventario · Dashboard{% endblock %}
+{% block nav_inventario %}active{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'core/css/integraciones.css' %}">
+<link rel="stylesheet" href="{% static 'core/css/inventario.css' %}">
+{% endblock %}
+
+{% block breadcrumb %}<span>›</span><a href="{% url 'inventario:inventario' %}">Inventario</a><span>›</span><span>Reposición</span>{% endblock %}
+
+{% block content %}
+<div class="pedidos-mod">
+  <div class="integ-header" style="display:flex;justify-content:space-between;align-items:flex-end;">
+    <div>
+      <h2 class="integ-title">Reposición · cuándo comprar</h2>
+      <p class="integ-subtitle">{{ urgentes }} producto(s) por comprar ya. Consumo = preventa + venta de los últimos {{ dias }} días.</p>
+    </div>
+    <form method="get" class="ped-filtros" style="margin:0;">
+      <label>Ventana
+        <select name="dias" onchange="this.form.submit()">
+          <option value="7" {% if dias == 7 %}selected{% endif %}>7 días</option>
+          <option value="14" {% if dias == 14 %}selected{% endif %}>14 días</option>
+          <option value="30" {% if dias == 30 %}selected{% endif %}>30 días</option>
+          <option value="60" {% if dias == 60 %}selected{% endif %}>60 días</option>
+          <option value="90" {% if dias == 90 %}selected{% endif %}>90 días</option>
+        </select>
+      </label>
+    </form>
+  </div>
+
+  <div class="ped-tabla-wrap">
+    <table class="ped-tabla">
+      <thead>
+        <tr>
+          <th>Producto</th><th class="ped-num">Stock</th><th class="ped-num">Venta/día</th>
+          <th class="ped-num">Días restantes</th><th class="ped-num">Lead time</th>
+          <th class="ped-num">Comprar antes de</th><th class="ped-num">Cantidad sugerida</th>
+          <th class="ped-num">Lead/Seg/Cob</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for f in filas %}
+        <tr class="{% if f.comprar_ya %}inv-urgente{% endif %}">
+          <td>
+            <div class="ped-cliente-nombre">{{ f.producto.nombre }}</div>
+            {% if f.comprar_ya %}<div class="inv-badge-ya">⚠ Comprar ya</div>{% endif %}
+          </td>
+          <td class="ped-num"><b class="{% if f.stock <= 0 %}inv-cero{% endif %}">{{ f.stock }}</b></td>
+          <td class="ped-num">{{ f.consumo_dia }}</td>
+          <td class="ped-num">{% if f.dias_restantes != None %}{{ f.dias_restantes }}{% else %}—{% endif %}</td>
+          <td class="ped-num">{{ f.lead_time }}d</td>
+          <td class="ped-num">{% if f.fecha_sugerida %}{{ f.fecha_sugerida|date:"d/m/Y" }}{% else %}—{% endif %}</td>
+          <td class="ped-num"><b>{{ f.cantidad_sugerida }}</b></td>
+          <td class="ped-num">
+            <form method="post" action="{% url 'inventario:guardar_config' %}" class="inv-cfg-form">
+              {% csrf_token %}
+              <input type="hidden" name="producto_id" value="{{ f.producto.id }}">
+              <input type="number" name="dias_entrega" value="{{ f.lead_time }}" min="0" title="Lead time (días)">
+              <input type="number" name="dias_seguridad" value="{{ f.dias_seguridad }}" min="0" title="Días de seguridad">
+              <input type="number" name="dias_cobertura" value="{{ f.dias_cobertura }}" min="0" title="Días de cobertura objetivo">
+              <button type="submit" class="btn-guardar inv-cfg-btn">✓</button>
+            </form>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="8" class="integ-vacio-cell">Ningún producto tiene reposición configurada todavía. Configúralos abajo.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="ads-nota">«Comprar antes de» = hoy + (días restantes − lead time − seguridad). «Cantidad sugerida» cubre lead time + cobertura.
+    Lead/Seg/Cob = días de entrega / seguridad / cobertura (edítalos y guarda con ✓).</p>
+
+  {% if sin_config %}
+  <div class="av-card av-card-wide" style="margin-top:14px;">
+    <div class="av-card-title">Activar reposición para más productos</div>
+    <table class="ped-tabla">
+      <thead><tr><th>Producto</th><th class="ped-num">Lead / Seguridad / Cobertura (días)</th></tr></thead>
+      <tbody>
+        {% for p in sin_config %}
+        <tr>
+          <td>{{ p.nombre }}</td>
+          <td class="ped-num">
+            <form method="post" action="{% url 'inventario:guardar_config' %}" class="inv-cfg-form">
+              {% csrf_token %}
+              <input type="hidden" name="producto_id" value="{{ p.id }}">
+              <input type="number" name="dias_entrega" value="30" min="0" class="inv-cfg-mini" title="Lead time">
+              <input type="number" name="dias_seguridad" value="7" min="0" class="inv-cfg-mini" title="Seguridad">
+              <input type="number" name="dias_cobertura" value="60" min="0" class="inv-cfg-mini" title="Cobertura">
+              <button type="submit" class="btn-guardar">Activar</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,77 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% comment %} templates/inventario/inventario.html — Stock por almacén (solo admin) {% endcomment %}
+
+{% block title %}Inventario · Dashboard{% endblock %}
+{% block nav_inventario %}active{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'core/css/integraciones.css' %}">
+<link rel="stylesheet" href="{% static 'core/css/inventario.css' %}">
+{% endblock %}
+
+{% block breadcrumb %}<span>›</span><span>Inventario</span>{% endblock %}
+
+{% block content %}
+<div class="pedidos-mod">
+  <div class="integ-header" style="display:flex;justify-content:space-between;align-items:flex-end;">
+    <div>
+      <h2 class="integ-title">Inventario · stock por almacén</h2>
+      <p class="integ-subtitle">Ajusta el stock de cada producto en cada almacén. Se descuenta solo cuando un pedido se entrega.</p>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <a href="{% url 'inventario:reposicion' %}" class="btn-probar">📈 Reposición</a>
+      <a href="{% url 'inventario:almacenes' %}" class="btn-probar">🏬 Almacenes</a>
+    </div>
+  </div>
+
+  {% if sin_almacenes %}
+  <div class="integ-vacio">No hay almacenes todavía. Crea uno en <a href="{% url 'inventario:almacenes' %}"><b>Almacenes</b></a>.</div>
+  {% else %}
+  <div class="ped-tabla-wrap">
+    <table class="ped-tabla inv-tabla">
+      <thead>
+        <tr>
+          <th>Producto</th>
+          {% for a in almacenes %}<th class="ped-num">{{ a.nombre }}</th>{% endfor %}
+          <th class="ped-num">Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for f in filas %}
+        <tr>
+          <td><div class="ped-cliente-nombre">{{ f.producto.nombre }}</div>{% if f.producto.sku %}<div class="ped-editado-fecha">{{ f.producto.sku }}</div>{% endif %}</td>
+          {% for c in f.celdas %}
+          <td class="ped-num">
+            <form method="post" action="{% url 'inventario:ajustar_stock' %}" class="inv-ajuste-form">
+              {% csrf_token %}
+              <input type="hidden" name="producto_id" value="{{ f.producto.id }}">
+              <input type="hidden" name="almacen_id" value="{{ c.almacen.id }}">
+              <input type="number" name="cantidad" value="{{ c.cantidad }}" class="inv-stock-input" step="1">
+            </form>
+          </td>
+          {% endfor %}
+          <td class="ped-num"><b class="{% if f.total <= 0 %}inv-cero{% endif %}">{{ f.total }}</b></td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="{{ almacenes|length|add:2 }}" class="integ-vacio-cell">No hay productos activos.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="ads-nota">Cambia un número y presiona Enter para guardar el ajuste de ese almacén. Cada cambio queda registrado.</p>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Enter en un input de stock → envía solo ese formulario (guarda ese ajuste)
+document.querySelectorAll('.inv-stock-input').forEach(function (inp) {
+  inp.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { e.preventDefault(); inp.closest('form').submit(); }
+  });
+});
+</script>
+{% endblock %}

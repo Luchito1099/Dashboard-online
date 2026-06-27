@@ -1,0 +1,80 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% comment %} templates/inventario/almacenes.html — CRUD de almacenes (solo admin) {% endcomment %}
+
+{% block title %}Almacenes · Inventario · Dashboard{% endblock %}
+{% block nav_inventario %}active{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'core/css/integraciones.css' %}">
+<link rel="stylesheet" href="{% static 'core/css/inventario.css' %}">
+{% endblock %}
+
+{% block breadcrumb %}<span>›</span><a href="{% url 'inventario:inventario' %}">Inventario</a><span>›</span><span>Almacenes</span>{% endblock %}
+
+{% block content %}
+<div class="pedidos-mod">
+  <div class="integ-header">
+    <h2 class="integ-title">Almacenes</h2>
+    <p class="integ-subtitle">Liga cada almacén a una fuente/logística para que el stock se descuente del correcto al entregar un pedido.</p>
+  </div>
+
+  <div class="ped-tabla-wrap">
+    <table class="ped-tabla">
+      <thead>
+        <tr><th>Nombre</th><th>Fuente / logística ligada</th><th class="ped-num">Principal</th><th class="ped-num">Activo</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for a in almacenes %}
+        <tr>
+          <td>
+            <form method="post" id="alm-{{ a.id }}">
+              {% csrf_token %}
+              <input type="hidden" name="accion" value="editar">
+              <input type="hidden" name="almacen_id" value="{{ a.id }}">
+            </form>
+            <input type="text" name="nombre" value="{{ a.nombre }}" class="inv-alm-nombre" form="alm-{{ a.id }}">
+          </td>
+          <td>
+            <select name="integracion" form="alm-{{ a.id }}">
+              <option value="">— ninguna —</option>
+              {% for i in fuentes %}<option value="{{ i.id }}" {% if a.integracion_id == i.id %}selected{% endif %}>{{ i.nombre }} ({{ i.get_categoria_display }})</option>{% endfor %}
+            </select>
+          </td>
+          <td class="ped-num"><input type="checkbox" name="es_principal" form="alm-{{ a.id }}" {% if a.es_principal %}checked{% endif %}></td>
+          <td class="ped-num"><input type="checkbox" name="activo" form="alm-{{ a.id }}" {% if a.activo %}checked{% endif %}></td>
+          <td class="ped-num" style="white-space:nowrap;">
+            <button type="submit" class="btn-guardar" form="alm-{{ a.id }}">Guardar</button>
+            <form method="post" style="display:inline;" onsubmit="return confirm('¿Eliminar «{{ a.nombre|escapejs }}»? Se borrará su stock y movimientos.');">
+              {% csrf_token %}
+              <input type="hidden" name="accion" value="eliminar">
+              <input type="hidden" name="almacen_id" value="{{ a.id }}">
+              <button type="submit" class="btn-danger-sm">Eliminar</button>
+            </form>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5" class="integ-vacio-cell">Aún no hay almacenes.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="av-card av-card-wide" style="margin-top:14px;">
+    <div class="av-card-title">+ Agregar almacén</div>
+    <form method="post" class="ads-cuenta-form">
+      {% csrf_token %}
+      <input type="hidden" name="accion" value="crear">
+      <input type="text" name="nombre" placeholder="Nombre del almacén (ej. Lima Centro)" required>
+      <select name="integracion">
+        <option value="">— Fuente / logística (opcional) —</option>
+        {% for i in fuentes %}<option value="{{ i.id }}">{{ i.nombre }} ({{ i.get_categoria_display }})</option>{% endfor %}
+      </select>
+      <label class="ha-check"><input type="checkbox" name="es_principal"> Principal (por defecto)</label>
+      <button type="submit" class="btn-guardar">+ Crear almacén</button>
+    </form>
+    <p class="ads-nota">El almacén <b>principal</b> se usa cuando un pedido no mapea a ningún almacén por su fuente.</p>
+  </div>
+</div>
+{% endblock %}

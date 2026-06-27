@@ -68,7 +68,9 @@
       "Bash(sed -i -e \"s|Gasto Meta \\(S/\\)|Gasto Meta \\({{ moneda }}\\)|\" -e \"s|text: 'Gasto S/'|text: 'Gasto {{ moneda }}'|\" templates/anuncios/dashboard.html)",
       "Bash(sed -i 's|\\(total S/ {{ hm.total_gasto }}\\)|\\(total {{ moneda }} {{ hm.total_gasto }}\\)|' templates/anuncios/_tab_heatmap.html)",
       "PowerShell(python manage.py sincronizar_ads --dias 3 2>&1)",
-      "PowerShell(python manage.py alertas_ads 2>&1)"
+      "PowerShell(python manage.py alertas_ads 2>&1)",
+      "Bash(mkdir -p inventario/migrations)",
+      "Bash(touch inventario/__init__.py inventario/migrations/__init__.py)"
     ]
   }
 }
