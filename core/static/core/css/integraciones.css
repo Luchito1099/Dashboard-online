@@ -2,6 +2,24 @@
 
 .integ { max-width: 980px; }
 
+/* ── Autocompletar con IA (Registro de pedidos) ── */
+.reg-ia {
+  background: var(--surface); border: 1px solid var(--primary); border-radius: var(--radius);
+  padding: 16px; margin-bottom: 18px; box-shadow: var(--shadow);
+}
+.reg-ia-head { font-size: 15px; font-weight: 700; color: var(--primary); }
+.reg-ia-desc { font-size: 13px; color: var(--text-secondary); margin: 4px 0 10px; }
+.reg-ia-text {
+  width: 100%; padding: 10px 12px; border: 1px solid var(--border-dark); border-radius: 9px;
+  font-size: 13px; font-family: inherit; background: var(--bg); color: var(--text); resize: vertical;
+}
+.reg-ia-acciones { display: flex; align-items: center; gap: 12px; margin-top: 10px; flex-wrap: wrap; }
+.reg-ia-estado { font-size: 13px; color: var(--text-secondary); }
+.reg-ia-faltantes {
+  margin-top: 10px; padding: 9px 12px; border-radius: 8px; font-size: 13px;
+  background: oklch(85% 0.09 75 / 0.18); color: oklch(45% 0.12 55); border: 1px solid oklch(75% 0.12 75 / 0.4);
+}
+
 /* ── Nueva integración (fila inline) ── */
 .integ-nueva-grid {
   display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 12px; align-items: end;

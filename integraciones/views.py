@@ -1047,11 +1047,48 @@ def registro_crear(request):
         messages.success(request, f'Pedido manual de «{nombre}» registrado.')
         return redirect('integraciones:registro_pedidos')
 
+    from core.models import HerramientaIA
     context = {
         'fuentes_manual': Pedido.FUENTE_MANUAL_CHOICES,
         'vendedores': _vendedores_qs(),
+        # Muestra el panel de autocompletar solo si la IA de registro está lista
+        'ia_registro_activa': HerramientaIA.registrar_pedido().lista_para_usar,
     }
     return render(request, 'integraciones/registro_crear.html', context)
+
+
+@login_required
+def registro_ia_autocompletar(request):
+    """Recibe una conversación y devuelve, vía IA, los campos del pedido para prellenar
+    el formulario (no crea el pedido: el usuario revisa y guarda). POST JSON {conversacion}."""
+    from core.permisos import puede_registrar_pedidos
+    if not (puede_registrar_pedidos(request.user) or es_admin(request.user)):
+        return JsonResponse({'ok': False, 'error': 'Sin permiso.'}, status=403)
+    if request.method != 'POST':
+        return HttpResponseNotAllowed(['POST'])
+
+    from core.models import HerramientaIA
+    from core import ia
+    try:
+        conversacion = (json.loads(request.body or '{}').get('conversacion') or '').strip()
+    except ValueError:
+        conversacion = ''
+    if not conversacion:
+        return JsonResponse({'ok': False, 'error': 'Pega una conversación primero.'}, status=400)
+
+    herr = HerramientaIA.registrar_pedido()
+    if not herr.lista_para_usar:
+        return JsonResponse({'ok': False, 'error': 'Configura la IA en Configuración → IA.'}, status=400)
+
+    try:
+        respuesta = ia.llamar(herr.conexion, herr.prompt, conversacion)
+    except ia.IAError as e:
+        return JsonResponse({'ok': False, 'error': str(e)}, status=502)
+
+    data = ia.extraer_json(respuesta)
+    if data is None:
+        return JsonResponse({'ok': False, 'error': 'La IA no devolvió datos válidos.'}, status=422)
+    return JsonResponse({'ok': True, 'data': data})
 
 
 # ───────────────────────── OAuth de Shopify ─────────────────────────

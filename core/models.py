@@ -144,3 +144,56 @@ class ConexionIA(models.Model):
     @property
     def tokens_total(self):
         return self.tokens_entrada + self.tokens_salida
+
+
+PROMPT_REGISTRAR_PEDIDO = (
+    'Eres un asistente que extrae los datos de un pedido a partir de una conversación '
+    '(WhatsApp, Instagram, etc.). Responde SOLO con un JSON, sin texto adicional ni '
+    'backticks, con esta forma exacta:\n'
+    '{"nombre_cliente":"","telefono":"","numero":"","productos":[{"nombre":"","cantidad":1,'
+    '"precio":""}],"total":"","adelanto":"","tipo_envio":"","tipo_envio_detalle":""}\n'
+    '- "tipo_envio" debe ser uno de: "Agencia", "Delivery" u "Otros". Si es otro, deja '
+    'tipo_envio en "Otros" y pon el detalle en "tipo_envio_detalle".\n'
+    '- Los montos (total, adelanto, precio) solo con números, sin símbolo de moneda.\n'
+    '- "productos" es la lista de artículos pedidos (nombre, cantidad, precio si aparece).\n'
+    '- Si un dato no aparece en la conversación, déjalo como "" (cadena vacía) y NO lo '
+    'inventes. No agregues campos que no estén en el JSON.'
+)
+
+
+class HerramientaIA(models.Model):
+    """Una tarea donde se puede usar IA (con su propio prompt y la conexión que usa).
+    Es extensible; por ahora la única cableada es 'registrar_pedido'."""
+    slug = models.SlugField(max_length=50, unique=True)
+    nombre = models.CharField(max_length=80)
+    descripcion = models.CharField(max_length=255, blank=True)
+    prompt = models.TextField(blank=True)
+    conexion = models.ForeignKey(ConexionIA, on_delete=models.SET_NULL, null=True, blank=True,
+                                 related_name='herramientas')
+    activa = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['nombre']
+        verbose_name = 'Herramienta con IA'
+        verbose_name_plural = 'Herramientas con IA'
+
+    def __str__(self):
+        return self.nombre
+
+    @property
+    def lista_para_usar(self):
+        """True si está activa y tiene una conexión activa con API key."""
+        return bool(self.activa and self.conexion and self.conexion.activa and self.conexion.api_key)
+
+    @classmethod
+    def registrar_pedido(cls):
+        """Devuelve (creando si falta) la herramienta de autocompletar el registro de pedidos."""
+        obj, creado = cls.objects.get_or_create(
+            slug='registrar_pedido',
+            defaults={'nombre': 'Registrar pedido',
+                      'descripcion': 'Pega una conversación y autocompleta el formulario de pedido manual.',
+                      'prompt': PROMPT_REGISTRAR_PEDIDO})
+        if creado and ConexionIA.objects.filter(activa=True).exists():
+            obj.conexion = ConexionIA.objects.filter(activa=True).first()
+            obj.save(update_fields=['conexion'])
+        return obj

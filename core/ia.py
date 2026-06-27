@@ -88,6 +88,21 @@ def probar(conexion):
     return ok, msg
 
 
+def extraer_json(texto):
+    """Extrae el primer objeto JSON de un string (la IA a veces añade texto/backticks)."""
+    import json
+    if not texto:
+        return None
+    inicio = texto.find('{')
+    fin = texto.rfind('}')
+    if inicio == -1 or fin <= inicio:
+        return None
+    try:
+        return json.loads(texto[inicio:fin + 1])
+    except ValueError:
+        return None
+
+
 def llamar(conexion, prompt, texto=''):
     """Ejecuta una tarea de IA y acumula el consumo en la conexión. Devuelve la respuesta."""
     contenido = f'{prompt}\n\n{texto}' if texto else prompt

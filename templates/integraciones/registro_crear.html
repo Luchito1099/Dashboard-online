@@ -21,6 +21,19 @@
     <p class="integ-subtitle">Registra un pedido que llegó por un canal no automatizado.</p>
   </div>
 
+  {% if ia_registro_activa %}
+  <div class="reg-ia" id="regIA" data-url="{% url 'integraciones:registro_ia_autocompletar' %}">
+    <div class="reg-ia-head">🤖 Autocompletar con IA</div>
+    <p class="reg-ia-desc">Pega la conversación (WhatsApp, Instagram…) y la IA rellena el formulario. Revisa y corrige antes de guardar.</p>
+    <textarea id="regIAConv" class="reg-ia-text" rows="5" placeholder="Pega aquí la conversación con el cliente…"></textarea>
+    <div class="reg-ia-acciones">
+      <button type="button" class="btn-guardar" id="regIABtn">✨ Autocompletar</button>
+      <span class="reg-ia-estado" id="regIAEstado"></span>
+    </div>
+    <div class="reg-ia-faltantes" id="regIAFaltantes" hidden></div>
+  </div>
+  {% endif %}
+
   <form method="post" class="reg-form">
     {% csrf_token %}
 
@@ -127,6 +140,79 @@
   var envWrap = document.getElementById('regEnvioOtroWrap');
   function toggleEnv() { envWrap.style.display = (env.value === 'Otros') ? '' : 'none'; }
   env.addEventListener('change', toggleEnv); toggleEnv();
+
+  // ── Autocompletar con IA ──
+  var ia = document.getElementById('regIA');
+  if (ia) {
+    var btn = document.getElementById('regIABtn');
+    var estado = document.getElementById('regIAEstado');
+    var faltDiv = document.getElementById('regIAFaltantes');
+    var form = document.querySelector('.reg-form');
+    var CSRF = '{{ csrf_token }}';
+
+    function setVal(name, val) {
+      var el = form.querySelector('[name="' + name + '"]');
+      if (el && val != null && String(val).trim() !== '') { el.value = val; return true; }
+      return false;
+    }
+
+    function llenarProductos(productos) {
+      if (!Array.isArray(productos) || !productos.length) return;
+      // Quita filas extra, deja una base
+      while (cont.children.length > 1) cont.removeChild(cont.lastElementChild);
+      productos.forEach(function (p, idx) {
+        var row = (idx === 0) ? cont.firstElementChild : cont.firstElementChild.cloneNode(true);
+        row.querySelector('[name="item_nombre"]').value = p.nombre || '';
+        row.querySelector('[name="item_cantidad"]').value = p.cantidad || 1;
+        row.querySelector('[name="item_precio"]').value = (p.precio != null ? p.precio : '');
+        if (idx > 0) cont.appendChild(row);
+      });
+    }
+
+    btn.addEventListener('click', function () {
+      var conv = document.getElementById('regIAConv').value.trim();
+      if (!conv) { estado.textContent = 'Pega una conversación primero.'; return; }
+      btn.disabled = true; estado.textContent = 'Pensando…'; faltDiv.hidden = true;
+
+      fetch(ia.dataset.url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF, 'X-Requested-With': 'XMLHttpRequest' },
+        body: JSON.stringify({ conversacion: conv }),
+      })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        btn.disabled = false;
+        if (!j.ok) { estado.textContent = j.error || 'No se pudo autocompletar.'; return; }
+        var d = j.data || {};
+        // Campos simples (etiqueta → nombre del campo)
+        var campos = {
+          'Nombre del cliente': ['nombre_cliente', d.nombre_cliente],
+          'Teléfono': ['telefono', d.telefono],
+          'Nº de pedido': ['numero', d.numero],
+          'Precio final': ['total', d.total],
+          'Adelanto': ['adelanto', d.adelanto],
+        };
+        var faltan = [];
+        Object.keys(campos).forEach(function (lbl) {
+          var par = campos[lbl];
+          if (!setVal(par[0], par[1])) faltan.push(lbl);
+        });
+        // Productos
+        if (d.productos && d.productos.length) llenarProductos(d.productos); else faltan.push('Productos');
+        // Tipo de envío
+        if (d.tipo_envio && ['Agencia','Delivery','Otros'].indexOf(d.tipo_envio) >= 0) {
+          env.value = d.tipo_envio; toggleEnv();
+          if (d.tipo_envio === 'Otros') setVal('tipo_envio_otro', d.tipo_envio_detalle);
+        }
+        estado.textContent = '✓ Listo. Revisa y corrige antes de guardar.';
+        if (faltan.length) {
+          faltDiv.hidden = false;
+          faltDiv.innerHTML = '<b>Faltó (revisa o complétalo a mano):</b> ' + faltan.join(' · ');
+        }
+      })
+      .catch(function () { btn.disabled = false; estado.textContent = 'Error de red.'; });
+    });
+  }
 })();
 </script>
 {% endblock %}

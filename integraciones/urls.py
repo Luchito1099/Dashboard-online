@@ -24,6 +24,7 @@ urlpatterns = [
     # Registro de pedidos (alta manual)
     path('registro-pedidos/', views.registro_pedidos, name='registro_pedidos'),
     path('registro-pedidos/crear/', views.registro_crear, name='registro_crear'),
+    path('registro-pedidos/ia-autocompletar/', views.registro_ia_autocompletar, name='registro_ia_autocompletar'),
     # OAuth de Shopify
     path('integraciones/oauth/iniciar/<int:integracion_id>/', views.oauth_iniciar, name='oauth_iniciar'),
     path('integraciones/oauth/callback/', views.oauth_callback, name='oauth_callback'),

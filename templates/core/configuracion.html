@@ -412,6 +412,53 @@
       DeepSeek <code>deepseek-chat</code> · OpenAI <code>gpt-4o-mini</code>. Tras crearla, usa <b>Probar</b> para validar.</p>
   </div>
 
+  <!-- ── HERRAMIENTAS CON IA ── -->
+  <div class="cfg-card">
+    <div class="cfg-card-title">🛠️ Herramientas con IA</div>
+    <p class="cfg-card-desc">Dónde se usa la IA dentro del sistema. Cada herramienta tiene su <b>prompt</b>
+      (cómo debe comportarse) y la <b>conexión</b> que usa. Por ahora la única conectada es
+      <b>«Registrar pedido»</b> (autocompletar el formulario pegando una conversación).</p>
+
+    {% for h in herramientas_ia %}
+    <form method="post" class="cfg-herr">
+      {% csrf_token %}
+      <input type="hidden" name="accion" value="guardar_herramienta_ia">
+      <input type="hidden" name="herramienta_id" value="{{ h.id }}">
+      <div class="cfg-herr-head">
+        <div>
+          <div class="cfg-herr-nombre">{{ h.nombre }} <code>{{ h.slug }}</code>
+            {% if h.lista_para_usar %}<span class="pill-estado on">lista</span>{% else %}<span class="pill-estado off">sin conexión</span>{% endif %}</div>
+          {% if h.descripcion %}<div class="cfg-herr-desc">{{ h.descripcion }}</div>{% endif %}
+        </div>
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;"><input type="checkbox" name="activa" {% if h.activa %}checked{% endif %}> Activa</label>
+      </div>
+      <label class="cfg-field"><span>Conexión de IA</span>
+        <select class="cfg-select" name="conexion">
+          <option value="">— elegir conexión —</option>
+          {% for k in conexiones_ia %}<option value="{{ k.id }}" {% if h.conexion_id == k.id %}selected{% endif %}>{{ k.nombre }} ({{ k.modelo }})</option>{% endfor %}
+        </select></label>
+      <label class="cfg-field"><span>Prompt <em>(cómo trabaja la IA en esta herramienta)</em></span>
+        <textarea class="cfg-input cfg-herr-prompt" name="prompt" rows="7">{{ h.prompt }}</textarea></label>
+      <button type="submit" class="btn-primary">Guardar herramienta</button>
+    </form>
+    {% endfor %}
+
+    <details class="cfg-herr-add">
+      <summary>+ Agregar otra herramienta (avanzado)</summary>
+      <form method="post" style="margin-top:10px;">
+        {% csrf_token %}
+        <input type="hidden" name="accion" value="crear_herramienta_ia">
+        <div class="cfg-form-row">
+          <label class="cfg-field"><span>Nombre</span><input class="cfg-input" type="text" name="nombre" required></label>
+          <label class="cfg-field"><span>Slug</span><input class="cfg-input" type="text" name="slug" placeholder="opcional"></label>
+        </div>
+        <label class="cfg-field"><span>Prompt</span><textarea class="cfg-input" name="prompt" rows="4"></textarea></label>
+        <button type="submit" class="btn-primary">+ Crear herramienta</button>
+        <p class="cfg-card-desc" style="margin-top:8px;">Nota: por ahora solo «Registrar pedido» está cableada a una pantalla.</p>
+      </form>
+    </details>
+  </div>
+
   </div>{# /sección ia #}
 
 </div>{# /.config #}

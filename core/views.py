@@ -10,7 +10,7 @@ from django.utils import timezone
 
 from capacitacion.models import Tarea, ProgresoTarea
 from capacitacion.views import es_admin  # reutilizamos el helper de permisos
-from .models import Perfil, ConfiguracionSistema, MetaVendedor, ConexionIA
+from .models import Perfil, ConfiguracionSistema, MetaVendedor, ConexionIA, HerramientaIA
 from .permisos import puede_ver, destino_vendedor
 
 
@@ -169,6 +169,12 @@ def configuracion(request):
         elif accion == 'probar_ia':
             _probar_ia(request)
 
+        elif accion == 'guardar_herramienta_ia':
+            _guardar_herramienta_ia(request)
+
+        elif accion == 'crear_herramienta_ia':
+            _crear_herramienta_ia(request)
+
         return redirect('core:configuracion')
 
     # ── GET: listamos usuarios con su perfil (creándolo si faltara) ──
@@ -205,8 +211,39 @@ def configuracion(request):
         'metas_info': metas_info,
         'conexiones_ia': ConexionIA.objects.all(),
         'proveedores_ia': ConexionIA.PROVEEDOR_CHOICES,
+        # Asegura que exista la herramienta de registrar pedido y lista todas
+        'herramientas_ia': (HerramientaIA.registrar_pedido(), HerramientaIA.objects.all())[1],
     }
     return render(request, 'core/configuracion.html', context)
+
+
+def _guardar_herramienta_ia(request):
+    """Guarda el prompt, la conexión y el estado de una herramienta de IA."""
+    h = HerramientaIA.objects.filter(id=request.POST.get('herramienta_id')).first()
+    if not h:
+        return
+    h.prompt = request.POST.get('prompt', h.prompt)
+    cid = request.POST.get('conexion', '')
+    h.conexion_id = int(cid) if cid.isdigit() else None
+    h.activa = request.POST.get('activa') == 'on'
+    h.save()
+    messages.success(request, f'Herramienta «{h.nombre}» guardada.')
+
+
+def _crear_herramienta_ia(request):
+    """Crea una herramienta de IA nueva (para usos futuros). Solo «registrar_pedido» está cableada."""
+    from django.utils.text import slugify
+    nombre = request.POST.get('nombre', '').strip()
+    if not nombre:
+        messages.error(request, 'La herramienta necesita un nombre.')
+        return
+    slug = slugify(request.POST.get('slug', '') or nombre)[:50]
+    if HerramientaIA.objects.filter(slug=slug).exists():
+        messages.error(request, f'Ya existe una herramienta con slug «{slug}».')
+        return
+    HerramientaIA.objects.create(slug=slug, nombre=nombre,
+                                 prompt=request.POST.get('prompt', '').strip())
+    messages.success(request, f'Herramienta «{nombre}» creada.')
 
 
 def _guardar_ia(request):
