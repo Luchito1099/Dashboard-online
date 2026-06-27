@@ -10,7 +10,7 @@ from django.utils import timezone
 
 from capacitacion.models import Tarea, ProgresoTarea
 from capacitacion.views import es_admin  # reutilizamos el helper de permisos
-from .models import Perfil, ConfiguracionSistema, MetaVendedor
+from .models import Perfil, ConfiguracionSistema, MetaVendedor, ConexionIA
 from .permisos import puede_ver, destino_vendedor
 
 
@@ -137,6 +137,15 @@ def configuracion(request):
         elif accion == 'guardar_metas':
             _guardar_metas(request)
 
+        elif accion == 'guardar_ia':
+            _guardar_ia(request)
+
+        elif accion == 'eliminar_ia':
+            _eliminar_ia(request)
+
+        elif accion == 'probar_ia':
+            _probar_ia(request)
+
         return redirect('core:configuracion')
 
     # ── GET: listamos usuarios con su perfil (creándolo si faltara) ──
@@ -171,8 +180,56 @@ def configuracion(request):
         'config': config,
         'roles': Perfil.ROL_CHOICES,
         'metas_info': metas_info,
+        'conexiones_ia': ConexionIA.objects.all(),
+        'proveedores_ia': ConexionIA.PROVEEDOR_CHOICES,
     }
     return render(request, 'core/configuracion.html', context)
+
+
+def _guardar_ia(request):
+    """Crea o actualiza una conexión de IA. La key solo se cambia si se escribe una nueva."""
+    cid = request.POST.get('conexion_id', '').strip()
+    nombre = request.POST.get('nombre', '').strip()
+    if not nombre:
+        messages.error(request, 'La conexión necesita un nombre.')
+        return
+    datos = {
+        'nombre': nombre,
+        'proveedor': request.POST.get('proveedor', ConexionIA.PROVEEDOR_ANTHROPIC),
+        'modelo': request.POST.get('modelo', '').strip() or 'claude-haiku-4-5-20251001',
+        'base_url': request.POST.get('base_url', '').strip(),
+        'activa': request.POST.get('activa') == 'on',
+    }
+    key = request.POST.get('api_key', '').strip()
+    if key:
+        datos['api_key'] = key
+    if cid.isdigit():
+        ConexionIA.objects.filter(id=cid).update(**datos)
+        messages.success(request, f'Conexión «{nombre}» actualizada.')
+    else:
+        if not key:
+            messages.error(request, 'Para crear una conexión nueva indica la API key.')
+            return
+        ConexionIA.objects.create(**datos)
+        messages.success(request, f'Conexión «{nombre}» creada.')
+
+
+def _eliminar_ia(request):
+    cid = request.POST.get('conexion_id', '')
+    if str(cid).isdigit():
+        ConexionIA.objects.filter(id=cid).delete()
+        messages.success(request, 'Conexión eliminada.')
+
+
+def _probar_ia(request):
+    """Prueba la conexión contra el proveedor (llamada mínima)."""
+    from . import ia
+    cid = request.POST.get('conexion_id', '')
+    conexion = ConexionIA.objects.filter(id=cid).first() if str(cid).isdigit() else None
+    if not conexion:
+        return
+    ok, msg = ia.probar(conexion)
+    (messages.success if ok else messages.error)(request, f'{conexion.nombre}: {msg}')
 
 
 def _guardar_metas(request):

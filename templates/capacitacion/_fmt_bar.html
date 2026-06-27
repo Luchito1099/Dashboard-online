@@ -1,12 +1,14 @@
-{% comment %} Barra de formato reutilizable para los textareas con .js-fmt {% endcomment %}
+{% comment %} Barra de formato reutilizable para los textareas con .js-fmt.
+   onmousedown=preventDefault: el botón NO roba el foco/selección del textarea, así el
+   formato se aplica al texto seleccionado (y no hace nada si no hay selección). {% endcomment %}
 <div class="fmt-bar">
-  <button type="button" class="fmt-btn" onclick="fmtWrap(this,'**','**')" title="Negrita"><b>B</b></button>
-  <button type="button" class="fmt-btn" onclick="fmtWrap(this,'*','*')" title="Cursiva"><i>I</i></button>
-  <button type="button" class="fmt-btn" onclick="fmtWrap(this,'__','__')" title="Subrayado"><u>U</u></button>
+  <button type="button" class="fmt-btn" onmousedown="event.preventDefault()" onclick="fmtWrap(this,'**','**')" title="Negrita (selecciona texto primero)"><b>B</b></button>
+  <button type="button" class="fmt-btn" onmousedown="event.preventDefault()" onclick="fmtWrap(this,'*','*')" title="Cursiva (selecciona texto primero)"><i>I</i></button>
+  <button type="button" class="fmt-btn" onmousedown="event.preventDefault()" onclick="fmtWrap(this,'__','__')" title="Subrayado (selecciona texto primero)"><u>U</u></button>
   <span class="fmt-sep"></span>
-  <button type="button" class="fmt-btn fmt-color" style="color:#dc2626" onclick="fmtWrap(this,'{rojo:','}')" title="Rojo">A</button>
-  <button type="button" class="fmt-btn fmt-color" style="color:#16a34a" onclick="fmtWrap(this,'{verde:','}')" title="Verde">A</button>
-  <button type="button" class="fmt-btn fmt-color" style="color:#2563eb" onclick="fmtWrap(this,'{azul:','}')" title="Azul">A</button>
-  <button type="button" class="fmt-btn fmt-color" style="color:#ea580c" onclick="fmtWrap(this,'{naranja:','}')" title="Naranja">A</button>
-  <button type="button" class="fmt-btn fmt-color" style="color:#7c3aed" onclick="fmtWrap(this,'{morado:','}')" title="Morado">A</button>
+  <button type="button" class="fmt-btn fmt-color" style="color:#dc2626" onmousedown="event.preventDefault()" onclick="fmtWrap(this,'{rojo:','}')" title="Rojo (selecciona texto primero)">A</button>
+  <button type="button" class="fmt-btn fmt-color" style="color:#16a34a" onmousedown="event.preventDefault()" onclick="fmtWrap(this,'{verde:','}')" title="Verde (selecciona texto primero)">A</button>
+  <button type="button" class="fmt-btn fmt-color" style="color:#2563eb" onmousedown="event.preventDefault()" onclick="fmtWrap(this,'{azul:','}')" title="Azul (selecciona texto primero)">A</button>
+  <button type="button" class="fmt-btn fmt-color" style="color:#ea580c" onmousedown="event.preventDefault()" onclick="fmtWrap(this,'{naranja:','}')" title="Naranja (selecciona texto primero)">A</button>
+  <button type="button" class="fmt-btn fmt-color" style="color:#7c3aed" onmousedown="event.preventDefault()" onclick="fmtWrap(this,'{morado:','}')" title="Morado (selecciona texto primero)">A</button>
 </div>

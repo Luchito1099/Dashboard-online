@@ -85,3 +85,62 @@ class MetaVendedor(models.Model):
 
     def __str__(self):
         return f'Meta de {self.usuario.username}: {self.pedidos_dia}/día'
+
+
+class ConexionIA(models.Model):
+    """Una conexión a un proveedor de IA (Claude, OpenAI, DeepSeek, OpenRouter o
+    personalizada). Se pueden tener varias y elegir cuál usa cada tarea. La API key se
+    guarda cifrada. Lleva contadores de consumo (tokens/llamadas) para saber el gasto."""
+    from integraciones.crypto import EncryptedTextField
+
+    PROVEEDOR_ANTHROPIC = 'anthropic'
+    PROVEEDOR_OPENAI = 'openai'
+    PROVEEDOR_DEEPSEEK = 'deepseek'
+    PROVEEDOR_OPENROUTER = 'openrouter'
+    PROVEEDOR_CUSTOM = 'custom'
+    PROVEEDOR_CHOICES = [
+        (PROVEEDOR_ANTHROPIC, 'Anthropic (Claude)'),
+        (PROVEEDOR_OPENAI, 'OpenAI'),
+        (PROVEEDOR_DEEPSEEK, 'DeepSeek'),
+        (PROVEEDOR_OPENROUTER, 'OpenRouter'),
+        (PROVEEDOR_CUSTOM, 'Personalizada (compatible OpenAI)'),
+    ]
+
+    nombre = models.CharField(max_length=80, help_text='Etiqueta para identificarla, ej. "Claude principal"')
+    proveedor = models.CharField(max_length=20, choices=PROVEEDOR_CHOICES, default=PROVEEDOR_ANTHROPIC)
+    modelo = models.CharField(max_length=100, default='claude-haiku-4-5-20251001')
+    base_url = models.CharField(max_length=200, blank=True, default='',
+                                help_text='Solo para proveedores compatibles con OpenAI o personalizada.')
+    api_key = EncryptedTextField(blank=True, default='')
+    activa = models.BooleanField(default=True)
+
+    # Consumo acumulado (se incrementa cuando una tarea usa esta conexión)
+    tokens_entrada = models.BigIntegerField(default=0)
+    tokens_salida = models.BigIntegerField(default=0)
+    llamadas = models.PositiveIntegerField(default=0)
+
+    # Resultado de la última "Probar conexión"
+    ultimo_test_ok = models.BooleanField(null=True, blank=True)
+    ultimo_test_msg = models.CharField(max_length=255, blank=True)
+    ultimo_test_en = models.DateTimeField(null=True, blank=True)
+
+    creado = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['nombre']
+        verbose_name = 'Conexión de IA'
+        verbose_name_plural = 'Conexiones de IA'
+
+    def __str__(self):
+        return f'{self.nombre} ({self.get_proveedor_display()})'
+
+    @property
+    def key_enmascarada(self):
+        t = self.api_key
+        if not t:
+            return ''
+        return f'••••{t[-4:]}' if len(t) > 4 else '••••'
+
+    @property
+    def tokens_total(self):
+        return self.tokens_entrada + self.tokens_salida

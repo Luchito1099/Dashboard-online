@@ -28,7 +28,7 @@
     <button type="button" class="cfg-tab active" data-sec="usuarios">👥 Usuarios</button>
     <button type="button" class="cfg-tab" data-sec="permisos">🔐 Permisos</button>
     <button type="button" class="cfg-tab" data-sec="metas">🎯 Metas</button>
-    <button type="button" class="cfg-tab cfg-tab-soon" disabled title="Próximamente">🤖 IA</button>
+    <button type="button" class="cfg-tab" data-sec="ia">🤖 IA</button>
   </div>
 
   {# ═════════ SECCIÓN: USUARIOS ═════════ #}
@@ -336,6 +336,83 @@
   </div>
 
   </div>{# /sección metas #}
+
+  {# ═════════ SECCIÓN: IA ═════════ #}
+  <div class="cfg-section" data-sec="ia">
+
+  <!-- ── CONEXIONES DE IA ── -->
+  <div class="cfg-card">
+    <div class="cfg-card-title">🤖 Conexiones de IA ({{ conexiones_ia|length }})</div>
+    <p class="cfg-card-desc">Conecta uno o más proveedores de IA (Claude, OpenAI, DeepSeek, OpenRouter o uno personalizado).
+      La API key se guarda <b>cifrada</b>. Cada conexión lleva su consumo de tokens para saber cuánto gasta cada una.</p>
+
+    {% if conexiones_ia %}
+    <table class="tabla-usuarios">
+      <thead>
+        <tr><th>Nombre</th><th>Proveedor / modelo</th><th>Key</th><th>Estado</th><th>Consumo</th><th>Acciones</th></tr>
+      </thead>
+      <tbody>
+        {% for k in conexiones_ia %}
+        <tr>
+          <td><div class="u-nombre">{{ k.nombre }}{% if not k.activa %} <span class="pill-estado off">inactiva</span>{% endif %}</div></td>
+          <td>{{ k.get_proveedor_display }}<div class="u-mail">{{ k.modelo }}</div></td>
+          <td>{% if k.api_key %}<span class="ads-ok" style="color:var(--success)">{{ k.key_enmascarada }}</span>{% else %}<span style="color:var(--error)">sin key</span>{% endif %}</td>
+          <td>
+            {% if k.ultimo_test_en %}
+              {% if k.ultimo_test_ok %}<span class="pill-estado on">OK</span>{% else %}<span class="pill-estado off">falló</span>{% endif %}
+              <div class="u-mail" title="{{ k.ultimo_test_msg }}">{{ k.ultimo_test_msg|truncatechars:38 }}</div>
+            {% else %}<span class="u-mail">sin probar</span>{% endif %}
+          </td>
+          <td><div class="u-mail">{{ k.tokens_total }} tokens<br>{{ k.llamadas }} llamada(s)</div></td>
+          <td>
+            <div class="u-acciones">
+              <form method="post">{% csrf_token %}
+                <input type="hidden" name="accion" value="probar_ia">
+                <input type="hidden" name="conexion_id" value="{{ k.id }}">
+                <button type="submit" class="btn-mini">Probar</button>
+              </form>
+              <form method="post" onsubmit="return confirm('¿Eliminar la conexión «{{ k.nombre|escapejs }}»?');">{% csrf_token %}
+                <input type="hidden" name="accion" value="eliminar_ia">
+                <input type="hidden" name="conexion_id" value="{{ k.id }}">
+                <button type="submit" class="btn-mini" style="color:var(--error);border-color:var(--error)">Eliminar</button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+
+    <div class="cfg-card-title" style="margin-top:18px;">Agregar conexión</div>
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="accion" value="guardar_ia">
+      <div class="cfg-form-row">
+        <label class="cfg-field"><span>Nombre</span>
+          <input class="cfg-input" type="text" name="nombre" placeholder="Ej. Claude principal" required></label>
+        <label class="cfg-field"><span>Proveedor</span>
+          <select class="cfg-select" name="proveedor">
+            {% for val, lbl in proveedores_ia %}<option value="{{ val }}">{{ lbl }}</option>{% endfor %}
+          </select></label>
+        <label class="cfg-field"><span>Modelo</span>
+          <input class="cfg-input" type="text" name="modelo" placeholder="claude-haiku-4-5-20251001"></label>
+      </div>
+      <div class="cfg-form-row">
+        <label class="cfg-field" style="flex:1;"><span>API key</span>
+          <input class="cfg-input" type="password" name="api_key" placeholder="sk-..." autocomplete="off"></label>
+        <label class="cfg-field" style="flex:1;"><span>URL base <em>(solo OpenAI-compat / personalizada)</em></span>
+          <input class="cfg-input" type="text" name="base_url" placeholder="https://api.deepseek.com/v1"></label>
+        <label class="cfg-field" style="align-self:end;"><span>&nbsp;</span>
+          <label style="display:flex;align-items:center;gap:6px;font-size:13px;"><input type="checkbox" name="activa" checked> Activa</label></label>
+      </div>
+      <button type="submit" class="btn-primary">+ Agregar conexión</button>
+    </form>
+    <p class="cfg-card-desc" style="margin-top:12px;">Modelos sugeridos: Claude <code>claude-haiku-4-5-20251001</code> ·
+      DeepSeek <code>deepseek-chat</code> · OpenAI <code>gpt-4o-mini</code>. Tras crearla, usa <b>Probar</b> para validar.</p>
+  </div>
+
+  </div>{# /sección ia #}
 
 </div>{# /.config #}
 

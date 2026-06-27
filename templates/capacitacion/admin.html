@@ -205,12 +205,19 @@
 // ═══════════ Barra de formato (markdown-lite) ═══════════
 const FMT_COLORS = { rojo:'#dc2626', verde:'#16a34a', azul:'#2563eb', naranja:'#ea580c', morado:'#7c3aed' };
 
-// Envuelve la selección del textarea asociado con los marcadores dados
+// Envuelve la SELECCIÓN del textarea con los marcadores dados.
+// Si no hay texto seleccionado, no hace nada (evita insertar "texto" por accidente).
 function fmtWrap(btn, pre, post) {
   const ta = btn.closest('.admin-field').querySelector('textarea');
   if (!ta) return;
   const s = ta.selectionStart, e = ta.selectionEnd;
-  const sel = ta.value.slice(s, e) || 'texto';
+  if (s === e) {                     // sin selección → no aplicar nada
+    ta.focus();
+    const bar = btn.closest('.fmt-bar');
+    if (bar) { bar.classList.remove('fmt-aviso'); void bar.offsetWidth; bar.classList.add('fmt-aviso'); }
+    return;
+  }
+  const sel = ta.value.slice(s, e);
   ta.value = ta.value.slice(0, s) + pre + sel + post + ta.value.slice(e);
   ta.focus();
   ta.selectionStart = s + pre.length;
