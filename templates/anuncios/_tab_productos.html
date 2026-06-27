@@ -15,8 +15,8 @@
       <tr>
         <th>Producto</th><th class="ped-num">Gasto</th><th class="ped-num">Meta dice</th>
         <th class="ped-num">Confirmados</th><th class="ped-num">Despachados</th><th class="ped-num">Entregados</th>
-        <th class="ped-num">N (<span class="ads-etapa-txt">venta</span>)</th>
-        <th class="ped-num">CPA real</th><th class="ped-num">ROAS real</th>
+        <th class="ped-num ads-col-cambia">N (<span class="ads-etapa-txt">venta</span>)</th>
+        <th class="ped-num ads-col-cambia">CPA real</th><th class="ped-num ads-col-cambia">ROAS real</th>
       </tr>
     </thead>
     <tbody>
@@ -34,9 +34,9 @@
         <td class="ped-num">{{ f.confirmados }}{% if f.caida_conf != None %} <span class="ads-caida">↓{{ f.caida_conf }}%</span>{% endif %}</td>
         <td class="ped-num">{{ f.n_preventa }}</td>
         <td class="ped-num">{{ f.entregados }}{% if f.caida_entr != None %} <span class="ads-caida">↓{{ f.caida_entr }}%</span>{% endif %}</td>
-        <td class="ped-num ads-cell-n">{{ f.n_venta }}</td>
-        <td class="ped-num ads-cell-cpa">{% if f.cpa_venta != None %}{{ moneda }} {{ f.cpa_venta }}{% else %}—{% endif %}</td>
-        <td class="ped-num ads-cell-roas">
+        <td class="ped-num ads-col-cambia ads-cell-n">{{ f.n_venta }}</td>
+        <td class="ped-num ads-col-cambia ads-cell-cpa">{% if f.cpa_venta != None %}{{ moneda }} {{ f.cpa_venta }}{% else %}—{% endif %}</td>
+        <td class="ped-num ads-col-cambia ads-cell-roas">
           {% if f.roas_venta != None %}<span class="ads-roas {% if f.roas_venta >= 1 %}ok{% else %}bad{% endif %}">{{ f.roas_venta }}x</span>{% else %}—{% endif %}
         </td>
       </tr>
@@ -79,6 +79,12 @@
       }
     });
     pills.forEach(p => p.classList.toggle('active', p.dataset.etapa === etapa));
+
+    // Flash visible en las columnas que cambian
+    const cols = document.querySelectorAll('#adsTablaProd .ads-col-cambia');
+    cols.forEach(c => c.classList.remove('ads-flash'));
+    void document.body.offsetWidth;   // reinicia la animación
+    cols.forEach(c => c.classList.add('ads-flash'));
   }
 
   pills.forEach(p => p.addEventListener('click', () => aplicar(p.dataset.etapa)));

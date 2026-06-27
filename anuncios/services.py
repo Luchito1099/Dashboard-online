@@ -10,7 +10,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 
 from django.conf import settings
-from django.db.models import Sum, Count
+from django.db.models import Sum, Count, Q
 from django.db.models.functions import TruncDate, ExtractHour
 from django.utils import timezone
 
@@ -181,12 +181,28 @@ def serie_diaria(fecha_ini, fecha_fin, integracion_id=None, campana_ids=None, pr
     return serie
 
 
-def tabla_productos(fecha_ini, fecha_fin, integracion_id=None):
+def _nombres_de_producto(producto):
+    """Nombres que representan a un producto para casar líneas de pedido por la RELACIÓN
+    (no solo por el FK exacto): su propio nombre + todos los alias que apuntan a cualquier
+    producto homónimo. Robusto ante productos duplicados o ítems sin FK back-fileado."""
+    from productos.models import ProductoAlias
+    nombres = set(ProductoAlias.objects
+                  .filter(producto__nombre__iexact=producto.nombre)
+                  .values_list('nombre_externo', flat=True))
+    if producto.nombre:
+        nombres.add(producto.nombre)
+    return list(nombres)
+
+
+def tabla_productos(fecha_ini, fecha_fin, integracion_id=None, campana_ids=None):
     """Por producto (con match a algún anuncio): gasto, atribuidos por Meta,
-    confirmados reales, entregados, embudo, CPA real y ROAS real."""
+    confirmados reales, entregados, embudo, CPA real y ROAS real.
+    Si se pasa campana_ids, limita a esas campañas (filtro de proyecto/campaña)."""
     matches = (MatchProductoAnuncio.objects
                .filter(campana__incluir_en_extraccion=True)   # filtro de análisis
                .select_related('producto', 'campana', 'campana__cuenta'))
+    if campana_ids is not None:
+        matches = matches.filter(campana_id__in=campana_ids)
     if integracion_id:
         matches = matches.filter(campana__cuenta__integracion_id=integracion_id)
 
@@ -197,16 +213,21 @@ def tabla_productos(fecha_ini, fecha_fin, integracion_id=None):
         productos[m.producto_id] = m.producto
 
     filas = []
-    for prod_id, campana_ids in prod_campanas.items():
+    for prod_id, c_ids in prod_campanas.items():
         producto = productos[prod_id]
         ins = (InsightDiarioMeta.objects
-               .filter(campana_id__in=campana_ids, fecha__range=(fecha_ini, fecha_fin))
+               .filter(campana_id__in=c_ids, fecha__range=(fecha_ini, fecha_fin))
                .order_by().aggregate(gasto=Sum('gasto'), result=Sum('resultados')))
         gasto = float(ins['gasto'] or 0)
         meta_atribuidos = int(ins['result'] or 0)
 
-        base = Pedido.objects.filter(items__producto=producto,
-                                     fecha_pedido__date__range=(fecha_ini, fecha_fin))
+        # Pedidos del producto por RELACIÓN: ítems cuyo producto (cualquier homónimo) o
+        # cuyo nombre (vía alias) corresponde a este producto. Así no falla si el ítem
+        # quedó con FK a otro registro o sin vincular.
+        nombres = _nombres_de_producto(producto)
+        base = Pedido.objects.filter(
+            Q(items__producto__nombre__iexact=producto.nombre) | Q(items__nombre__in=nombres),
+            fecha_pedido__date__range=(fecha_ini, fecha_fin))
         if integracion_id:
             base = base.filter(integracion_id=integracion_id)
         base = base.distinct()
@@ -245,7 +266,7 @@ def tabla_productos(fecha_ini, fecha_fin, integracion_id=None):
             # Por defecto = venta (comportamiento anterior)
             'cpa_real': _cpa(n_venta), 'roas_real': _roas(ing_venta),
             'caida_conf': caida_conf, 'caida_entr': caida_entr,
-            'n_anuncios': len(campana_ids),
+            'n_anuncios': len(c_ids),
         })
     # Orden por ROAS de venta (los None al final), luego por gasto
     filas.sort(key=lambda f: (f['roas_venta'] is None, -(f['roas_venta'] or 0), -f['gasto']))

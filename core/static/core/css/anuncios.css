@@ -119,6 +119,15 @@
 }
 .ads-etapa-pill.active { background: var(--primary); color: #fff; }
 
+/* Columnas que cambian con el selector de etapa: resaltadas + flash al cambiar */
+.ads-col-cambia { background: oklch(62% 0.18 195 / 0.06); border-left: 1px solid oklch(62% 0.18 195 / 0.18); }
+th.ads-col-cambia { color: var(--primary-dark); }
+@keyframes adsFlash {
+  0% { background: oklch(62% 0.18 195 / 0.38); }
+  100% { background: oklch(62% 0.18 195 / 0.06); }
+}
+.ads-col-cambia.ads-flash { animation: adsFlash .7s ease-out; }
+
 /* ── Botones rápidos de rango (dashboard) ── */
 .ads-rango-btns { display: inline-flex; gap: 4px; }
 .ads-rango-btn {

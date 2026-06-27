@@ -259,8 +259,14 @@ def _envios_distintos():
 
 
 def _productos_distintos():
-    return _valores_unicos(PedidoItem.objects.exclude(nombre='')
-                           .values_list('nombre', flat=True).distinct())
+    """Opciones del filtro de productos usando la RELACIÓN: para los ítems vinculados
+    muestra el nombre del producto del catálogo (el que definió el admin), y para los
+    no vinculados, el nombre crudo que llega en el pedido. Deduplicado."""
+    canon = (PedidoItem.objects.filter(producto__isnull=False)
+             .values_list('producto__nombre', flat=True).distinct())
+    crudos = (PedidoItem.objects.filter(producto__isnull=True).exclude(nombre='')
+              .values_list('nombre', flat=True).distinct())
+    return _valores_unicos(list(canon) + list(crudos))
 
 
 def _filtrar_pedidos(request):
@@ -294,15 +300,22 @@ def _filtrar_pedidos(request):
     elif vendedor.isdigit():
         qs = qs.filter(vendedor_id=vendedor)
 
-    # Filtro por producto (multi-selección). Empareja todas las variantes de nombre
-    # (espacios/mayúsculas) y usa subconsulta de ids para no multiplicar filas en los KPIs.
+    # Filtro por producto (multi-selección) usando la RELACIÓN: empareja por el nombre
+    # del producto canónico (ítems vinculados) o por el nombre crudo (ítems sin vincular).
     productos_sel = [p for p in request.GET.getlist('producto') if p.strip()]
     if productos_sel:
+        from productos.models import Producto
         objetivos = {_norm(p) for p in productos_sel}
-        nombres = [n for n in PedidoItem.objects.exclude(nombre='')
-                   .values_list('nombre', flat=True).distinct() if _norm(n) in objetivos]
-        ids = PedidoItem.objects.filter(nombre__in=nombres or productos_sel).values_list('pedido_id', flat=True)
-        qs = qs.filter(id__in=ids)
+        prod_names = [n for n in Producto.objects.exclude(nombre='')
+                      .values_list('nombre', flat=True).distinct() if _norm(n) in objetivos]
+        raw_names = [n for n in PedidoItem.objects.filter(producto__isnull=True).exclude(nombre='')
+                     .values_list('nombre', flat=True).distinct() if _norm(n) in objetivos]
+        cond = Q()
+        if prod_names:
+            cond |= Q(items__producto__nombre__in=prod_names)
+        if raw_names:
+            cond |= Q(items__nombre__in=raw_names, items__producto__isnull=True)
+        qs = qs.filter(cond).distinct() if (prod_names or raw_names) else qs.none()
 
     # Rango de fechas explícito (desde / hasta) tiene prioridad sobre los botones rápidos.
     from django.utils.dateparse import parse_date

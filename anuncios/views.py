@@ -145,7 +145,7 @@ def dashboard(request):
     campana_ids, producto_ids = _filtro_campanas(integracion_id, ctx['f_proyecto'], ctx['f_campana'])
 
     if vista == 'productos':
-        ctx['filas'] = services.tabla_productos(desde, hasta, integracion_id)
+        ctx['filas'] = services.tabla_productos(desde, hasta, integracion_id, campana_ids)
     elif vista == 'heatmap':
         ctx['hm'] = services.heatmap(desde, hasta, integracion_id)
     else:
