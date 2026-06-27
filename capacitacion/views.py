@@ -6,7 +6,8 @@ from django.http import JsonResponse, HttpResponseNotAllowed
 from django.urls import reverse
 from django.db.models import Max
 from django.utils import timezone
-from .models import Tarea, Bloque, BloqueTarea, ProgresoTarea, Estrategia
+from .models import (Tarea, Bloque, BloqueTarea, ProgresoTarea, Estrategia,
+                     Leccion, AccesoLeccion, AUDIENCIA_CHOICES, AUDIENCIA_GENERAL)
 
 
 # ───────────────────────── Datos estáticos (no necesitan BD) ─────────────────────────
@@ -426,3 +427,173 @@ def eliminar_estrategia(request, estrategia_id):
     e.delete()
     messages.success(request, f'Estrategia «{nombre}» eliminada.')
     return redirect('capacitacion:estrategias_admin')
+
+
+# ───────────────────────── Lecciones (mini-clases en video) ─────────────────────────
+
+def audiencia_de(user):
+    """Rol del usuario como audiencia. El admin no tiene audiencia fija (ve todas)."""
+    if hasattr(user, 'perfil'):
+        return user.perfil.rol
+    return 'vendedor'
+
+
+def _lecciones_visibles(user):
+    """Lecciones activas que el usuario puede ver: 'general' + las de su rol. Admin = todas."""
+    qs = Leccion.objects.filter(activo=True)
+    if es_admin(user):
+        return qs
+    return qs.filter(audiencia__in=[AUDIENCIA_GENERAL, audiencia_de(user)])
+
+
+@login_required
+def lecciones(request):
+    """Catálogo de lecciones (mini-clases). Filtrable por audiencia (?aud=)."""
+    from core.permisos import puede_ver, destino_vendedor
+    if not puede_ver(request.user, 'vendedor_puede_ver_capacitacion'):
+        messages.error(request, 'No tienes permisos para ver las lecciones.')
+        return redirect(destino_vendedor(request.user))
+
+    qs = _lecciones_visibles(request.user)
+
+    # Selector de audiencia (solo admin puede filtrar; otros ven lo suyo)
+    aud = request.GET.get('aud', '').strip()
+    audiencias = AUDIENCIA_CHOICES if es_admin(request.user) else None
+    if aud and dict(AUDIENCIA_CHOICES).get(aud):
+        qs = qs.filter(audiencia=aud)
+
+    # Estado del usuario por lección + (admin) cuántos ingresaron
+    mis_accesos = {a.leccion_id: a for a in
+                   AccesoLeccion.objects.filter(usuario=request.user)}
+    conteos = {}
+    if es_admin(request.user):
+        from django.db.models import Count
+        conteos = {r['leccion_id']: r['n'] for r in
+                   AccesoLeccion.objects.values('leccion_id').annotate(n=Count('id'))}
+
+    items = []
+    for l in qs:
+        acc = mis_accesos.get(l.id)
+        items.append({
+            'leccion': l,
+            'ingresado': acc is not None,
+            'completado': bool(acc and acc.completado),
+            'n_ingresaron': conteos.get(l.id, 0),
+        })
+
+    context = {
+        'items': items,
+        'audiencias': audiencias,
+        'aud_actual': aud,
+        'puede_editar': es_admin(request.user),
+        'es_admin': es_admin(request.user),
+    }
+    return render(request, 'capacitacion/lecciones.html', context)
+
+
+@login_required
+def leccion_detalle(request, leccion_id):
+    """Detalle de una lección: video, objetivos, descripción, resumen. Registra el ingreso."""
+    from core.permisos import puede_ver, destino_vendedor
+    if not puede_ver(request.user, 'vendedor_puede_ver_capacitacion'):
+        messages.error(request, 'No tienes permisos para ver las lecciones.')
+        return redirect(destino_vendedor(request.user))
+
+    leccion = get_object_or_404(Leccion, id=leccion_id)
+    # Visibilidad: si no es admin, debe ser general o de su rol
+    if not es_admin(request.user) and leccion.audiencia not in (AUDIENCIA_GENERAL, audiencia_de(request.user)):
+        messages.error(request, 'Esta lección no es para tu rol.')
+        return redirect('capacitacion:lecciones')
+
+    # Registrar/actualizar el ingreso del usuario (auto_now actualiza ultima_en)
+    acceso, _ = AccesoLeccion.objects.get_or_create(usuario=request.user, leccion=leccion)
+    if _ is False:
+        acceso.save(update_fields=['ultima_en'])
+
+    # Panel lateral de accesos: lista completa para admin; el resto solo su estado
+    accesos = None
+    if es_admin(request.user):
+        accesos = (leccion.accesos.select_related('usuario').all())
+
+    context = {
+        'leccion': leccion,
+        'mi_acceso': acceso,
+        'accesos': accesos,
+        'es_admin': es_admin(request.user),
+    }
+    return render(request, 'capacitacion/leccion_detalle.html', context)
+
+
+@login_required
+def leccion_completar(request, leccion_id):
+    """Marca/desmarca la lección como completada para el usuario actual (POST)."""
+    if request.method != 'POST':
+        return HttpResponseNotAllowed(['POST'])
+    leccion = get_object_or_404(Leccion, id=leccion_id)
+    acceso, _ = AccesoLeccion.objects.get_or_create(usuario=request.user, leccion=leccion)
+    acceso.completado = not acceso.completado
+    acceso.completado_en = timezone.now() if acceso.completado else None
+    acceso.save()
+    return redirect('capacitacion:leccion_detalle', leccion_id=leccion.id)
+
+
+@login_required
+def lecciones_admin(request):
+    """Lista editable de lecciones. Solo admin."""
+    if not es_admin(request.user):
+        messages.error(request, 'No tienes permisos para administrar lecciones.')
+        return redirect('capacitacion:lecciones')
+    return render(request, 'capacitacion/lecciones_admin.html', {
+        'lecciones': Leccion.objects.all(),
+        'audiencias': AUDIENCIA_CHOICES,
+    })
+
+
+@login_required
+def crear_leccion(request):
+    """Crea una lección vacía para completarla. Solo admin (POST)."""
+    if not es_admin(request.user):
+        return redirect('capacitacion:lecciones')
+    if request.method != 'POST':
+        return HttpResponseNotAllowed(['POST'])
+    Leccion.objects.create(titulo='Nueva lección', orden=Leccion.objects.count() + 1)
+    messages.success(request, 'Lección creada. Edítala abajo.')
+    return redirect('capacitacion:lecciones_admin')
+
+
+@login_required
+def editar_leccion(request, leccion_id):
+    """Guarda los cambios de una lección. Solo admin (POST)."""
+    if not es_admin(request.user):
+        return redirect('capacitacion:lecciones')
+    if request.method != 'POST':
+        return HttpResponseNotAllowed(['POST'])
+
+    l = get_object_or_404(Leccion, id=leccion_id)
+    l.titulo = request.POST.get('titulo', l.titulo).strip() or l.titulo
+    aud = request.POST.get('audiencia', l.audiencia)
+    if dict(AUDIENCIA_CHOICES).get(aud):
+        l.audiencia = aud
+    l.objetivos = request.POST.get('objetivos', l.objetivos)
+    l.descripcion = request.POST.get('descripcion', l.descripcion)
+    l.video_url = request.POST.get('video_url', l.video_url).strip()
+    l.resumen = request.POST.get('resumen', l.resumen)
+    l.orden = _a_entero(request.POST.get('orden'), l.orden)
+    l.activo = request.POST.get('activo') == 'on'
+    l.save()
+    messages.success(request, f'Lección «{l.titulo}» actualizada.')
+    return redirect('capacitacion:lecciones_admin')
+
+
+@login_required
+def eliminar_leccion(request, leccion_id):
+    """Elimina una lección. Solo admin (POST)."""
+    if not es_admin(request.user):
+        return redirect('capacitacion:lecciones')
+    if request.method != 'POST':
+        return HttpResponseNotAllowed(['POST'])
+    l = get_object_or_404(Leccion, id=leccion_id)
+    titulo = l.titulo
+    l.delete()
+    messages.success(request, f'Lección «{titulo}» eliminada.')
+    return redirect('capacitacion:lecciones_admin')

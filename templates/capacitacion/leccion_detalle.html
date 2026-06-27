@@ -1,0 +1,111 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% comment %} templates/capacitacion/leccion_detalle.html — Detalle de una lección {% endcomment %}
+
+{% block title %}{{ leccion.titulo }} · Lecciones · Dashboard{% endblock %}
+{% block nav_capacitacion %}active{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'core/css/lecciones.css' %}">
+{% endblock %}
+
+{% block breadcrumb %}<span>›</span><a href="{% url 'capacitacion:lecciones' %}">Lecciones</a><span>›</span><span>{{ leccion.titulo|truncatechars:40 }}</span>{% endblock %}
+
+{% block content %}
+<div class="lec-detalle">
+
+  <div class="lec-main">
+    <div class="lec-det-head">
+      <span class="lec-aud-badge aud-{{ leccion.audiencia }}">{{ leccion.get_audiencia_display }}</span>
+      <h2 class="lec-det-titulo">{{ leccion.titulo }}</h2>
+    </div>
+
+    {% if leccion.objetivos_lista %}
+    <div class="lec-bloque">
+      <div class="lec-bloque-titulo">🎯 Objetivos</div>
+      <ul class="lec-objetivos">
+        {% for o in leccion.objetivos_lista %}<li>{{ o }}</li>{% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+
+    {% if leccion.descripcion %}
+    <div class="lec-bloque">
+      <div class="lec-bloque-titulo">Descripción</div>
+      <p class="lec-descripcion">{{ leccion.descripcion|linebreaksbr }}</p>
+    </div>
+    {% endif %}
+
+    {# ── Video embebido ── #}
+    <div class="lec-bloque">
+      <div class="lec-bloque-titulo">▶ Video</div>
+      {% if leccion.video_embed_url %}
+      <div class="ratio">
+        <iframe src="{{ leccion.video_embed_url }}" frameborder="0"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+      </div>
+      {% else %}
+      <div class="lec-sin-video">Esta lección aún no tiene video.{% if es_admin %} Pega el link en <a href="{% url 'capacitacion:lecciones_admin' %}">Administrar</a>.{% endif %}</div>
+      {% endif %}
+    </div>
+
+    {# ── Resumen colapsable ── #}
+    {% if leccion.resumen %}
+    <div class="lec-bloque">
+      <button type="button" class="lec-resumen-toggle" id="resumenToggle">📝 Resumen <span class="lec-chev">▾</span></button>
+      <div class="lec-resumen" id="lecResumen">{{ leccion.resumen|linebreaksbr }}</div>
+    </div>
+    {% endif %}
+
+    {# ── Marcar como visto ── #}
+    <form method="post" action="{% url 'capacitacion:leccion_completar' leccion.id %}" class="lec-completar">
+      {% csrf_token %}
+      <button type="submit" class="lec-btn-completar {% if mi_acceso.completado %}done{% endif %}">
+        {% if mi_acceso.completado %}✓ Completada (quitar){% else %}Marcar como visto{% endif %}
+      </button>
+    </form>
+  </div>
+
+  {# ── Panel lateral: accesos ── #}
+  <aside class="lec-side">
+    <div class="lec-side-titulo">Tu estado</div>
+    <div class="lec-mi-estado">
+      <div>Ingresaste: <b>{{ mi_acceso.ingreso_en|date:"d/m/Y H:i" }}</b></div>
+      <div>Estado: {% if mi_acceso.completado %}<span class="lec-estado ok">✓ Completada</span>{% else %}<span class="lec-estado vista">● En curso</span>{% endif %}</div>
+    </div>
+
+    {% if es_admin and accesos %}
+    <div class="lec-side-titulo" style="margin-top:16px;">Quiénes ingresaron ({{ accesos|length }})</div>
+    <div class="lec-accesos">
+      {% for a in accesos %}
+      <div class="lec-acceso-item">
+        <span class="lec-acceso-user">{{ a.usuario.get_full_name|default:a.usuario.username }}</span>
+        <span class="lec-acceso-estado">
+          {% if a.completado %}<span class="lec-estado ok">✓</span>{% else %}<span class="lec-estado vista">●</span>{% endif %}
+          <span class="lec-acceso-fecha">{{ a.ultima_en|date:"d/m H:i" }}</span>
+        </span>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </aside>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  var btn = document.getElementById('resumenToggle');
+  if (!btn) return;
+  var res = document.getElementById('lecResumen');
+  var chev = btn.querySelector('.lec-chev');
+  btn.addEventListener('click', function () {
+    var abierto = res.classList.toggle('open');
+    chev.style.transform = abierto ? 'rotate(180deg)' : '';
+  });
+})();
+</script>
+{% endblock %}

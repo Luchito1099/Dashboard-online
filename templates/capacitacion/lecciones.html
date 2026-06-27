@@ -1,0 +1,67 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% comment %} templates/capacitacion/lecciones.html — Catálogo de lecciones (mini-clases) {% endcomment %}
+
+{% block title %}Lecciones · Dashboard{% endblock %}
+{% block nav_capacitacion %}active{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'core/css/productos.css' %}">
+<link rel="stylesheet" href="{% static 'core/css/herramientas.css' %}">
+<link rel="stylesheet" href="{% static 'core/css/lecciones.css' %}">
+{% endblock %}
+
+{% block breadcrumb %}<span>›</span><span>Lecciones</span>{% endblock %}
+
+{% block content %}
+
+<!-- SELECTOR CENTRAL -->
+<div class="view-selector">
+  <a href="{% url 'capacitacion:index' %}" class="vbtn" data-view="capacitacion">📋 Capacitación</a>
+  <a href="{% url 'productos:catalogo' %}" class="vbtn" data-view="productos">📦 Productos</a>
+  <a href="{% url 'capacitacion:lecciones' %}" class="vbtn active" data-view="lecciones">🎓 Lecciones</a>
+  <a href="{% url 'capacitacion:estrategias' %}" class="vbtn" data-view="estrategias">💡 Estrategias</a>
+  <a href="{% url 'herramientas:lista' %}" class="vbtn" data-view="herramientas">🔗 Herramientas</a>
+</div>
+
+<div class="herr-header">
+  <div>
+    <h2 class="herr-title">Lecciones</h2>
+    <p class="herr-subtitle">Mini-clases en video. Ábrelas para ver objetivos, el video y el resumen.</p>
+  </div>
+  {% if puede_editar %}
+  <a href="{% url 'capacitacion:lecciones_admin' %}" class="btn-admin-prod">⚙️ Administrar</a>
+  {% endif %}
+</div>
+
+{% if audiencias %}
+<div class="lec-audiencias">
+  <a href="{% url 'capacitacion:lecciones' %}" class="lec-aud-pill {% if not aud_actual %}active{% endif %}">Todas</a>
+  {% for val, lbl in audiencias %}
+  <a href="?aud={{ val }}" class="lec-aud-pill {% if aud_actual == val %}active{% endif %}">{{ lbl }}</a>
+  {% endfor %}
+</div>
+{% endif %}
+
+<div class="lec-grid">
+  {% for it in items %}
+  <a href="{% url 'capacitacion:leccion_detalle' it.leccion.id %}" class="lec-card">
+    <div class="lec-card-top">
+      <span class="lec-aud-badge aud-{{ it.leccion.audiencia }}">{{ it.leccion.get_audiencia_display }}</span>
+      {% if it.completado %}<span class="lec-estado ok">✓ Completada</span>
+      {% elif it.ingresado %}<span class="lec-estado vista">● En curso</span>{% endif %}
+    </div>
+    <div class="lec-card-titulo">{{ it.leccion.titulo }}</div>
+    {% if it.leccion.descripcion %}<div class="lec-card-desc">{{ it.leccion.descripcion|truncatechars:110 }}</div>{% endif %}
+    <div class="lec-card-foot">
+      {% if it.leccion.video_embed_url %}🎬 con video{% else %}sin video{% endif %}
+      {% if es_admin %} · <b>{{ it.n_ingresaron }}</b> ingresaron{% endif %}
+    </div>
+  </a>
+  {% empty %}
+  <div class="cat-vacio">No hay lecciones para mostrar todavía.</div>
+  {% endfor %}
+</div>
+
+{% endblock %}

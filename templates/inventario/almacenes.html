@@ -63,16 +63,25 @@
 
   <div class="av-card av-card-wide" style="margin-top:14px;">
     <div class="av-card-title">+ Agregar almacén</div>
-    <form method="post" class="ads-cuenta-form">
+    <form method="post" class="inv-alm-nuevo">
       {% csrf_token %}
       <input type="hidden" name="accion" value="crear">
-      <input type="text" name="nombre" placeholder="Nombre del almacén (ej. Lima Centro)" required>
-      <select name="integracion">
-        <option value="">— Fuente / logística (opcional) —</option>
-        {% for i in fuentes %}<option value="{{ i.id }}">{{ i.nombre }} ({{ i.get_categoria_display }})</option>{% endfor %}
-      </select>
-      <label class="ha-check"><input type="checkbox" name="es_principal"> Principal (por defecto)</label>
-      <button type="submit" class="btn-guardar">+ Crear almacén</button>
+      <label class="inv-field inv-field-grow">
+        <span>Nombre del almacén</span>
+        <input type="text" name="nombre" placeholder="Ej. Lima Centro" required>
+      </label>
+      <label class="inv-field inv-field-grow">
+        <span>Fuente / logística <em>(opcional)</em></span>
+        <select name="integracion">
+          <option value="">— ninguna —</option>
+          {% for i in fuentes %}<option value="{{ i.id }}">{{ i.nombre }} ({{ i.get_categoria_display }})</option>{% endfor %}
+        </select>
+      </label>
+      <label class="inv-field inv-field-check">
+        <span>&nbsp;</span>
+        <span class="inv-check-row"><input type="checkbox" name="es_principal"> Principal (por defecto)</span>
+      </label>
+      <button type="submit" class="btn-guardar inv-alm-btn">+ Crear almacén</button>
     </form>
     <p class="ads-nota">El almacén <b>principal</b> se usa cuando un pedido no mapea a ningún almacén por su fuente.</p>
   </div>

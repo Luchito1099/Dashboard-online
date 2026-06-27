@@ -1,0 +1,76 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% comment %} templates/capacitacion/lecciones_admin.html — Administrar lecciones (solo admin) {% endcomment %}
+
+{% block title %}Administrar lecciones · Dashboard{% endblock %}
+{% block nav_capacitacion %}active{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'core/css/admin_cap.css' %}">
+<link rel="stylesheet" href="{% static 'core/css/lecciones.css' %}">
+{% endblock %}
+
+{% block breadcrumb %}<span>›</span><a href="{% url 'capacitacion:lecciones' %}">Lecciones</a><span>›</span><span>Administrar</span>{% endblock %}
+
+{% block content %}
+<div class="admin-cap">
+  <div class="admin-cap-header">
+    <div>
+      <h2 class="admin-cap-title">Administrar lecciones</h2>
+      <p class="admin-cap-subtitle">{{ lecciones.count }} lección(es). Pega el link de YouTube/Vimeo y se incrusta solo.</p>
+    </div>
+    <a href="{% url 'capacitacion:lecciones' %}" class="btn-volver">← Volver a lecciones</a>
+  </div>
+
+  {# Crear #}
+  <div class="admin-tarea-card">
+    <div class="admin-tarea-head"><span class="admin-tarea-nombre">+ Agregar lección</span></div>
+    <form method="post" action="{% url 'capacitacion:crear_leccion' %}">
+      {% csrf_token %}
+      <button type="submit" class="btn-guardar">+ Crear lección</button>
+    </form>
+  </div>
+
+  {# Lista editable #}
+  {% for l in lecciones %}
+  <div class="admin-tarea-card">
+    <div class="admin-tarea-head">
+      <span class="lec-aud-badge aud-{{ l.audiencia }}">{{ l.get_audiencia_display }}</span>
+      <span class="admin-tarea-nombre">{{ l.titulo }}</span>
+      {% if not l.activo %}<span class="ads-nota-inline">· inactiva</span>{% endif %}
+      <a href="{% url 'capacitacion:leccion_detalle' l.id %}" class="ads-nota-inline" style="margin-left:auto;">ver →</a>
+    </div>
+    <form method="post" action="{% url 'capacitacion:editar_leccion' l.id %}">
+      {% csrf_token %}
+      <div class="admin-grid">
+        <label class="admin-field admin-field-wide"><span>Título</span>
+          <input type="text" name="titulo" value="{{ l.titulo }}" required></label>
+        <label class="admin-field"><span>Audiencia</span>
+          <select name="audiencia">
+            {% for val, lbl in audiencias %}<option value="{{ val }}" {% if l.audiencia == val %}selected{% endif %}>{{ lbl }}</option>{% endfor %}
+          </select></label>
+        <label class="admin-field"><span>Orden</span>
+          <input type="number" name="orden" value="{{ l.orden }}" min="0"></label>
+      </div>
+      <label class="admin-field"><span>Link de video (YouTube / Vimeo)</span>
+        <input type="text" name="video_url" value="{{ l.video_url }}" placeholder="https://youtu.be/..."></label>
+      <label class="admin-field"><span>Objetivos <em>(uno por línea)</em></span>
+        <textarea name="objetivos" rows="3">{{ l.objetivos }}</textarea></label>
+      <label class="admin-field"><span>Descripción</span>
+        <textarea name="descripcion" rows="3">{{ l.descripcion }}</textarea></label>
+      <label class="admin-field"><span>Resumen <em>(ocultable en la lección)</em></span>
+        <textarea name="resumen" rows="4">{{ l.resumen }}</textarea></label>
+      <label class="admin-field" style="flex-direction:row;align-items:center;gap:8px;">
+        <input type="checkbox" name="activo" {% if l.activo %}checked{% endif %}> <span>Activa (visible)</span></label>
+      <button type="submit" class="btn-guardar">Guardar cambios</button>
+    </form>
+    <form method="post" action="{% url 'capacitacion:eliminar_leccion' l.id %}" class="admin-eliminar-form"
+          onsubmit="return confirm('¿Eliminar la lección «{{ l.titulo|escapejs }}»?');">
+      {% csrf_token %}
+      <button type="submit" class="btn-eliminar">Eliminar lección</button>
+    </form>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

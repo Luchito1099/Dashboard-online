@@ -26,4 +26,12 @@ urlpatterns = [
     path('estrategias/crear/', views.crear_estrategia, name='crear_estrategia'),
     path('estrategias/editar/<int:estrategia_id>/', views.editar_estrategia, name='editar_estrategia'),
     path('estrategias/eliminar/<int:estrategia_id>/', views.eliminar_estrategia, name='eliminar_estrategia'),
+    # Lecciones (mini-clases en video)
+    path('lecciones/', views.lecciones, name='lecciones'),
+    path('lecciones/<int:leccion_id>/', views.leccion_detalle, name='leccion_detalle'),
+    path('lecciones/<int:leccion_id>/completar/', views.leccion_completar, name='leccion_completar'),
+    path('lecciones/admin/', views.lecciones_admin, name='lecciones_admin'),
+    path('lecciones/crear/', views.crear_leccion, name='crear_leccion'),
+    path('lecciones/editar/<int:leccion_id>/', views.editar_leccion, name='editar_leccion'),
+    path('lecciones/eliminar/<int:leccion_id>/', views.eliminar_leccion, name='eliminar_leccion'),
 ]

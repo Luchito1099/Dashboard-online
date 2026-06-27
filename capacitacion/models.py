@@ -94,3 +94,77 @@ class ProgresoTarea(models.Model):
 
     def __str__(self):
         return f"{self.usuario.username} · {self.tarea.nombre}"
+
+
+# ───────────────────────── Lecciones (mini-clases en video) ─────────────────────────
+
+# Audiencias de la capacitación. 'general' la ve cualquiera; las demás coinciden con el
+# rol del usuario (Perfil.rol). Constante reutilizable (también para el runbook a futuro).
+AUDIENCIA_GENERAL = 'general'
+AUDIENCIA_CHOICES = [
+    (AUDIENCIA_GENERAL, 'General (todos)'),
+    ('vendedor', 'Vendedor'),
+    ('analista', 'Analista'),
+    ('marketing', 'Marketing'),
+]
+
+import re
+
+
+class Leccion(models.Model):
+    """Mini-clase en video: título, objetivos, descripción, video embebido y un resumen
+    ocultable. Segmentada por audiencia. El admin pega el link y se incrusta para todos."""
+    titulo = models.CharField(max_length=200)
+    audiencia = models.CharField(max_length=12, choices=AUDIENCIA_CHOICES, default=AUDIENCIA_GENERAL)
+    objetivos = models.TextField(blank=True, help_text='Uno por línea.')
+    descripcion = models.TextField(blank=True)
+    video_url = models.CharField(max_length=500, blank=True, help_text='Link de YouTube o Vimeo.')
+    resumen = models.TextField(blank=True, help_text='Resumen ocultable de la clase.')
+    orden = models.PositiveSmallIntegerField(default=0)
+    activo = models.BooleanField(default=True)
+    creado = models.DateTimeField(auto_now_add=True)
+    actualizado = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['orden', 'titulo']
+        verbose_name = 'Lección'
+        verbose_name_plural = 'Lecciones'
+
+    def __str__(self):
+        return self.titulo
+
+    @property
+    def objetivos_lista(self):
+        return [o.strip() for o in (self.objetivos or '').splitlines() if o.strip()]
+
+    @property
+    def video_embed_url(self):
+        """Convierte un link de YouTube/Vimeo a su URL embebible (o '' si no es válido).
+        Mismo criterio que parseVideoUrl del runbook."""
+        url = (self.video_url or '').strip()
+        m = re.search(r'(?:youtube\.com/(?:watch\?v=|embed/|shorts/)|youtu\.be/)([\w-]{11})', url)
+        if m:
+            return f'https://www.youtube.com/embed/{m.group(1)}?rel=0'
+        m = re.search(r'vimeo\.com/(?:video/)?(\d+)', url)
+        if m:
+            return f'https://player.vimeo.com/video/{m.group(1)}'
+        return ''
+
+
+class AccesoLeccion(models.Model):
+    """Registro de quién entró a una lección y si la completó."""
+    usuario = models.ForeignKey(User, on_delete=models.CASCADE, related_name='accesos_leccion')
+    leccion = models.ForeignKey(Leccion, on_delete=models.CASCADE, related_name='accesos')
+    ingreso_en = models.DateTimeField(auto_now_add=True)
+    ultima_en = models.DateTimeField(auto_now=True)
+    completado = models.BooleanField(default=False)
+    completado_en = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        unique_together = ['usuario', 'leccion']
+        ordering = ['-ultima_en']
+        verbose_name = 'Acceso a lección'
+        verbose_name_plural = 'Accesos a lecciones'
+
+    def __str__(self):
+        return f'{self.usuario.username} → {self.leccion.titulo}'
