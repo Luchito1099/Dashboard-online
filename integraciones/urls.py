@@ -28,6 +28,7 @@ urlpatterns = [
     # Cruce de pedidos por Excel (confirmación masiva)
     path('pedidos/cruce-excel/', views.cruce_excel, name='cruce_excel'),
     path('pedidos/cruce-excel/previa/', views.cruce_excel_preview, name='cruce_excel_preview'),
+    path('pedidos/cruce-excel/ia/', views.cruce_excel_ia, name='cruce_excel_ia'),
     path('pedidos/cruce-excel/aplicar/', views.cruce_excel_aplicar, name='cruce_excel_aplicar'),
     # OAuth de Shopify
     path('integraciones/oauth/iniciar/<int:integracion_id>/', views.oauth_iniciar, name='oauth_iniciar'),

@@ -12,6 +12,8 @@
 .cruce-map-field { display: flex; flex-direction: column; gap: 5px; min-width: 160px; }
 .cruce-map-field > span { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
 .cruce-map-field select { padding: 8px 10px; border: 1px solid var(--border-dark); border-radius: 8px; font-size: 13px; font-family: inherit; background: var(--surface); color: var(--text); }
+.cruce-prog-bar { height: 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 999px; overflow: hidden; }
+.cruce-prog-fill { height: 100%; width: 0; background: var(--primary); transition: width .25s ease; }
 .cruce-acciones { display: flex; align-items: center; gap: 10px; margin: 14px 0 10px; flex-wrap: wrap; }
 .cruce-card {
   display: flex; gap: 12px; align-items: flex-start; padding: 10px 12px; margin-bottom: 8px;

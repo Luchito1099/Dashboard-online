@@ -1183,7 +1183,11 @@ def cruce_excel(request):
     if not (es_admin(request.user) or puede_ver(request.user, 'vendedor_puede_editar_pedidos')):
         messages.error(request, 'No tienes permisos para confirmar pedidos en lote.')
         return redirect(destino_vendedor(request.user))
-    return render(request, 'integraciones/cruce_excel.html', {'estados': Pedido.ESTADO_CHOICES})
+    from core.models import HerramientaIA
+    return render(request, 'integraciones/cruce_excel.html', {
+        'estados': Pedido.ESTADO_CHOICES,
+        'ia_activa': HerramientaIA.matching_pedidos().lista_para_usar,
+    })
 
 
 @login_required
@@ -1210,15 +1214,13 @@ def cruce_excel_preview(request):
         if tel:
             por_tel[tel].append(p)
 
-    from core.models import HerramientaIA
-    herr = HerramientaIA.matching_pedidos()
-
     matches, sin_cruce = [], []
     for fila in filas:
         estado_nuevo = _mapear_estado(fila.get('estado'))
         cel = _digitos(fila.get('celular'))
         candidatos = por_tel.get(cel, []) if cel else []
 
+        # Cruce DETERMINÍSTICO (rápido). La IA queda para resolver los "sin cruce" aparte.
         elegido, confianza = None, ''
         if len(candidatos) == 1:
             elegido, confianza = candidatos[0], 'alta'
@@ -1228,12 +1230,9 @@ def cruce_excel_preview(request):
         else:
             # Sin teléfono: similitud por nombre+producto sobre todos
             ranked = sorted(((_score_pedido(fila, p, prod_txt[p.id]), p) for p in pedidos),
-                            key=lambda x: x[0], reverse=True)[:5]
+                            key=lambda x: x[0], reverse=True)[:1]
             if ranked and ranked[0][0] >= 0.72:
                 elegido, confianza = ranked[0][1], 'media'
-            elif ranked and herr.lista_para_usar:
-                elegido = _ia_elige(herr, fila, [p for _, p in ranked], prod_txt)
-                confianza = 'ia' if elegido else ''
 
         # Si el pedido ya está en el estado que indica el Excel, no hay nada que cambiar → ocultar
         if elegido and estado_nuevo and estado_nuevo == elegido.estado:
@@ -1258,7 +1257,8 @@ def cruce_excel_preview(request):
             })
         else:
             sin_cruce.append({'nombre': fila.get('nombre', ''), 'celular': fila.get('celular', ''),
-                              'producto': fila.get('producto', ''), 'estado_texto': fila.get('estado', '')})
+                              'producto': fila.get('producto', ''), 'precio': fila.get('precio', ''),
+                              'estado': fila.get('estado', ''), 'estado_texto': fila.get('estado', '')})
 
     return JsonResponse({'ok': True, 'matches': matches, 'sin_cruce': sin_cruce})
 
@@ -1277,6 +1277,51 @@ def _ia_elige(herr, fila, candidatos, prod_txt):
         return None
     pid = (data or {}).get('pedido_id')
     return next((p for p in candidatos if p.id == pid), None)
+
+
+@login_required
+def cruce_excel_ia(request):
+    """Resuelve con IA los pedidos de las filas que NO cruzaron por celular/similitud.
+    Recibe pocas filas (los 'sin cruce') y devuelve cruces + los que siguen sin resolver."""
+    if not (es_admin(request.user) or _puede_editar(request.user)):
+        return JsonResponse({'ok': False, 'error': 'Sin permiso'}, status=403)
+    if request.method != 'POST':
+        return HttpResponseNotAllowed(['POST'])
+
+    from core.models import HerramientaIA
+    herr = HerramientaIA.matching_pedidos()
+    if not herr.lista_para_usar:
+        return JsonResponse({'ok': False, 'error': 'Configura la herramienta de IA en Configuración → IA.'}, status=400)
+    try:
+        filas = json.loads(request.body or '{}').get('filas') or []
+    except ValueError:
+        filas = []
+
+    pedidos = list(Pedido.objects.filter(estado=Pedido.ESTADO_CREADO).prefetch_related('items'))
+    prod_txt = {p.id: ' '.join(it.nombre for it in p.items.all()) for p in pedidos}
+
+    matches, sin_cruce = [], []
+    for fila in filas:
+        estado_nuevo = _mapear_estado(fila.get('estado'))
+        ranked = sorted(((_score_pedido(fila, p, prod_txt[p.id]), p) for p in pedidos),
+                        key=lambda x: x[0], reverse=True)[:5]
+        elegido = _ia_elige(herr, fila, [p for _, p in ranked], prod_txt) if ranked else None
+        if elegido and not (estado_nuevo and estado_nuevo == elegido.estado):
+            matches.append({
+                'pedido': {'id': elegido.id, 'numero': elegido.numero or elegido.external_id,
+                           'nombre': elegido.nombre_cliente, 'celular': elegido.telefono,
+                           'productos': prod_txt[elegido.id], 'total': float(elegido.total or 0),
+                           'estado_actual': elegido.get_estado_display()},
+                'excel': {'nombre': fila.get('nombre', ''), 'celular': fila.get('celular', ''),
+                          'producto': fila.get('producto', ''), 'precio': fila.get('precio', ''),
+                          'estado_texto': fila.get('estado', '')},
+                'estado_nuevo': estado_nuevo,
+                'estado_nuevo_label': dict(Pedido.ESTADO_CHOICES).get(estado_nuevo, ''),
+                'confianza': 'ia',
+            })
+        else:
+            sin_cruce.append(fila)
+    return JsonResponse({'ok': True, 'matches': matches, 'sin_cruce': sin_cruce})
 
 
 @login_required
