@@ -1201,8 +1201,8 @@ def cruce_excel_preview(request):
     if not filas:
         return JsonResponse({'ok': False, 'error': 'El Excel no tiene filas.'}, status=400)
 
-    # Índice de pedidos candidatos (excluye cancelados)
-    pedidos = list(Pedido.objects.exclude(estado=Pedido.ESTADO_CANCELADO).prefetch_related('items'))
+    # Solo pedidos SIN cambios de estado todavía (siguen en «creado»)
+    pedidos = list(Pedido.objects.filter(estado=Pedido.ESTADO_CREADO).prefetch_related('items'))
     prod_txt = {p.id: ' '.join(it.nombre for it in p.items.all()) for p in pedidos}
     por_tel = defaultdict(list)
     for p in pedidos:
@@ -1234,6 +1234,10 @@ def cruce_excel_preview(request):
             elif ranked and herr.lista_para_usar:
                 elegido = _ia_elige(herr, fila, [p for _, p in ranked], prod_txt)
                 confianza = 'ia' if elegido else ''
+
+        # Si el pedido ya está en el estado que indica el Excel, no hay nada que cambiar → ocultar
+        if elegido and estado_nuevo and estado_nuevo == elegido.estado:
+            continue
 
         if elegido:
             matches.append({

@@ -18,8 +18,9 @@
      data-url-aplicar="{% url 'integraciones:cruce_excel_aplicar' %}" id="cruceRoot">
   <div class="integ-header">
     <h2 class="integ-title">Cruzar pedidos por Excel</h2>
-    <p class="integ-subtitle">Sube un Excel (nombre, celular, producto, precio, estado). Cruzamos por celular + nombre + producto,
-      verás una previa para confirmar, y al aplicar se cambia el estado del pedido al que indica el Excel.</p>
+    <p class="integ-subtitle">Sube un Excel (nombre, celular, producto, precio, estado). Cruzamos por celular + nombre + producto
+      <b>solo con pedidos aún sin cambios (estado «creado»)</b>, verás una previa para confirmar, y al aplicar se cambia el
+      estado del pedido al que indica el Excel.</p>
   </div>
 
   <div class="av-card av-card-wide">
