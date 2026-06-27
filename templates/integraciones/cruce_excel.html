@@ -31,6 +31,13 @@
     <span class="ads-nota-inline" id="cruceInfo"></span>
   </div>
 
+  {# Paso de mapeo: el Excel puede tener cualquier encabezado; aquí eliges qué es cada columna #}
+  <div class="av-card av-card-wide" id="cruceMapWrap" hidden>
+    <div class="av-card-title">Asocia las columnas de tu Excel</div>
+    <div class="cruce-map" id="cruceMap"></div>
+    <button type="button" class="btn-guardar" id="cruceCruzar" style="margin-top:12px;">Cruzar con pedidos →</button>
+  </div>
+
   <div id="crucePreviaWrap" hidden>
     <div class="cruce-acciones">
       <div class="ads-nota-inline" id="cruceResumen"></div>
@@ -62,13 +69,24 @@
   var previaWrap = document.getElementById('crucePreviaWrap');
   var previa = document.getElementById('crucePrevia');
 
-  // Detecta una columna por palabras clave en los encabezados
-  function col(headers, claves) {
-    for (var i = 0; i < headers.length; i++) {
-      var h = (headers[i] || '').toString().toLowerCase();
-      for (var k = 0; k < claves.length; k++) if (h.indexOf(claves[k]) >= 0) return headers[i];
-    }
-    return null;
+  var mapWrap = document.getElementById('cruceMapWrap');
+  var mapDiv = document.getElementById('cruceMap');
+  var parsedRows = [], parsedHeaders = [];
+
+  // Campos que necesitamos y sus palabras clave para autodetección
+  var CAMPOS = [
+    { key: 'nombre',  label: 'Nombre / Cliente', claves: ['cliente', 'nombre', 'destinatario'] },
+    { key: 'celular', label: 'Celular / Contacto', claves: ['contacto', 'celular', 'telefono', 'teléfono', 'whatsapp', 'wsp', 'numero', 'número', 'cel', 'phone'] },
+    { key: 'producto', label: 'Producto', claves: ['producto', 'articulo', 'artículo', 'item', 'detalle'] },
+    { key: 'precio', label: 'Precio (Shopify)', claves: ['monto tienda', 'precio', 'monto', 'importe', 'cobrar', 'total', 'venta'] },
+    { key: 'estado', label: 'Estado', claves: ['estado', 'status', 'situacion', 'situación', 'resultado', 'entrega'] },
+  ];
+
+  function autodetectar(headers, claves) {
+    for (var k = 0; k < claves.length; k++)
+      for (var i = 0; i < headers.length; i++)
+        if ((headers[i] || '').toString().toLowerCase().indexOf(claves[k]) >= 0) return headers[i];
+    return '';
   }
 
   fileInput.addEventListener('change', function () {
@@ -79,24 +97,38 @@
     reader.onload = function (e) {
       var wb = XLSX.read(e.target.result, { type: 'array' });
       var ws = wb.Sheets[wb.SheetNames[0]];
-      var rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
-      if (!rows.length) { info.textContent = 'El Excel está vacío.'; return; }
-      var headers = Object.keys(rows[0]);
-      var cN = col(headers, ['nombre', 'cliente', 'destinatario']);
-      var cC = col(headers, ['celular', 'telefono', 'teléfono', 'cel', 'phone']);
-      var cP = col(headers, ['producto', 'articulo', 'artículo', 'item']);
-      var cPr = col(headers, ['precio', 'monto', 'total', 'importe', 'cobrar']);
-      var cE = col(headers, ['estado', 'status', 'situacion', 'situación']);
-      var filas = rows.map(function (r) {
-        return {
-          nombre: cN ? r[cN] : '', celular: cC ? r[cC] : '', producto: cP ? r[cP] : '',
-          precio: cPr ? r[cPr] : '', estado: cE ? r[cE] : '',
-        };
-      });
-      info.textContent = filas.length + ' fila(s) leída(s). Cruzando…';
-      enviarPrevia(filas);
+      parsedRows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+      if (!parsedRows.length) { info.textContent = 'El Excel está vacío.'; return; }
+      parsedHeaders = Object.keys(parsedRows[0]);
+      info.textContent = parsedRows.length + ' fila(s) leída(s). Revisa el mapeo de columnas ↓';
+
+      // Construye los selectores de mapeo (con autodetección por defecto)
+      mapDiv.innerHTML = CAMPOS.map(function (c) {
+        var auto = autodetectar(parsedHeaders, c.claves);
+        var opts = '<option value="">— ninguna —</option>' + parsedHeaders.map(function (h) {
+          return '<option value="' + h.replace(/"/g, '&quot;') + '"' + (h === auto ? ' selected' : '') + '>' + h + '</option>';
+        }).join('');
+        return '<label class="cruce-map-field"><span>' + c.label + '</span>' +
+               '<select data-campo="' + c.key + '">' + opts + '</select></label>';
+      }).join('');
+      mapWrap.hidden = false;
     };
     reader.readAsArrayBuffer(file);
+  });
+
+  document.getElementById('cruceCruzar').addEventListener('click', function () {
+    var map = {};
+    mapDiv.querySelectorAll('select').forEach(function (s) { map[s.dataset.campo] = s.value; });
+    if (!map.celular && !map.nombre) { alert('Asocia al menos Nombre o Celular.'); return; }
+    var filas = parsedRows.map(function (r) {
+      return {
+        nombre: map.nombre ? r[map.nombre] : '', celular: map.celular ? r[map.celular] : '',
+        producto: map.producto ? r[map.producto] : '', precio: map.precio ? r[map.precio] : '',
+        estado: map.estado ? r[map.estado] : '',
+      };
+    });
+    info.textContent = 'Cruzando ' + filas.length + ' fila(s)…';
+    enviarPrevia(filas);
   });
 
   function enviarPrevia(filas) {
