@@ -190,6 +190,24 @@ def api_inicio_serie(request):
     return JsonResponse(services.serie_meta_vs_pedidos(desde, hasta))
 
 
+@login_required
+def api_inicio_heatmap(request):
+    """JSON para el mapa de calor del Inicio (pedidos y gasto por día×hora). Protegido
+    con puede_ver_ads. Agrega sobre las últimas N semanas (?semanas=4, default 4)."""
+    if not puede_ver_ads(request.user):
+        return JsonResponse({'error': 'sin permiso'}, status=403)
+
+    try:
+        semanas = int(request.GET.get('semanas', 4))
+    except ValueError:
+        semanas = 4
+    semanas = max(1, min(semanas, 26))
+
+    hoy = timezone.localdate()
+    desde = hoy - timedelta(days=semanas * 7 - 1)
+    return JsonResponse(services.heatmap_pedidos_hora(desde, hoy))
+
+
 # ───────────────────────── Matching producto ↔ anuncio ─────────────────────────
 
 @login_required

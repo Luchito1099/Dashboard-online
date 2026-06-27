@@ -95,6 +95,25 @@
   <div class="mp-canvas-wrap"><canvas id="metaPedChart" height="92"></canvas></div>
   <div class="mp-vacio" id="mpVacio" hidden>Sin datos en este periodo. La sincronización con Meta corre en segundo plano; vuelve en unos minutos.</div>
 </div>
+
+{# ── Mapa de calor: patrón semanal (día × hora) ── #}
+<div class="hm2-card" id="hmCard" data-url="{% url 'anuncios:api_inicio_heatmap' %}">
+  <div class="mp-head">
+    <h3 class="mp-title">🗓️ Patrón semanal · día × hora</h3>
+    <div class="mp-filtros">
+      <button type="button" class="mp-pill hm2-metric active" data-metric="pedidos">Pedidos</button>
+      <button type="button" class="mp-pill hm2-metric" data-metric="gasto">Gasto Meta</button>
+      <select class="hm2-semanas" id="hmSemanas" title="Periodo a promediar">
+        <option value="4">Últimas 4 semanas</option>
+        <option value="8">Últimas 8 semanas</option>
+        <option value="12">Últimas 12 semanas</option>
+      </select>
+    </div>
+  </div>
+  <div class="mp-resumen" id="hmResumen"></div>
+  <div class="hm2-wrap"><div id="hmGrid"></div></div>
+  <div class="hm2-leyenda">Menos <span class="hm2-leg l1"></span><span class="hm2-leg l2"></span><span class="hm2-leg l3"></span><span class="hm2-leg l4"></span><span class="hm2-leg l5"></span> Más · pasa el cursor por una celda para ver el detalle.</div>
+</div>
 {% endif %}
 
 {# Card de progreso de capacitación del día #}
@@ -216,6 +235,64 @@
   document.getElementById('mpAplicar').addEventListener('click', () => cargar('rango'));
 
   cargar('hoy');
+})();
+</script>
+
+<script>
+// ── Mapa de calor semanal (día × hora) ──
+(function () {
+  const card = document.getElementById('hmCard');
+  if (!card) return;
+  const base = card.dataset.url;
+  const grid = document.getElementById('hmGrid');
+  const resumen = document.getElementById('hmResumen');
+  const selSemanas = document.getElementById('hmSemanas');
+  let datos = null, metric = 'pedidos';
+
+  function pintar() {
+    if (!datos) return;
+    const m = datos[metric];
+    const max = (metric === 'pedidos' ? datos.max_pedidos : datos.max_gasto) || 1;
+    const esGasto = metric === 'gasto';
+
+    let html = '<table class="hm2-grid"><thead><tr><th class="hm2-corner"></th>';
+    for (const h of datos.horas) html += `<th class="hm2-h">${String(h).padStart(2,'0')}</th>`;
+    html += '</tr></thead><tbody>';
+    datos.dias.forEach((dia, wd) => {
+      html += `<tr><td class="hm2-dia">${dia}</td>`;
+      for (const h of datos.horas) {
+        const v = m[wd][h];
+        const nivel = v <= 0 ? 0 : Math.min(5, Math.floor(v / max * 5) + 1);
+        const val = esGasto ? `${datos.moneda} ${v.toFixed(2)}` : `${v} pedido(s)`;
+        html += `<td class="hm2-cell ${esGasto ? 'g' : 'p'}${nivel}" title="${dia} · ${String(h).padStart(2,'0')}h — ${val}"></td>`;
+      }
+      html += '</tr>';
+    });
+    html += '</tbody></table>';
+    grid.innerHTML = html;
+
+    resumen.innerHTML = esGasto
+      ? `<span class="mp-kpi"><b>${datos.moneda} ${datos.total_gasto.toFixed(2)}</b> gasto total</span><span class="mp-gran">· intensidad = gasto por día y hora</span>`
+      : `<span class="mp-kpi"><b>${datos.total_pedidos}</b> pedidos</span><span class="mp-gran">· intensidad = pedidos por día y hora</span>`;
+  }
+
+  function cargar() {
+    resumen.innerHTML = '<span class="mp-gran">Cargando…</span>';
+    fetch(`${base}?semanas=${selSemanas.value}`, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+      .then(r => r.ok ? r.json() : Promise.reject())
+      .then(d => { datos = d; pintar(); })
+      .catch(() => { resumen.innerHTML = '<span class="mp-gran">No se pudo cargar.</span>'; });
+  }
+
+  card.querySelectorAll('.hm2-metric').forEach(b => b.addEventListener('click', function () {
+    card.querySelectorAll('.hm2-metric').forEach(x => x.classList.remove('active'));
+    b.classList.add('active');
+    metric = b.dataset.metric;
+    pintar();
+  }));
+  selSemanas.addEventListener('change', cargar);
+
+  cargar();
 })();
 </script>
 {% endif %}

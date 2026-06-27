@@ -399,6 +399,44 @@ def serie_meta_vs_pedidos(desde, hasta, integracion_id=None):
     }
 
 
+def heatmap_pedidos_hora(desde, hasta, integracion_id=None):
+    """Mapa de calor 7×24 (día de semana × hora) de PEDIDOS recibidos y GASTO de Meta,
+    agregados sobre el rango [desde, hasta]. Sirve para ver el patrón semanal: a qué
+    horas y días caen los pedidos (mañana/almuerzo/noche) frente al gasto.
+
+    La hora de los pedidos se calcula en America/Lima; la del gasto es la de Meta
+    (zona del anunciante), así que el cruce horario es aproximado."""
+    pedidos = [[0] * 24 for _ in range(7)]
+    gasto = [[0.0] * 24 for _ in range(7)]
+
+    # Pedidos: hora local de Perú (weekday 0=Lun … 6=Dom)
+    pq = Pedido.objects.filter(fecha_pedido__date__range=(desde, hasta))
+    if integracion_id:
+        pq = pq.filter(integracion_id=integracion_id)
+    for p in pq.only('fecha_pedido'):
+        dt = timezone.localtime(p.fecha_pedido)
+        pedidos[dt.weekday()][dt.hour] += 1
+
+    # Gasto Meta por (fecha, hora) → acumula en su día de semana
+    gq = InsightHorarioMeta.objects.filter(fecha__range=(desde, hasta))
+    if integracion_id:
+        gq = gq.filter(campana__cuenta__integracion_id=integracion_id)
+    for r in gq.order_by().values('fecha', 'hora').annotate(s=Sum('gasto')):
+        gasto[r['fecha'].weekday()][max(0, min(23, r['hora']))] += float(r['s'] or 0)
+
+    return {
+        'dias': _DIAS_SEMANA,
+        'horas': list(range(24)),
+        'pedidos': pedidos,
+        'gasto': [[round(c, 2) for c in fila] for fila in gasto],
+        'max_pedidos': max((c for f in pedidos for c in f), default=0),
+        'max_gasto': round(max((c for f in gasto for c in f), default=0.0), 2),
+        'total_pedidos': sum(c for f in pedidos for c in f),
+        'total_gasto': round(sum(c for f in gasto for c in f), 2),
+        'moneda': moneda_ads(integracion_id),
+    }
+
+
 # ───────────────────────── Alertas ─────────────────────────
 
 def evaluar_alertas():
