@@ -38,10 +38,12 @@
           <td style="white-space:nowrap;">
             <form method="post" action="{% url 'anuncios:probar_cuenta' c.id %}" style="display:inline;">{% csrf_token %}<button class="btn-probar">Probar</button></form>
             <form method="post" action="{% url 'anuncios:sincronizar_cuenta' c.id %}" style="display:inline-flex;gap:4px;">{% csrf_token %}
-              <select name="dias" title="Rango a descargar (para histórico largo usa la línea de comandos)">
+              <select name="dias" title="Rango a descargar (corre en segundo plano)">
                 <option value="7">7 días</option>
                 <option value="30" selected>30 días</option>
                 <option value="90">90 días</option>
+                <option value="365">1 año</option>
+                <option value="1095">Todo (~3 años)</option>
               </select>
               <button class="btn-guardar">↻ Sincronizar</button>
             </form>
@@ -67,10 +69,12 @@
     </form>
     <p class="ads-nota">El token se guarda <b>cifrado</b>. Al editar una cuenta, deja el token vacío para conservar el actual.
       Necesitas un token de <b>System User</b> con permiso <code>ads_read</code> (Business Manager).</p>
-    <p class="ads-nota"><b>Carga histórica</b> (3 años) y la sincronización automática se corren desde la
-      <b>línea de comandos</b> (no desde aquí, para no agotar el tiempo del servidor web):
-      <code>python manage.py sincronizar_ads --dias 1095</code> una vez, y luego un cron cada 15 min con
-      <code>--dias 3</code>. La descarga se hace por ventanas, así que no falla por «reduce the amount of data».</p>
+    <p class="ads-nota">La sincronización corre <b>en segundo plano</b>: el botón vuelve enseguida y la
+      «Última sync» se actualiza al terminar (recarga para ver). Puedes elegir hasta <b>«Todo (~3 años)»</b>.
+      La descarga se hace por ventanas (de viejo a nuevo), así que no falla por «reduce the amount of data».</p>
+    <p class="ads-nota">Para automatizar, programa un cron cada 15 min:
+      <code>python manage.py sincronizar_ads --dias 3</code> (la primera carga histórica también puedes
+      lanzarla aquí con «Todo», o por comando: <code>sincronizar_ads --dias 1095</code>).</p>
   </div>
 
   {# ── Filtro de análisis: qué anuncios entran a los dashboards (todo se descarga igual) ── #}

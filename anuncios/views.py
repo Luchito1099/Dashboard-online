@@ -295,21 +295,56 @@ def probar_cuenta(request, cuenta_id):
     return redirect('anuncios:ajustes')
 
 
+def _sync_en_hilo(cuenta_id, dias):
+    """Corre la sincronización en un hilo aparte (no bloquea el request web). Actualiza
+    el estado de la cuenta al terminar y cierra su conexión de BD."""
+    import threading
+    from django.db import connection
+
+    def _run():
+        try:
+            from . import connectors
+            cuenta = CuentaPublicitaria.objects.get(id=cuenta_id)
+            ok, msg, _ = connectors.sincronizar(cuenta, dias=dias)
+            cuenta.ultimo_sync_ok, cuenta.ultimo_sync_msg = ok, msg[:255]
+            cuenta.ultimo_sync_en = timezone.now()
+            cuenta.save(update_fields=['ultimo_sync_ok', 'ultimo_sync_msg', 'ultimo_sync_en'])
+        except Exception as e:   # noqa: BLE001 — registramos cualquier fallo en el estado
+            try:
+                cuenta = CuentaPublicitaria.objects.get(id=cuenta_id)
+                cuenta.ultimo_sync_ok = False
+                cuenta.ultimo_sync_msg = str(e)[:255]
+                cuenta.ultimo_sync_en = timezone.now()
+                cuenta.save(update_fields=['ultimo_sync_ok', 'ultimo_sync_msg', 'ultimo_sync_en'])
+            except Exception:
+                pass
+        finally:
+            connection.close()
+
+    threading.Thread(target=_run, daemon=True).start()
+
+
 @login_required
 def sincronizar_cuenta(request, cuenta_id):
-    """Extrae los insights de la cuenta directamente desde la Graph API (solo admin, POST)."""
+    """Lanza la extracción de insights desde la Graph API EN SEGUNDO PLANO (solo admin,
+    POST). El request vuelve enseguida; la sync sigue corriendo y actualiza el estado."""
     if not puede_admin_ads(request.user):
         return JsonResponse({'error': 'sin permiso'}, status=403)
     if request.method != 'POST':
         return HttpResponseNotAllowed(['POST'])
-    from . import connectors
     cuenta = get_object_or_404(CuentaPublicitaria, id=cuenta_id)
     try:
         dias = int(request.POST.get('dias') or 30)
     except ValueError:
         dias = 30
-    ok, msg, _ = connectors.sincronizar(cuenta, dias=dias)
-    cuenta.ultimo_sync_ok, cuenta.ultimo_sync_msg, cuenta.ultimo_sync_en = ok, msg[:255], timezone.now()
+
+    # Marca "en progreso" y dispara el hilo
+    cuenta.ultimo_sync_ok = None
+    cuenta.ultimo_sync_msg = f'Sincronizando {dias} día(s) en segundo plano…'
+    cuenta.ultimo_sync_en = timezone.now()
     cuenta.save(update_fields=['ultimo_sync_ok', 'ultimo_sync_msg', 'ultimo_sync_en'])
-    (messages.success if ok else messages.error)(request, f'Sincronización: {msg}')
+    _sync_en_hilo(cuenta.id, dias)
+
+    messages.success(request, f'Sincronización de {dias} día(s) iniciada en segundo plano. '
+                              'Recarga en unos minutos para ver el resultado.')
     return redirect('anuncios:ajustes')
