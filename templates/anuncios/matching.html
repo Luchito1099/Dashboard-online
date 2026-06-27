@@ -109,6 +109,58 @@
   {% empty %}
   <div class="integ-vacio">No hay anuncios pendientes de matching. Todo lo incluido en el análisis ya tiene producto. 🎉</div>
   {% endfor %}{# /proyectos #}
+
+  {# ── Ya casados ── #}
+  {% if casados %}
+  <div style="margin-top:28px;">
+    <div class="ads-campana-head" style="cursor:pointer;" onclick="this.nextElementSibling.classList.toggle('hidden')">
+      ✅ Ya casados ({{ ya_casados }}) — haz click para revisar
+    </div>
+    <div class="hidden" style="margin-top:8px;">
+      <div class="ped-tabla-wrap">
+        <table class="ped-tabla">
+          <thead>
+            <tr>
+              <th>Anuncio / Ad set</th>
+              <th>Campaña</th>
+              <th>Cuenta</th>
+              <th>Producto asignado</th>
+              <th>Origen</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for m in casados %}
+            <tr>
+              <td>
+                <div class="ped-cliente-nombre">{{ m.campana.ad_name|default:m.campana.adset_name|default:"—" }}</div>
+              </td>
+              <td><span class="ads-nota-inline">{{ m.campana.campaign_name|default:"—" }}</span></td>
+              <td><span class="ads-nota-inline">{{ m.campana.cuenta.nombre }}</span></td>
+              <td><strong>{{ m.producto.nombre }}</strong></td>
+              <td>
+                {% if m.origen == 'manual' %}
+                  <span style="color:var(--success,#22a06b);font-size:12px;">✔ Manual</span>
+                {% else %}
+                  <span style="color:var(--muted,#888);font-size:12px;">🤖 Sugerido ({{ m.confianza }}%)</span>
+                {% endif %}
+              </td>
+              <td>
+                <form method="post" action="{% url 'anuncios:quitar_match' m.campana.id %}">
+                  {% csrf_token %}
+                  <button type="submit" class="btn-danger-sm" onclick="return confirm('¿Quitar este match?')">Quitar</button>
+                </form>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <p class="ads-nota">«Manual» = asignado a mano (confianza 100%). «Sugerido» = confirmado a partir de sugerencia automática.</p>
+    </div>
+  </div>
+  {% endif %}
+
 </div>
 {% endblock %}
 

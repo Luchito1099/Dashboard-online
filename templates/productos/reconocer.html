@@ -21,6 +21,7 @@
       Vincula el nombre que llega en los pedidos con tu producto del catálogo. Queda guardado para los próximos pedidos.</p>
   </div>
 
+  {# ── Pendientes ── #}
   {% if total == 0 %}
   <div class="integ-vacio">Todos los productos de los pedidos ya están vinculados al catálogo. 🎉</div>
   {% endif %}
@@ -29,7 +30,7 @@
   <div class="match-card">
     <div class="match-ad">
       <div class="match-ad-nombre">{{ it.nombre }}</div>
-      <div class="match-ad-meta">aparece en {{ it.n }} línea(s) de pedido</div>
+      <div class="match-ad-meta">Nombre exacto del pedido · aparece en {{ it.n }} línea(s)</div>
     </div>
     <div class="match-acciones">
       <div class="match-sugerencias">
@@ -38,17 +39,17 @@
           {% csrf_token %}
           <input type="hidden" name="nombre" value="{{ it.nombre }}">
           <input type="hidden" name="producto_id" value="{{ s.producto.id }}">
-          <button type="submit" class="match-sug" title="Vincular a este producto">
+          <button type="submit" class="match-sug" title="Vincular a este producto del catálogo">
             {{ s.producto.nombre }} <span class="match-score">{{ s.score }}%</span>
           </button>
         </form>
-        {% empty %}<span class="ads-nota-inline">Sin sugerencias.</span>{% endfor %}
+        {% empty %}<span class="ads-nota-inline">Sin sugerencias automáticas.</span>{% endfor %}
       </div>
       <form method="post" action="{% url 'productos:vincular' %}" class="match-manual">
         {% csrf_token %}
         <input type="hidden" name="nombre" value="{{ it.nombre }}">
         <select name="producto_id" required>
-          <option value="">— Elegir producto…</option>
+          <option value="">— Elegir producto del catálogo…</option>
           {% for p in productos %}<option value="{{ p.id }}">{{ p.nombre }}</option>{% endfor %}
         </select>
         <button type="submit" class="btn-guardar">Vincular</button>
@@ -56,5 +57,34 @@
     </div>
   </div>
   {% endfor %}
+
+  {# ── Ya vinculados ── #}
+  {% if aliases %}
+  <div style="margin-top:28px;">
+    <div class="ads-campana-head" style="cursor:pointer;" onclick="this.nextElementSibling.classList.toggle('hidden')">
+      ✅ Ya vinculados ({{ aliases|length }}) — haz click para ver
+    </div>
+    <div class="hidden" style="margin-top:8px;">
+      <div class="ped-tabla-wrap">
+        <table class="ped-tabla">
+          <thead>
+            <tr>
+              <th>Nombre en pedido</th>
+              <th>Producto del catálogo</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for a in aliases %}
+            <tr>
+              <td><code style="font-size:13px;background:var(--surface-2,#f4f4f4);padding:2px 6px;border-radius:4px;">{{ a.nombre_externo }}</code></td>
+              <td>{{ a.producto.nombre }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  {% endif %}
 </div>
 {% endblock %}

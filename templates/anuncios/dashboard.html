@@ -76,7 +76,11 @@
     </div>
     <div class="av-card av-card-wide">
       <div class="av-card-title">Gasto Meta vs. confirmados vs. entregados (por día)</div>
+      {% if hay_datos %}
       <canvas id="adsChart" height="90"></canvas>
+      {% else %}
+      <div class="integ-vacio" style="padding:32px 0;">Sin datos en este rango. Si acabas de configurar la cuenta, la sincronización automática se activa al abrir esta página y puede tardar unos minutos.</div>
+      {% endif %}
     </div>
     {{ serie_json|json_script:"serieData" }}
 

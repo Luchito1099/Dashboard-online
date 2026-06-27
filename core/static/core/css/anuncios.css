@@ -100,6 +100,14 @@
 .hm-conf-4 { background: oklch(64% 0.17 145); }
 .hm-conf-5 { background: oklch(56% 0.18 145); }
 
+.btn-danger-sm {
+  padding: 5px 10px; font-size: 12px; font-weight: 600; border: 1px solid var(--error);
+  background: transparent; color: var(--error); border-radius: 7px; cursor: pointer;
+  font-family: inherit;
+}
+.btn-danger-sm:hover { background: var(--error); color: #fff; }
+.hidden { display: none; }
+
 @media (max-width: 700px) {
   .match-card { grid-template-columns: 1fr; }
 }

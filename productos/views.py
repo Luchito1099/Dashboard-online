@@ -237,11 +237,16 @@ def reconocer_productos(request):
         sugerencias = [{'producto': p, 'score': round(s * 100)} for s, p in scored[:3] if s > 0]
         items.append({'nombre': nombre, 'n': r['n'], 'sugerencias': sugerencias})
 
+    # Aliases ya vinculados (para la sección "Ya vinculados")
+    aliases = (ProductoAlias.objects.select_related('producto')
+               .order_by('nombre_externo'))
+
     context = {
         'items': items,
         'productos': productos,
         'total': len(items),
         'vinculados': PedidoItem.objects.filter(producto__isnull=False).count(),
+        'aliases': aliases,
     }
     return render(request, 'productos/reconocer.html', context)
 

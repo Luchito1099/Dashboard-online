@@ -104,12 +104,31 @@ def _filtro_campanas(integracion_id, f_proyecto, f_campana):
 
 # ───────────────────────── Dashboards ─────────────────────────
 
+def _auto_sync_si_necesario():
+    """Dispara sincronización en background para cuentas con >15 min sin actualizar.
+    Se llama desde dashboard(); no bloquea el request."""
+    limite = timezone.now() - timedelta(minutes=15)
+    from django.db.models import Q
+    cuentas = CuentaPublicitaria.objects.filter(activo=True).exclude(access_token='').filter(
+        Q(ultimo_sync_en__isnull=True) | Q(ultimo_sync_en__lt=limite)
+    )
+    for cuenta in cuentas:
+        cuenta.ultimo_sync_ok = None
+        cuenta.ultimo_sync_msg = 'Sincronizando automáticamente…'
+        cuenta.ultimo_sync_en = timezone.now()
+        cuenta.save(update_fields=['ultimo_sync_ok', 'ultimo_sync_msg', 'ultimo_sync_en'])
+        _sync_en_hilo(cuenta.id, dias=3)
+
+
 @login_required
 def dashboard(request):
     """Página del módulo con 3 sub-pestañas: Diario / Productos / Heatmap."""
     if not puede_ver_ads(request.user):
         messages.error(request, 'No tienes permisos para ver Publicidad.')
         return redirect(destino_vendedor(request.user))
+
+    # Auto-sync: si alguna cuenta tiene >15 min sin actualizar, dispara en background
+    _auto_sync_si_necesario()
 
     vista = request.GET.get('vista', 'diario')
     if vista not in ('diario', 'productos', 'heatmap'):
@@ -132,6 +151,7 @@ def dashboard(request):
         ctx['tot_conf'] = sum(s['confirmados'] for s in serie)
         ctx['tot_entr'] = sum(s['entregados'] for s in serie)
         ctx['campanas'] = services.tabla_campanas(desde, hasta, integracion_id, campana_ids)
+        ctx['hay_datos'] = ctx['tot_gasto'] > 0 or ctx['tot_conf'] > 0
 
     # contador de matching pendiente (para el badge)
     ctx['pendientes'] = (CampanaMeta.objects.filter(incluir_en_extraccion=True, match__isnull=True)
@@ -179,11 +199,17 @@ def matching_pendiente(request):
         sugerencias = [{'producto': p, 'score': round(r * 100)} for r, p in scored[:3] if r > 0]
         items.append({'campana': c, 'texto': texto, 'sugerencias': sugerencias})
 
+    # Matches ya confirmados (para la sección "Ya casados")
+    casados = (MatchProductoAnuncio.objects
+               .select_related('campana', 'campana__cuenta', 'producto')
+               .order_by('producto__nombre', 'campana__campaign_name'))
+
     context = {
         'items': items,
         'productos': productos,
         'total_pendientes': len(items),
-        'ya_casados': MatchProductoAnuncio.objects.count(),
+        'ya_casados': casados.count(),
+        'casados': casados,
         'campanas_filtro': campanas_filtro,
         'proyectos_filtro': proyectos_filtro,
         'f_campana': f_campana, 'f_proyecto': f_proyecto,
