@@ -1,7 +1,7 @@
 {% comment %} Heatmap día de semana x hora: gasto Meta vs. confirmaciones reales {% endcomment %}
 
 <div class="av-card av-card-wide">
-  <div class="av-card-title">💸 Gasto de Meta por hora y día <span class="ads-nota-inline">(total S/ {{ hm.total_gasto }})</span></div>
+  <div class="av-card-title">💸 Gasto de Meta por hora y día <span class="ads-nota-inline">(total {{ moneda }} {{ hm.total_gasto }})</span></div>
   {% include 'anuncios/_heatmap_grid.html' with filas=hm.filas_gasto horas=hm.horas clase='gasto' %}
 </div>
 

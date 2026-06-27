@@ -12,8 +12,13 @@
 .ads-roas.bad { background: oklch(60% 0.2 25 / .14); color: oklch(48% 0.2 25); }
 
 /* ── Matching ── */
-.match-camp-grupo { margin-bottom: 18px; }
-.match-camp-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.match-proyecto-head { font-size: 14px; font-weight: 800; color: var(--primary-dark); margin: 18px 0 8px; padding-bottom: 4px; border-bottom: 2px solid var(--primary); }
+.match-camp-grupo { margin-bottom: 10px; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+.match-camp-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; cursor: pointer; user-select: none; }
+.match-camp-head .pa-chevron { width: 15px; height: 15px; color: var(--muted); transition: transform .2s; vertical-align: middle; }
+.match-camp-grupo.open .match-camp-head .pa-chevron { transform: rotate(90deg); }
+.match-camp-body { display: none; padding: 10px; }
+.match-camp-grupo.open .match-camp-body { display: block; }
 .match-camp-asignar { display: flex; gap: 6px; align-items: center; }
 .match-camp-asignar select {
   padding: 6px 9px; border: 1px solid var(--border-dark); border-radius: 8px; font-size: 12.5px;

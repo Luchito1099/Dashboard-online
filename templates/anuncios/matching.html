@@ -21,23 +21,35 @@
       Confirma una sugerencia, elige el producto a mano, o asigna una campaña completa de una vez.</p>
   </div>
 
-  {# ── Filtro por campaña ── #}
+  {# ── Filtros: proyecto + campaña ── #}
   <form method="get" class="ped-filtros">
+    <select name="proyecto" onchange="this.form.submit()">
+      <option value="">Todos los proyectos</option>
+      {% for pr in proyectos_filtro %}
+      <option value="{{ pr }}" {% if f_proyecto == pr %}selected{% endif %}>🗂 {{ pr }}</option>
+      {% endfor %}
+    </select>
     <select name="campana" onchange="this.form.submit()">
       <option value="">Todas las campañas</option>
       {% for c in campanas_filtro %}
       <option value="{{ c.campaign_id }}" {% if f_campana == c.campaign_id %}selected{% endif %}>{{ c.campaign_name|default:"(sin campaña)" }}</option>
       {% endfor %}
     </select>
+    <span class="ads-nota-inline">Las campañas están minimizadas; haz click para abrir.</span>
   </form>
 
-  {% regroup items by campana.campaign_name as grupos %}
+  {# Agrupado por PROYECTO → CAMPAÑA (campañas colapsables) #}
+  {% regroup items by campana.proyecto as proyectos %}
+  {% for pr in proyectos %}
+  {% if pr.grouper %}<div class="match-proyecto-head">🗂 Proyecto: {{ pr.grouper }}</div>{% endif %}
+  {% regroup pr.list by campana.campaign_name as grupos %}
   {% for g in grupos %}
   <div class="match-camp-grupo">
-    <div class="ads-campana-head match-camp-head">
-      <span>📁 {{ g.grouper|default:"(sin campaña)" }} <span class="ads-nota-inline">· {{ g.list|length }} pendiente(s)</span></span>
-      {# Asignar toda la campaña a un producto #}
-      <form method="post" action="{% url 'anuncios:confirmar_match_campana' %}" class="match-camp-asignar">
+    <div class="ads-campana-head match-camp-head js-camp-toggle">
+      <span><svg class="pa-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg>
+        📁 {{ g.grouper|default:"(sin campaña)" }} <span class="ads-nota-inline">· {{ g.list|length }} pendiente(s)</span></span>
+      {# Asignar toda la campaña a un producto (no colapsa al hacer click aquí) #}
+      <form method="post" action="{% url 'anuncios:confirmar_match_campana' %}" class="match-camp-asignar" onclick="event.stopPropagation();">
         {% csrf_token %}
         <input type="hidden" name="campaign_id" value="{{ g.list.0.campana.campaign_id }}">
         <select name="producto_id" required>
@@ -48,6 +60,7 @@
       </form>
     </div>
 
+    <div class="match-camp-body">
     {% for it in g.list %}
     <div class="match-card">
       <div class="match-ad">
@@ -89,10 +102,25 @@
         </form>
       </div>
     </div>
-    {% endfor %}
-  </div>
+    {% endfor %}{# /cards #}
+    </div>{# /match-camp-body #}
+  </div>{# /match-camp-grupo #}
+  {% endfor %}{# /grupos (campañas) #}
   {% empty %}
   <div class="integ-vacio">No hay anuncios pendientes de matching. Todo lo incluido en el análisis ya tiene producto. 🎉</div>
-  {% endfor %}
+  {% endfor %}{# /proyectos #}
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  // Campañas colapsadas; click en la cabecera para abrir/cerrar.
+  document.querySelectorAll('.js-camp-toggle').forEach(function (head) {
+    head.addEventListener('click', function () {
+      head.closest('.match-camp-grupo').classList.toggle('open');
+    });
+  });
+})();
+</script>
 {% endblock %}

@@ -75,6 +75,8 @@ class CampanaMeta(models.Model):
     incluir_en_extraccion = models.BooleanField(default=True)
     # Etiqueta libre para organizar/agrupar anuncios (ej. "Mensajes", "Producto X", "Test")
     etiqueta = models.CharField(max_length=60, blank=True)
+    # Proyecto al que pertenece la campaña (un proyecto = un conjunto de campañas)
+    proyecto = models.CharField(max_length=80, blank=True)
 
     primero_visto = models.DateTimeField(auto_now_add=True)
     actualizado = models.DateTimeField(auto_now=True)

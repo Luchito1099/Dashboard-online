@@ -62,14 +62,44 @@ def _filtros(request):
 
 def _ctx_base(request, vista):
     desde, hasta, integracion_id = _filtros(request)
+    f_proyecto = request.GET.get('proyecto', '').strip()
+    f_campana = request.GET.get('campana', '').strip()
+
+    cqs = CampanaMeta.objects.filter(incluir_en_extraccion=True)
+    if integracion_id:
+        cqs = cqs.filter(cuenta__integracion_id=integracion_id)
+    proyectos = sorted(set(cqs.exclude(proyecto='').values_list('proyecto', flat=True)))
+    campanas = list(cqs.order_by('campaign_name').values('campaign_id', 'campaign_name').distinct())
+
     return {
         'vista': vista,
         'f_desde': desde.isoformat(), 'f_hasta': hasta.isoformat(),
         'f_tienda': str(integracion_id) if integracion_id else '',
+        'f_proyecto': f_proyecto, 'f_campana': f_campana,
         'tiendas': Integracion.objects.filter(categoria=Integracion.CATEGORIA_FUENTE),
+        'proyectos': proyectos, 'campanas_lista': campanas,
         'es_admin_ads': puede_admin_ads(request.user),
+        'moneda': services.moneda_ads(integracion_id),
         'desde': desde, 'hasta': hasta, 'integracion_id': integracion_id,
     }
+
+
+def _filtro_campanas(integracion_id, f_proyecto, f_campana):
+    """Devuelve (campana_ids, producto_ids) según los filtros de proyecto/campaña, o
+    (None, None) si no hay filtro activo (todo)."""
+    if not f_proyecto and not f_campana:
+        return None, None
+    cqs = CampanaMeta.objects.filter(incluir_en_extraccion=True)
+    if integracion_id:
+        cqs = cqs.filter(cuenta__integracion_id=integracion_id)
+    if f_proyecto:
+        cqs = cqs.filter(proyecto=f_proyecto)
+    if f_campana:
+        cqs = cqs.filter(campaign_id=f_campana)
+    campana_ids = list(cqs.values_list('id', flat=True))
+    producto_ids = list(MatchProductoAnuncio.objects.filter(campana_id__in=campana_ids)
+                        .values_list('producto_id', flat=True))
+    return campana_ids, producto_ids
 
 
 # ───────────────────────── Dashboards ─────────────────────────
@@ -86,13 +116,14 @@ def dashboard(request):
         vista = 'diario'
     ctx = _ctx_base(request, vista)
     desde, hasta, integracion_id = ctx['desde'], ctx['hasta'], ctx['integracion_id']
+    campana_ids, producto_ids = _filtro_campanas(integracion_id, ctx['f_proyecto'], ctx['f_campana'])
 
     if vista == 'productos':
         ctx['filas'] = services.tabla_productos(desde, hasta, integracion_id)
     elif vista == 'heatmap':
         ctx['hm'] = services.heatmap(desde, hasta, integracion_id)
     else:
-        serie = services.serie_diaria(desde, hasta, integracion_id)
+        serie = services.serie_diaria(desde, hasta, integracion_id, campana_ids, producto_ids)
         ctx['serie'] = serie
         ctx['serie_json'] = json.dumps([
             {'fecha': s['fecha'].strftime('%d/%m'), 'gasto': s['gasto'],
@@ -100,7 +131,7 @@ def dashboard(request):
         ctx['tot_gasto'] = round(sum(s['gasto'] for s in serie), 2)
         ctx['tot_conf'] = sum(s['confirmados'] for s in serie)
         ctx['tot_entr'] = sum(s['entregados'] for s in serie)
-        ctx['campanas'] = services.tabla_campanas(desde, hasta, integracion_id)
+        ctx['campanas'] = services.tabla_campanas(desde, hasta, integracion_id, campana_ids)
 
     # contador de matching pendiente (para el badge)
     ctx['pendientes'] = (CampanaMeta.objects.filter(incluir_en_extraccion=True, match__isnull=True)
@@ -123,12 +154,20 @@ def matching_pendiente(request):
             .filter(incluir_en_extraccion=True, match__isnull=True)
             .select_related('cuenta', 'cuenta__integracion'))
 
-    # Campañas disponibles en la cola (para el filtro)
+    # Proyectos y campañas disponibles en la cola (para los filtros)
+    proyectos_filtro = sorted(set(base.exclude(proyecto='')
+                                  .values_list('proyecto', flat=True)))
     campanas_filtro = (base.order_by('campaign_name')
                        .values('campaign_id', 'campaign_name').distinct())
 
+    f_proyecto = request.GET.get('proyecto', '').strip()
     f_campana = request.GET.get('campana', '').strip()
-    pendientes = base.filter(campaign_id=f_campana) if f_campana else base
+    pendientes = base
+    if f_proyecto:
+        pendientes = pendientes.filter(proyecto=f_proyecto)
+    if f_campana:
+        pendientes = pendientes.filter(campaign_id=f_campana)
+    pendientes = pendientes.order_by('proyecto', 'campaign_name', 'ad_name')
 
     productos = list(Producto.objects.filter(activo=True))
     items = []
@@ -146,7 +185,8 @@ def matching_pendiente(request):
         'total_pendientes': len(items),
         'ya_casados': MatchProductoAnuncio.objects.count(),
         'campanas_filtro': campanas_filtro,
-        'f_campana': f_campana,
+        'proyectos_filtro': proyectos_filtro,
+        'f_campana': f_campana, 'f_proyecto': f_proyecto,
     }
     return render(request, 'anuncios/matching.html', context)
 
@@ -249,7 +289,12 @@ def ajustes(request):
                     cid = clave[len('etiqueta_'):]
                     if cid.isdigit():
                         CampanaMeta.objects.filter(id=cid).update(etiqueta=valor.strip()[:60])
-            messages.success(request, 'Anuncios actualizados (selección y etiquetas).')
+                # Proyecto por campaña (aplica a todos los anuncios de esa campaña)
+                elif clave.startswith('proyecto_camp_'):
+                    campaign_id = clave[len('proyecto_camp_'):]
+                    if campaign_id:
+                        CampanaMeta.objects.filter(campaign_id=campaign_id).update(proyecto=valor.strip()[:80])
+            messages.success(request, 'Anuncios actualizados (selección, etiquetas y proyectos).')
 
         elif accion == 'guardar_umbral':
             from decimal import Decimal, InvalidOperation

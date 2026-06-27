@@ -1,0 +1,60 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% comment %} templates/productos/reconocer.html — Vincular nombres de producto de pedidos al catálogo {% endcomment %}
+
+{% block title %}Reconocer productos · Dashboard{% endblock %}
+{% block nav_capacitacion %}active{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'core/css/integraciones.css' %}">
+<link rel="stylesheet" href="{% static 'core/css/anuncios.css' %}">
+{% endblock %}
+
+{% block breadcrumb %}<span>›</span><a href="{% url 'productos:admin' %}">Productos</a><span>›</span><span>Reconocer</span>{% endblock %}
+
+{% block content %}
+<div class="pedidos-mod">
+  <div class="integ-header">
+    <h2 class="integ-title">Reconocer productos de pedidos</h2>
+    <p class="integ-subtitle">{{ total }} nombre(s) sin vincular · {{ vinculados }} línea(s) ya vinculada(s).
+      Vincula el nombre que llega en los pedidos con tu producto del catálogo. Queda guardado para los próximos pedidos.</p>
+  </div>
+
+  {% if total == 0 %}
+  <div class="integ-vacio">Todos los productos de los pedidos ya están vinculados al catálogo. 🎉</div>
+  {% endif %}
+
+  {% for it in items %}
+  <div class="match-card">
+    <div class="match-ad">
+      <div class="match-ad-nombre">{{ it.nombre }}</div>
+      <div class="match-ad-meta">aparece en {{ it.n }} línea(s) de pedido</div>
+    </div>
+    <div class="match-acciones">
+      <div class="match-sugerencias">
+        {% for s in it.sugerencias %}
+        <form method="post" action="{% url 'productos:vincular' %}" class="match-sug-form">
+          {% csrf_token %}
+          <input type="hidden" name="nombre" value="{{ it.nombre }}">
+          <input type="hidden" name="producto_id" value="{{ s.producto.id }}">
+          <button type="submit" class="match-sug" title="Vincular a este producto">
+            {{ s.producto.nombre }} <span class="match-score">{{ s.score }}%</span>
+          </button>
+        </form>
+        {% empty %}<span class="ads-nota-inline">Sin sugerencias.</span>{% endfor %}
+      </div>
+      <form method="post" action="{% url 'productos:vincular' %}" class="match-manual">
+        {% csrf_token %}
+        <input type="hidden" name="nombre" value="{{ it.nombre }}">
+        <select name="producto_id" required>
+          <option value="">— Elegir producto…</option>
+          {% for p in productos %}<option value="{{ p.id }}">{{ p.nombre }}</option>{% endfor %}
+        </select>
+        <button type="submit" class="btn-guardar">Vincular</button>
+      </form>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

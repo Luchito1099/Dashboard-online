@@ -26,6 +26,7 @@
     </div>
     <div class="prod-admin-acciones">
       <a href="{% url 'productos:catalogo' %}" class="btn-volver" style="display:inline-flex;align-items:center;padding:9px 14px;border:1px solid var(--border-dark);border-radius:8px;text-decoration:none;color:var(--text-secondary);font-weight:600;font-size:12.5px;">← Catálogo</a>
+      <a href="{% url 'productos:reconocer' %}" class="btn-volver" style="display:inline-flex;align-items:center;padding:9px 14px;border:1px solid var(--border-dark);border-radius:8px;text-decoration:none;color:var(--text-secondary);font-weight:600;font-size:12.5px;">🔗 Reconocer de pedidos</a>
       <form method="post" action="{% url 'productos:crear' %}">
         {% csrf_token %}
         <button type="submit" class="btn-crear">+ Nuevo producto</button>
@@ -33,14 +34,18 @@
     </div>
   </div>
 
-  {# Una card-formulario por producto #}
+  {# Una card por producto: colapsada; se expande al hacer click para editar #}
   {% for p in productos %}
   <div class="pa-card" id="producto-{{ p.id }}">
-    <div class="pa-card-head">
+    <div class="pa-card-head js-pa-toggle">
+      <svg class="pa-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg>
       <span class="pa-card-nombre">{{ p.nombre }}</span>
       {% if p.tiene_oferta %}<span class="badge-oferta" style="position:static;">OFERTA</span>{% endif %}
+      <span class="pa-card-resumen">{% if p.categoria %}{{ p.categoria }} · {% endif %}S/ {{ p.precio_mostrar|floatformat:2 }}</span>
+      <span class="pa-card-editar">Editar ✎</span>
     </div>
 
+    <div class="pa-card-body">
     <form method="post" action="{% url 'productos:editar' p.id %}">
       {% csrf_token %}
 
@@ -124,6 +129,7 @@
       {% csrf_token %}
       <button type="submit" class="btn-eliminar">Eliminar producto</button>
     </form>
+    </div>{# /pa-card-body #}
   </div>
   {% empty %}
   <div class="cat-vacio">No hay productos. Crea el primero con «+ Nuevo producto».</div>
@@ -135,4 +141,29 @@
 
 {% block extra_js %}
 <script src="{% static 'core/js/extras.js' %}"></script>
+<script>
+(function () {
+  // Tarjetas colapsadas; se expanden al hacer click en la cabecera.
+  document.querySelectorAll('.js-pa-toggle').forEach(function (head) {
+    head.addEventListener('click', function () {
+      head.closest('.pa-card').classList.toggle('open');
+    });
+  });
+  // Si la URL trae #producto-ID, abrir esa tarjeta.
+  if (location.hash && location.hash.indexOf('#producto-') === 0) {
+    var c = document.querySelector(location.hash);
+    if (c) { c.classList.add('open'); c.scrollIntoView({ block: 'center' }); }
+  }
+})();
+</script>
+<style>
+  .pa-card-head.js-pa-toggle { display: flex; align-items: center; gap: 10px; cursor: pointer; user-select: none; }
+  .pa-chevron { width: 16px; height: 16px; flex-shrink: 0; color: var(--muted); transition: transform .2s; }
+  .pa-card.open .pa-chevron { transform: rotate(90deg); }
+  .pa-card-resumen { margin-left: auto; font-size: 12px; color: var(--muted); }
+  .pa-card-editar { font-size: 12px; font-weight: 700; color: var(--primary); }
+  .pa-card.open .pa-card-editar { display: none; }
+  .pa-card-body { display: none; }
+  .pa-card.open .pa-card-body { display: block; }
+</style>
 {% endblock %}

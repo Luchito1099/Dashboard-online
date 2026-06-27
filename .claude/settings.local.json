@@ -63,7 +63,12 @@
       "PowerShell(python manage.py makemigrations core 2>&1)",
       "PowerShell(python manage.py makemigrations anuncios productos integraciones core 2>&1)",
       "PowerShell(python manage.py makemigrations anuncios 2>&1)",
-      "PowerShell(python manage.py makemigrations rotulador 2>&1)"
+      "PowerShell(python manage.py makemigrations rotulador 2>&1)",
+      "Bash(sed -i 's|S/ {{|{{ moneda }} {{|g' templates/anuncios/dashboard.html templates/anuncios/_tab_productos.html)",
+      "Bash(sed -i -e \"s|Gasto Meta \\(S/\\)|Gasto Meta \\({{ moneda }}\\)|\" -e \"s|text: 'Gasto S/'|text: 'Gasto {{ moneda }}'|\" templates/anuncios/dashboard.html)",
+      "Bash(sed -i 's|\\(total S/ {{ hm.total_gasto }}\\)|\\(total {{ moneda }} {{ hm.total_gasto }}\\)|' templates/anuncios/_tab_heatmap.html)",
+      "PowerShell(python manage.py sincronizar_ads --dias 3 2>&1)",
+      "PowerShell(python manage.py alertas_ads 2>&1)"
     ]
   }
 }

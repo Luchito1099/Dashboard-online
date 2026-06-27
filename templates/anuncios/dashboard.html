@@ -28,7 +28,7 @@
   </div>
 
   {# ── Sub-pestañas ── #}
-  {% with qs="&tienda="|add:f_tienda|add:"&desde="|add:f_desde|add:"&hasta="|add:f_hasta %}
+  {% with qs="&tienda="|add:f_tienda|add:"&desde="|add:f_desde|add:"&hasta="|add:f_hasta|add:"&proyecto="|add:f_proyecto|add:"&campana="|add:f_campana %}
   <div class="ped-subtabs">
     <a href="?vista=diario{{ qs }}" class="ped-subtab {% if vista == 'diario' %}active{% endif %}">📈 Diario</a>
     <a href="?vista=productos{{ qs }}" class="ped-subtab {% if vista == 'productos' %}active{% endif %}">📦 Por producto</a>
@@ -45,6 +45,18 @@
       <option value="{{ t.id }}" {% if f_tienda == t.id|stringformat:"s" %}selected{% endif %}>{{ t.nombre }}</option>
       {% endfor %}
     </select>
+    <select name="proyecto" onchange="this.form.submit()">
+      <option value="">Todos los proyectos</option>
+      {% for pr in proyectos %}
+      <option value="{{ pr }}" {% if f_proyecto == pr %}selected{% endif %}>🗂 {{ pr }}</option>
+      {% endfor %}
+    </select>
+    <select name="campana" onchange="this.form.submit()">
+      <option value="">Todas las campañas</option>
+      {% for c in campanas_lista %}
+      <option value="{{ c.campaign_id }}" {% if f_campana == c.campaign_id %}selected{% endif %}>{{ c.campaign_name|default:"(sin campaña)" }}</option>
+      {% endfor %}
+    </select>
     <div class="ped-fechas">
       <label>Desde <input type="date" name="desde" value="{{ f_desde }}" onchange="this.form.submit()"></label>
       <label>Hasta <input type="date" name="hasta" value="{{ f_hasta }}" onchange="this.form.submit()"></label>
@@ -58,7 +70,7 @@
   {% else %}
     {# ── Diario ── #}
     <div class="ped-kpis" style="grid-template-columns:repeat(3,1fr);">
-      <div class="ped-kpi"><div class="ped-kpi-num naranja">S/ {{ tot_gasto }}</div><div class="ped-kpi-label">Gasto Meta</div><div class="ped-kpi-sub">en el rango</div></div>
+      <div class="ped-kpi"><div class="ped-kpi-num naranja">{{ moneda }} {{ tot_gasto }}</div><div class="ped-kpi-label">Gasto Meta</div><div class="ped-kpi-sub">en el rango</div></div>
       <div class="ped-kpi"><div class="ped-kpi-num verde">{{ tot_conf }}</div><div class="ped-kpi-label">Confirmados reales</div><div class="ped-kpi-sub">eventos del periodo</div></div>
       <div class="ped-kpi"><div class="ped-kpi-num">{{ tot_entr }}</div><div class="ped-kpi-label">Entregados reales</div><div class="ped-kpi-sub">eventos del periodo</div></div>
     </div>
@@ -83,12 +95,12 @@
             <tr>
               <td>{{ c.campaign_name }}</td>
               <td class="ped-num">{{ c.n_anuncios }}</td>
-              <td class="ped-num">S/ {{ c.gasto|floatformat:2 }}</td>
+              <td class="ped-num">{{ moneda }} {{ c.gasto|floatformat:2 }}</td>
               <td class="ped-num">{{ c.impresiones }}</td>
               <td class="ped-num">{{ c.clicks }}</td>
               <td class="ped-num">{{ c.resultados }}</td>
-              <td class="ped-num">{% if c.cpc != None %}S/ {{ c.cpc }}{% else %}—{% endif %}</td>
-              <td class="ped-num">{% if c.cpr != None %}S/ {{ c.cpr }}{% else %}—{% endif %}</td>
+              <td class="ped-num">{% if c.cpc != None %}{{ moneda }} {{ c.cpc }}{% else %}—{% endif %}</td>
+              <td class="ped-num">{% if c.cpr != None %}{{ moneda }} {{ c.cpr }}{% else %}—{% endif %}</td>
             </tr>
             {% empty %}
             <tr><td colspan="8" class="integ-vacio-cell">Sin gasto en el rango. Sincroniza una cuenta en Ajustes.</td></tr>
@@ -116,7 +128,7 @@
     data: {
       labels: serie.map(function (s) { return s.fecha; }),
       datasets: [
-        { label: 'Gasto Meta (S/)', data: serie.map(function (s) { return s.gasto; }),
+        { label: 'Gasto Meta ({{ moneda }})', data: serie.map(function (s) { return s.gasto; }),
           borderColor: '#e8833a', backgroundColor: 'rgba(232,131,58,.1)', yAxisID: 'y', tension: .3 },
         { label: 'Confirmados', data: serie.map(function (s) { return s.confirmados; }),
           borderColor: '#22a06b', yAxisID: 'y1', tension: .3 },
@@ -127,7 +139,7 @@
     options: {
       responsive: true, interaction: { mode: 'index', intersect: false },
       scales: {
-        y: { type: 'linear', position: 'left', title: { display: true, text: 'Gasto S/' } },
+        y: { type: 'linear', position: 'left', title: { display: true, text: 'Gasto {{ moneda }}' } },
         y1: { type: 'linear', position: 'right', title: { display: true, text: 'Pedidos' },
               grid: { drawOnChartArea: false }, beginAtZero: true },
       },

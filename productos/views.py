@@ -4,10 +4,15 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.http import HttpResponseNotAllowed
 
+import difflib
+
+from django.db.models import Count
+from django.http import JsonResponse
+
 # Reutilizamos el helper de permisos ya existente (no lo duplicamos)
 from capacitacion.views import es_admin
 from core.models import ConfiguracionSistema
-from .models import Producto, ObjecionProducto, LinkProducto, MediaProducto
+from .models import Producto, ObjecionProducto, LinkProducto, MediaProducto, ProductoAlias
 
 
 # ───────────────────────── Helpers ─────────────────────────
@@ -205,6 +210,64 @@ def eliminar_producto(request, producto_id):
     producto.delete()
     messages.success(request, f'Producto «{nombre}» eliminado.')
     return redirect('productos:admin')
+
+
+# ───────────────────────── Reconocer productos de pedidos (matching) ─────────────────────────
+
+@login_required
+def reconocer_productos(request):
+    """Lista los nombres de producto que llegan en los pedidos (PedidoItem) y que aún
+    NO están vinculados al catálogo, con sugerencias para asignarlos. Al asignar, crea
+    un ProductoAlias y enlaza todos los pedidos con ese nombre. Solo admin."""
+    if not es_admin(request.user):
+        messages.error(request, 'No tienes permisos para reconocer productos.')
+        return redirect('productos:catalogo')
+
+    from integraciones.models import PedidoItem
+    nombres = (PedidoItem.objects.filter(producto__isnull=True).exclude(nombre='')
+               .values('nombre').annotate(n=Count('id')).order_by('-n'))
+
+    productos = list(Producto.objects.all())
+    items = []
+    for r in nombres:
+        nombre = r['nombre']
+        scored = sorted(
+            ((difflib.SequenceMatcher(None, nombre.lower(), p.nombre.lower()).ratio(), p)
+             for p in productos), key=lambda x: x[0], reverse=True)
+        sugerencias = [{'producto': p, 'score': round(s * 100)} for s, p in scored[:3] if s > 0]
+        items.append({'nombre': nombre, 'n': r['n'], 'sugerencias': sugerencias})
+
+    context = {
+        'items': items,
+        'productos': productos,
+        'total': len(items),
+        'vinculados': PedidoItem.objects.filter(producto__isnull=False).count(),
+    }
+    return render(request, 'productos/reconocer.html', context)
+
+
+@login_required
+def vincular_producto(request):
+    """Asocia un nombre de producto de pedidos a un Producto del catálogo: crea el alias
+    y enlaza todos los PedidoItem con ese nombre. Solo admin (POST)."""
+    if not es_admin(request.user):
+        return JsonResponse({'error': 'sin permiso'}, status=403)
+    if request.method != 'POST':
+        return HttpResponseNotAllowed(['POST'])
+
+    from integraciones.models import PedidoItem
+    nombre = request.POST.get('nombre', '').strip()
+    producto = get_object_or_404(Producto, id=request.POST.get('producto_id'))
+    if not nombre:
+        return redirect('productos:reconocer')
+
+    # Alias global (aplica a cualquier fuente) para futuras sincronizaciones
+    ProductoAlias.objects.update_or_create(
+        integracion=None, nombre_externo=nombre, defaults={'producto': producto})
+    # Vincular los pedidos existentes con ese nombre
+    n = PedidoItem.objects.filter(nombre__iexact=nombre, producto__isnull=True).update(producto=producto)
+    messages.success(request, f'«{nombre}» vinculado a «{producto.nombre}» ({n} línea(s) de pedido).')
+    return redirect('productos:reconocer')
 
 
 # ───────────────────────── Utilidades internas ─────────────────────────

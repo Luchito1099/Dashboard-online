@@ -95,12 +95,14 @@
       {% regroup anuncios by campaign_name as grupos %}
       {% for g in grupos %}
       <div class="ads-campana">
-        <div class="ads-campana-head">
+        <div class="ads-campana-head" style="display:flex;align-items:center;gap:10px;justify-content:space-between;">
           <label class="ads-campana-titulo">
             <input type="checkbox" class="js-camp-all" data-camp="{{ forloop.counter }}">
             📁 {{ g.grouper|default:"(sin campaña)" }}
             <span class="ads-nota-inline">· {{ g.list|length }} anuncio(s)</span>
           </label>
+          <input type="text" name="proyecto_camp_{{ g.list.0.campaign_id }}" value="{{ g.list.0.proyecto }}"
+                 placeholder="🗂 proyecto de la campaña" class="ads-etiqueta" style="width:180px;" title="Proyecto al que pertenece esta campaña">
         </div>
         <div class="ads-extraccion">
           {% for a in g.list %}

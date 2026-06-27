@@ -15,14 +15,14 @@
           <div class="ped-cliente-nombre">{{ f.producto.nombre }}</div>
           <div class="ped-editado-fecha">{{ f.n_anuncios }} anuncio(s)</div>
         </td>
-        <td class="ped-num">S/ {{ f.gasto|floatformat:2 }}</td>
+        <td class="ped-num">{{ moneda }} {{ f.gasto|floatformat:2 }}</td>
         <td class="ped-num">{{ f.meta_atribuidos }}</td>
         <td class="ped-num">{{ f.confirmados }}{% if f.caida_conf != None %} <span class="ads-caida">↓{{ f.caida_conf }}%</span>{% endif %}</td>
         <td class="ped-num">{{ f.entregados }}{% if f.caida_entr != None %} <span class="ads-caida">↓{{ f.caida_entr }}%</span>{% endif %}</td>
         <td class="ped-num">
           {% if f.caida_conf != None %}{{ f.caida_conf }}% / {% endif %}{% if f.caida_entr != None %}{{ f.caida_entr }}%{% else %}—{% endif %}
         </td>
-        <td class="ped-num">{% if f.cpa_real != None %}S/ {{ f.cpa_real }}{% else %}—{% endif %}</td>
+        <td class="ped-num">{% if f.cpa_real != None %}{{ moneda }} {{ f.cpa_real }}{% else %}—{% endif %}</td>
         <td class="ped-num">
           {% if f.roas_real != None %}<span class="ads-roas {% if f.roas_real >= 1 %}ok{% else %}bad{% endif %}">{{ f.roas_real }}x</span>{% else %}—{% endif %}
         </td>
@@ -34,3 +34,6 @@
   </table>
 </div>
 <p class="ads-nota">CPA real = gasto ÷ entregados (no por clicks). ROAS real = ingreso de entregados ÷ gasto. Ordenado por ROAS real.</p>
+<p class="ads-nota">¿Confirmados/entregados en 0? Es que los productos de tus <b>pedidos</b> aún no están vinculados al catálogo.
+  Hazlo en <a href="{% url 'productos:reconocer' %}"><b>Productos › Reconocer de pedidos</b></a> y volverá a cuadrar.
+  ⚠️ Ojo: el gasto está en USD y los ingresos de pedidos en soles; el ROAS mezcla monedas hasta que configuremos el tipo de cambio.</p>

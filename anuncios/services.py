@@ -126,14 +126,19 @@ def _rango_por_defecto(dias=30):
     return fin - timedelta(days=dias - 1), fin
 
 
-def serie_diaria(fecha_ini, fecha_fin, integracion_id=None):
+def serie_diaria(fecha_ini, fecha_fin, integracion_id=None, campana_ids=None, producto_ids=None):
     """Serie por día: gasto de Meta vs. pedidos confirmados vs. entregados (eventos
-    reales tomados de PedidoEditLog). Devuelve lista ordenada por fecha."""
-    # Gasto por día (anuncios incluidos)
-    gasto_qs = InsightDiarioMeta.objects.filter(
-        campana__incluir_en_extraccion=True, fecha__range=(fecha_ini, fecha_fin))
-    if integracion_id:
-        gasto_qs = gasto_qs.filter(campana__cuenta__integracion_id=integracion_id)
+    reales tomados de PedidoEditLog). Si se pasa campana_ids/producto_ids, filtra a
+    esas campañas (gasto) y a los pedidos de esos productos (confirmados/entregados).
+    Devuelve lista ordenada por fecha."""
+    # Gasto por día
+    gasto_qs = InsightDiarioMeta.objects.filter(fecha__range=(fecha_ini, fecha_fin))
+    if campana_ids is not None:
+        gasto_qs = gasto_qs.filter(campana_id__in=campana_ids)
+    else:
+        gasto_qs = gasto_qs.filter(campana__incluir_en_extraccion=True)
+        if integracion_id:
+            gasto_qs = gasto_qs.filter(campana__cuenta__integracion_id=integracion_id)
     gasto_por_dia = {r['fecha']: r['s'] for r in
                      gasto_qs.order_by().values('fecha').annotate(s=Sum('gasto'))}
 
@@ -141,7 +146,10 @@ def serie_diaria(fecha_ini, fecha_fin, integracion_id=None):
     logs = PedidoEditLog.objects.filter(
         campo_modificado='estado', valor_nuevo__in=[LABEL_CONFIRMADO, LABEL_ENTREGADO],
         timestamp__date__range=(fecha_ini, fecha_fin))
-    if integracion_id:
+    if producto_ids is not None:
+        ped_ids = Pedido.objects.filter(items__producto__in=producto_ids).values('id')
+        logs = logs.filter(pedido_id__in=ped_ids)
+    elif integracion_id:
         logs = logs.filter(pedido__integracion_id=integracion_id)
     conf_por_dia, entr_por_dia = defaultdict(int), defaultdict(int)
     for r in (logs.order_by().annotate(d=TruncDate('timestamp'))
@@ -216,13 +224,30 @@ def tabla_productos(fecha_ini, fecha_fin, integracion_id=None):
     return filas
 
 
-def tabla_campanas(fecha_ini, fecha_fin, integracion_id=None):
-    """Agrupa el gasto y las métricas de Meta por CAMPAÑA (suma de sus anuncios incluidos).
-    No requiere atribución de pedidos: son las cifras que reporta Meta."""
-    qs = InsightDiarioMeta.objects.filter(
-        campana__incluir_en_extraccion=True, fecha__range=(fecha_ini, fecha_fin))
+_SIMBOLOS = {'USD': 'US$', 'PEN': 'S/', 'EUR': '€', 'MXN': 'MX$', 'COP': 'COL$', 'CLP': 'CLP$'}
+
+
+def moneda_ads(integracion_id=None):
+    """Devuelve el símbolo de la moneda real del gasto de Meta (la más frecuente en los
+    insights). Por defecto US$ (Meta suele facturar en USD)."""
+    qs = InsightDiarioMeta.objects.exclude(moneda='')
     if integracion_id:
         qs = qs.filter(campana__cuenta__integracion_id=integracion_id)
+    fila = (qs.order_by().values('moneda').annotate(n=Count('id')).order_by('-n').first())
+    cod = (fila['moneda'] if fila else 'USD') or 'USD'
+    return _SIMBOLOS.get(cod.upper(), cod)
+
+
+def tabla_campanas(fecha_ini, fecha_fin, integracion_id=None, campana_ids=None):
+    """Agrupa el gasto y las métricas de Meta por CAMPAÑA (suma de sus anuncios incluidos).
+    No requiere atribución de pedidos: son las cifras que reporta Meta."""
+    qs = InsightDiarioMeta.objects.filter(fecha__range=(fecha_ini, fecha_fin))
+    if campana_ids is not None:
+        qs = qs.filter(campana_id__in=campana_ids)
+    else:
+        qs = qs.filter(campana__incluir_en_extraccion=True)
+        if integracion_id:
+            qs = qs.filter(campana__cuenta__integracion_id=integracion_id)
 
     rows = (qs.order_by()
             .values('campana__campaign_id', 'campana__campaign_name')
