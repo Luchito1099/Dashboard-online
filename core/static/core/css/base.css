@@ -135,6 +135,41 @@ body {
 .nav-item.active { background: var(--sidebar-active); color: #fff; }
 .nav-item.active svg { color: var(--primary); }
 
+/* Nav sub-arrow (chevron right) visible only on items with flyout */
+.nav-sub-arrow {
+  width: 12px; height: 12px; margin-left: auto; opacity: 0; flex-shrink: 0;
+  transition: opacity .15s;
+}
+.nav-group:hover .nav-sub-arrow { opacity: 0.55; }
+.sidebar.collapsed .nav-sub-arrow { display: none; }
+
+/* Flyout panel — position: fixed so it escapes sidebar overflow */
+.nav-flyout {
+  position: fixed;
+  z-index: 600;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 8px 28px rgba(0,0,0,.16);
+  min-width: 200px;
+  padding: 6px 0;
+  display: none;
+  pointer-events: none;
+}
+.nav-flyout.show { display: block; pointer-events: auto; }
+.nav-flyout-head {
+  font-size: 10px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase;
+  color: var(--muted); padding: 7px 14px 5px;
+}
+.nav-flyout-item {
+  display: block; padding: 8px 14px; font-size: 13.5px; font-weight: 500;
+  color: var(--text); text-decoration: none; transition: background .1s;
+}
+.nav-flyout-item:hover { background: var(--bg); color: var(--primary); }
+.nav-flyout-sep { height: 1px; background: var(--border); margin: 5px 10px; }
+.nav-flyout-admin { font-size: 12.5px; color: var(--text-secondary); }
+.nav-flyout-admin:hover { color: var(--primary); }
+
 .nav-logout { color: oklch(65% 0.15 25); }
 .nav-logout:hover { background: oklch(60% 0.2 25 / 0.1); color: oklch(70% 0.2 25); }
 

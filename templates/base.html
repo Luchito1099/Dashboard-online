@@ -46,22 +46,66 @@
 
     {% if puede_editar or cfg.vendedor_puede_ver_capacitacion %}
     <div class="nav-section-label">Módulos</div>
-    <a href="{% url 'capacitacion:index' %}" class="nav-item {% block nav_capacitacion %}{% endblock %}">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-        <path d="M12 20h9M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/>
-      </svg>
-      <span class="nav-label">Capacitación</span>
-    </a>
+    <div class="nav-group">
+      <a href="{% url 'capacitacion:index' %}" class="nav-item {% block nav_capacitacion %}{% endblock %}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <path d="M12 20h9M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/>
+        </svg>
+        <span class="nav-label">Capacitación</span>
+        <svg class="nav-sub-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg>
+      </a>
+      <div class="nav-flyout">
+        <div class="nav-flyout-head">Capacitación</div>
+        <a href="{% url 'capacitacion:index' %}" class="nav-flyout-item">📋 Runbook diario</a>
+        <a href="{% url 'capacitacion:estrategias' %}" class="nav-flyout-item">💡 Estrategias</a>
+        {% if puede_editar %}
+        <div class="nav-flyout-sep"></div>
+        <a href="{% url 'capacitacion:admin_panel' %}" class="nav-flyout-item nav-flyout-admin">⚙️ Admin tareas</a>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+
+    {% if puede_editar or cfg.vendedor_puede_ver_productos %}
+    <div class="nav-group">
+      <a href="{% url 'productos:catalogo' %}" class="nav-item {% block nav_productos %}{% endblock %}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <path d="M20 7H4a2 2 0 00-2 2v10a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2z"/>
+          <path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/>
+        </svg>
+        <span class="nav-label">Productos</span>
+        <svg class="nav-sub-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg>
+      </a>
+      <div class="nav-flyout">
+        <div class="nav-flyout-head">Productos</div>
+        <a href="{% url 'productos:catalogo' %}" class="nav-flyout-item">🛍️ Catálogo</a>
+        {% if puede_editar %}
+        <div class="nav-flyout-sep"></div>
+        <a href="{% url 'productos:reconocer' %}" class="nav-flyout-item nav-flyout-admin">🔍 Reconocer pedidos</a>
+        <a href="{% url 'productos:admin' %}" class="nav-flyout-item nav-flyout-admin">⚙️ Administrar</a>
+        {% endif %}
+      </div>
+    </div>
     {% endif %}
 
     {% if puede_editar or cfg.vendedor_puede_ver_pedidos or cfg.vendedor_puede_editar_pedidos or cfg.vendedor_puede_ver_seguimiento or cfg.vendedor_puede_editar_seguimiento or cfg.vendedor_puede_ver_avances %}
-    <a href="{% url 'integraciones:pedidos_modulo' %}" class="nav-item {% block nav_pedidos %}{% endblock %}">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-        <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/>
-        <path d="M3 6h18M16 10a4 4 0 01-8 0"/>
-      </svg>
-      <span class="nav-label">Pedidos</span>
-    </a>
+    <div class="nav-group">
+      <a href="{% url 'integraciones:pedidos_modulo' %}" class="nav-item {% block nav_pedidos %}{% endblock %}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/>
+          <path d="M3 6h18M16 10a4 4 0 01-8 0"/>
+        </svg>
+        <span class="nav-label">Pedidos</span>
+        <svg class="nav-sub-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg>
+      </a>
+      <div class="nav-flyout">
+        <div class="nav-flyout-head">Pedidos</div>
+        <a href="{% url 'integraciones:pedidos_modulo' %}" class="nav-flyout-item">📋 Lista de pedidos</a>
+        {% if puede_editar or cfg.vendedor_puede_registrar_pedidos %}
+        <a href="{% url 'integraciones:registro_pedidos' %}" class="nav-flyout-item">✏️ Registro</a>
+        {% endif %}
+      </div>
+    </div>
     {% endif %}
 
     {% if puede_editar or cfg.vendedor_puede_registrar_pedidos %}
@@ -75,12 +119,26 @@
     {% endif %}
 
     {% if puede_ver_ads %}
-    <a href="{% url 'anuncios:dashboard' %}" class="nav-item {% block nav_publicidad %}{% endblock %}">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-        <path d="M3 11l18-5v12L3 14v-3zM11.6 16.8a3 3 0 11-5.8-1.6"/>
-      </svg>
-      <span class="nav-label">Publicidad</span>
-    </a>
+    <div class="nav-group">
+      <a href="{% url 'anuncios:dashboard' %}" class="nav-item {% block nav_publicidad %}{% endblock %}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <path d="M3 11l18-5v12L3 14v-3zM11.6 16.8a3 3 0 11-5.8-1.6"/>
+        </svg>
+        <span class="nav-label">Publicidad</span>
+        <svg class="nav-sub-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg>
+      </a>
+      <div class="nav-flyout">
+        <div class="nav-flyout-head">Publicidad</div>
+        <a href="{% url 'anuncios:dashboard' %}?vista=diario" class="nav-flyout-item">📈 Diario</a>
+        <a href="{% url 'anuncios:dashboard' %}?vista=productos" class="nav-flyout-item">📦 Por producto</a>
+        <a href="{% url 'anuncios:dashboard' %}?vista=heatmap" class="nav-flyout-item">🗓️ Heatmap</a>
+        <a href="{% url 'anuncios:matching' %}" class="nav-flyout-item">🔗 Matching</a>
+        {% if puede_editar %}
+        <div class="nav-flyout-sep"></div>
+        <a href="{% url 'anuncios:ajustes' %}" class="nav-flyout-item nav-flyout-admin">⚙️ Ajustes</a>
+        {% endif %}
+      </div>
+    </div>
     {% endif %}
 
     <div class="nav-section-label">Herramientas</div>
@@ -361,6 +419,33 @@
   });
   panel.addEventListener('click', function(e){ e.stopPropagation(); });
   document.addEventListener('click', function(){ panel.classList.remove('show'); });
+})();
+</script>
+<script>
+// Flyout nav: posiciona el panel con position:fixed para evitar overflow del sidebar
+(function () {
+  var sidebar = document.getElementById('sidebar');
+  document.querySelectorAll('.nav-group').forEach(function (group) {
+    var flyout = group.querySelector('.nav-flyout');
+    if (!flyout) return;
+    var timer = null;
+
+    function show() {
+      clearTimeout(timer);
+      var rect = group.getBoundingClientRect();
+      flyout.style.top = rect.top + 'px';
+      flyout.style.left = (sidebar.offsetWidth + 6) + 'px';
+      flyout.classList.add('show');
+    }
+    function hide() {
+      timer = setTimeout(function () { flyout.classList.remove('show'); }, 130);
+    }
+
+    group.addEventListener('mouseenter', show);
+    group.addEventListener('mouseleave', hide);
+    flyout.addEventListener('mouseenter', function () { clearTimeout(timer); });
+    flyout.addEventListener('mouseleave', hide);
+  });
 })();
 </script>
 {% block extra_js %}{% endblock %}
