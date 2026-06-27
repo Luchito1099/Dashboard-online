@@ -15,6 +15,8 @@
 .cruce-prog-bar { height: 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 999px; overflow: hidden; }
 .cruce-prog-fill { height: 100%; width: 0; background: var(--primary); transition: width .25s ease; }
 .cruce-acciones { display: flex; align-items: center; gap: 10px; margin: 14px 0 10px; flex-wrap: wrap; }
+.cruce-ful { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-secondary); }
+.cruce-ful input { padding: 6px 8px; border: 1px solid var(--border-dark); border-radius: 7px; font-size: 13px; font-family: inherit; background: var(--surface); color: var(--text); }
 .cruce-card {
   display: flex; gap: 12px; align-items: flex-start; padding: 10px 12px; margin-bottom: 8px;
   background: var(--surface); border: 1px solid var(--border); border-radius: 10px;

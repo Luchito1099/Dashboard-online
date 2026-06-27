@@ -1249,18 +1249,27 @@ def cruce_excel_preview(request):
                 'excel': {
                     'nombre': fila.get('nombre', ''), 'celular': fila.get('celular', ''),
                     'producto': fila.get('producto', ''), 'precio': fila.get('precio', ''),
-                    'estado_texto': fila.get('estado', ''),
+                    'delivery': fila.get('delivery', ''), 'estado_texto': fila.get('estado', ''),
                 },
                 'estado_nuevo': estado_nuevo,
                 'estado_nuevo_label': dict(Pedido.ESTADO_CHOICES).get(estado_nuevo, ''),
                 'confianza': confianza,
+                'ref': fila.get('ref'),
             })
         else:
-            sin_cruce.append({'nombre': fila.get('nombre', ''), 'celular': fila.get('celular', ''),
-                              'producto': fila.get('producto', ''), 'precio': fila.get('precio', ''),
-                              'estado': fila.get('estado', ''), 'estado_texto': fila.get('estado', '')})
+            sc = _fila_pend(fila)
+            sc['ref'] = fila.get('ref')
+            sin_cruce.append(sc)
 
     return JsonResponse({'ok': True, 'matches': matches, 'sin_cruce': sin_cruce})
+
+
+def _fila_pend(fila):
+    """Normaliza una fila de Excel para guardarla/transportarla como pendiente."""
+    return {'nombre': fila.get('nombre', ''), 'celular': fila.get('celular', ''),
+            'producto': fila.get('producto', ''), 'precio': fila.get('precio', ''),
+            'delivery': fila.get('delivery', ''),
+            'estado': fila.get('estado', ''), 'estado_texto': fila.get('estado', '')}
 
 
 def _ia_elige(herr, fila, candidatos, prod_txt):
@@ -1314,13 +1323,15 @@ def cruce_excel_ia(request):
                            'estado_actual': elegido.get_estado_display()},
                 'excel': {'nombre': fila.get('nombre', ''), 'celular': fila.get('celular', ''),
                           'producto': fila.get('producto', ''), 'precio': fila.get('precio', ''),
-                          'estado_texto': fila.get('estado', '')},
+                          'delivery': fila.get('delivery', ''), 'estado_texto': fila.get('estado', '')},
                 'estado_nuevo': estado_nuevo,
                 'estado_nuevo_label': dict(Pedido.ESTADO_CHOICES).get(estado_nuevo, ''),
-                'confianza': 'ia',
+                'confianza': 'ia', 'ref': fila.get('ref'),
             })
         else:
-            sin_cruce.append(fila)
+            sc = _fila_pend(fila)
+            sc['ref'] = fila.get('ref')
+            sin_cruce.append(sc)
     return JsonResponse({'ok': True, 'matches': matches, 'sin_cruce': sin_cruce})
 
 
@@ -1336,6 +1347,13 @@ def cruce_excel_aplicar(request):
     except ValueError:
         cambios = []
 
+    def _dec(v):
+        try:
+            d = Decimal(str(v).replace(',', '.')) if str(v).strip() else Decimal('0')
+            return d if d >= 0 else Decimal('0')
+        except (InvalidOperation, AttributeError):
+            return Decimal('0')
+
     estados_validos = dict(Pedido.ESTADO_CHOICES)
     aplicados, errores = 0, 0
     for c in cambios:
@@ -1346,6 +1364,11 @@ def cruce_excel_aplicar(request):
             continue
         registrar_cambio(ped, request.user, 'estado', ped.get_estado_display(), estados_validos[nuevo])
         ped.estado = nuevo
+        # Costos del cruce (delivery del Excel, fulfillment escrito en la pantalla)
+        if 'costo_delivery' in c:
+            ped.costo_delivery = _dec(c.get('costo_delivery'))
+        if 'costo_fulfillment' in c:
+            ped.costo_fulfillment = _dec(c.get('costo_fulfillment'))
         ped.editado_por = request.user
         ped.editado_en = timezone.now()
         ped.save()
@@ -1356,6 +1379,63 @@ def cruce_excel_aplicar(request):
 def _puede_editar(user):
     from core.permisos import puede_ver
     return puede_ver(user, 'vendedor_puede_editar_pedidos')
+
+
+@login_required
+def cruce_guardar_pendientes(request):
+    """Guarda filas (sin cruce + dudosos) como pendientes para reconciliar después.
+    POST JSON {filas:[...], origen:''}."""
+    if not (es_admin(request.user) or _puede_editar(request.user)):
+        return JsonResponse({'ok': False, 'error': 'Sin permiso'}, status=403)
+    if request.method != 'POST':
+        return HttpResponseNotAllowed(['POST'])
+    from .models import FilaPendiente
+    try:
+        body = json.loads(request.body or '{}')
+    except ValueError:
+        body = {}
+    filas = body.get('filas') or []
+    origen = (body.get('origen') or '').strip()[:120]
+    objs = [FilaPendiente(
+        nombre=str(f.get('nombre', ''))[:200], celular=str(f.get('celular', ''))[:60],
+        producto=str(f.get('producto', ''))[:300], precio=str(f.get('precio', ''))[:40],
+        costo_delivery=str(f.get('delivery', ''))[:40], estado_texto=str(f.get('estado', ''))[:80],
+        motivo=(f.get('motivo') if f.get('motivo') in ('sin_cruce', 'dudoso') else 'sin_cruce'),
+        origen=origen, creado_por=request.user if request.user.is_authenticated else None,
+    ) for f in filas]
+    FilaPendiente.objects.bulk_create(objs)
+    return JsonResponse({'ok': True, 'guardados': len(objs)})
+
+
+@login_required
+def pendientes(request):
+    """Página de filas pendientes de cruce (para reconciliar más tarde)."""
+    from core.permisos import destino_vendedor
+    if not (es_admin(request.user) or _puede_editar(request.user)):
+        messages.error(request, 'No tienes permisos.')
+        return redirect(destino_vendedor(request.user))
+    from .models import FilaPendiente
+    from core.models import HerramientaIA
+    return render(request, 'integraciones/pendientes.html', {
+        'pendientes': FilaPendiente.objects.all(),
+        'ia_activa': HerramientaIA.matching_pedidos().lista_para_usar,
+    })
+
+
+@login_required
+def pendientes_borrar(request):
+    """Elimina filas pendientes por id. POST JSON {ids:[...]}."""
+    if not (es_admin(request.user) or _puede_editar(request.user)):
+        return JsonResponse({'ok': False, 'error': 'Sin permiso'}, status=403)
+    if request.method != 'POST':
+        return HttpResponseNotAllowed(['POST'])
+    from .models import FilaPendiente
+    try:
+        ids = json.loads(request.body or '{}').get('ids') or []
+    except ValueError:
+        ids = []
+    n, _ = FilaPendiente.objects.filter(id__in=ids).delete()
+    return JsonResponse({'ok': True, 'borrados': n})
 
 
 # ───────────────────────── OAuth de Shopify ─────────────────────────

@@ -30,6 +30,9 @@ urlpatterns = [
     path('pedidos/cruce-excel/previa/', views.cruce_excel_preview, name='cruce_excel_preview'),
     path('pedidos/cruce-excel/ia/', views.cruce_excel_ia, name='cruce_excel_ia'),
     path('pedidos/cruce-excel/aplicar/', views.cruce_excel_aplicar, name='cruce_excel_aplicar'),
+    path('pedidos/cruce-excel/pendientes/guardar/', views.cruce_guardar_pendientes, name='cruce_guardar_pendientes'),
+    path('pedidos/pendientes/', views.pendientes, name='pendientes'),
+    path('pedidos/pendientes/borrar/', views.pendientes_borrar, name='pendientes_borrar'),
     # OAuth de Shopify
     path('integraciones/oauth/iniciar/<int:integracion_id>/', views.oauth_iniciar, name='oauth_iniciar'),
     path('integraciones/oauth/callback/', views.oauth_callback, name='oauth_callback'),

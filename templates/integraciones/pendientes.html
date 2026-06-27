@@ -1,0 +1,181 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% comment %} templates/integraciones/pendientes.html — Filas pendientes de cruce {% endcomment %}
+
+{% block title %}Pendientes de cruce · Pedidos · Dashboard{% endblock %}
+{% block nav_pedidos %}active{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'core/css/integraciones.css' %}">
+{% endblock %}
+
+{% block breadcrumb %}<span>›</span><a href="{% url 'integraciones:pedidos_modulo' %}">Pedidos</a><span>›</span><span>Pendientes de cruce</span>{% endblock %}
+
+{% block content %}
+<div class="pedidos-mod"
+     data-url-previa="{% url 'integraciones:cruce_excel_preview' %}"
+     data-url-aplicar="{% url 'integraciones:cruce_excel_aplicar' %}"
+     data-url-borrar="{% url 'integraciones:pendientes_borrar' %}" id="pendRoot">
+  <div class="integ-header">
+    <h2 class="integ-title">Pendientes de cruce</h2>
+    <p class="integ-subtitle">Filas de Excel que no cruzaron (o dudosas) guardadas para reconciliar. Re-crúzalas contra los
+      pedidos actuales (p. ej. después de registrar la fuente manual) y aplica, o elimínalas.</p>
+  </div>
+
+  {% if pendientes %}
+  <div class="cruce-acciones">
+    <div class="ads-nota-inline">{{ pendientes|length }} pendiente(s)</div>
+    <label class="cruce-ful"><span>Costo fulfillment / pedido</span>
+      <input type="text" id="pendFulfillment" inputmode="decimal" placeholder="0" style="width:90px;"></label>
+    <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap;">
+      <button type="button" class="btn-probar" id="pendTodos">Marcar todos</button>
+      <button type="button" class="btn-probar" id="pendNinguno">Ninguno</button>
+      <button type="button" class="btn-guardar" id="pendRecruzar">🔁 Re-cruzar seleccionados</button>
+      <button type="button" class="btn-danger-sm" id="pendBorrar">🗑 Eliminar seleccionados</button>
+    </div>
+  </div>
+
+  <div class="ped-tabla-wrap">
+    <table class="ped-tabla">
+      <thead><tr><th></th><th>Nombre</th><th>Celular</th><th>Producto</th><th class="ped-num">Precio</th><th class="ped-num">Delivery</th><th>Estado Excel</th><th>Motivo</th><th>Origen</th></tr></thead>
+      <tbody>
+        {% for f in pendientes %}
+        <tr data-id="{{ f.id }}">
+          <td><input type="checkbox" class="js-pend" value="{{ f.id }}"
+                     data-nombre="{{ f.nombre }}" data-celular="{{ f.celular }}" data-producto="{{ f.producto }}"
+                     data-precio="{{ f.precio }}" data-delivery="{{ f.costo_delivery }}" data-estado="{{ f.estado_texto }}"></td>
+          <td>{{ f.nombre }}</td><td>{{ f.celular }}</td><td>{{ f.producto }}</td>
+          <td class="ped-num">{{ f.precio }}</td><td class="ped-num">{{ f.costo_delivery }}</td>
+          <td>{{ f.estado_texto }}</td><td>{{ f.get_motivo_display }}</td><td>{{ f.origen }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div id="pendProg" hidden style="margin-top:10px;">
+    <div class="cruce-prog-bar"><div class="cruce-prog-fill" id="pendProgFill"></div></div>
+    <div class="ads-nota-inline" id="pendProgTxt" style="margin-top:6px;display:block;"></div>
+  </div>
+
+  <div id="pendPrevia" style="margin-top:14px;"></div>
+  {% else %}
+  <div class="integ-vacio">No hay filas pendientes. Aparecerán aquí cuando guardes los «sin cruce» desde
+    <a href="{% url 'integraciones:cruce_excel' %}"><b>Cruzar por Excel</b></a>.</div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  var root = document.getElementById('pendRoot');
+  if (!root) return;
+  var CSRF = '{{ csrf_token }}';
+  var tabla = document.querySelector('#pendRoot .ped-tabla');
+  var previa = document.getElementById('pendPrevia');
+  var prog = document.getElementById('pendProg');
+  var progFill = document.getElementById('pendProgFill');
+  var progTxt = document.getElementById('pendProgTxt');
+  var ful = document.getElementById('pendFulfillment');
+  ful.value = localStorage.getItem('cruce_fulfillment') || '';
+
+  function seleccionados() { return Array.prototype.slice.call(document.querySelectorAll('.js-pend:checked')); }
+  function escapeHtml(s) { return (s == null ? '' : String(s)).replace(/[&<>]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]; }); }
+
+  document.getElementById('pendTodos').addEventListener('click', function () {
+    document.querySelectorAll('.js-pend').forEach(function (c) { c.checked = true; });
+  });
+  document.getElementById('pendNinguno').addEventListener('click', function () {
+    document.querySelectorAll('.js-pend').forEach(function (c) { c.checked = false; });
+  });
+
+  document.getElementById('pendBorrar').addEventListener('click', function () {
+    var ids = seleccionados().map(function (c) { return parseInt(c.value, 10); });
+    if (!ids.length) { alert('Selecciona filas.'); return; }
+    if (!confirm('¿Eliminar ' + ids.length + ' pendiente(s)?')) return;
+    fetch(root.dataset.urlBorrar, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF, 'X-Requested-With': 'XMLHttpRequest' },
+      body: JSON.stringify({ ids: ids }),
+    }).then(function (r) { return r.json(); }).then(function (j) {
+      if (!j.ok) { alert('No se pudo eliminar.'); return; }
+      ids.forEach(function (id) { var tr = tabla.querySelector('tr[data-id="' + id + '"]'); if (tr) tr.remove(); });
+    }).catch(function () { alert('Error de red.'); });
+  });
+
+  document.getElementById('pendRecruzar').addEventListener('click', function () {
+    var sel = seleccionados();
+    if (!sel.length) { alert('Selecciona filas a re-cruzar.'); return; }
+    var filas = sel.map(function (c) {
+      return { ref: parseInt(c.value, 10), nombre: c.dataset.nombre, celular: c.dataset.celular,
+               producto: c.dataset.producto, precio: c.dataset.precio, delivery: c.dataset.delivery, estado: c.dataset.estado };
+    });
+    var LOTE = 25, total = filas.length, i = 0, matches = [];
+    prog.hidden = false; progFill.style.width = '0%'; previa.innerHTML = '';
+    function siguiente() {
+      if (i >= total) { prog.hidden = true; pintar(matches); return; }
+      var chunk = filas.slice(i, i + LOTE);
+      fetch(root.dataset.urlPrevia, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF, 'X-Requested-With': 'XMLHttpRequest' },
+        body: JSON.stringify({ filas: chunk }),
+      }).then(function (r) { return r.json(); }).then(function (j) {
+        if (j.ok) matches = matches.concat(j.matches);
+        i += chunk.length;
+        progFill.style.width = Math.round(i / total * 100) + '%';
+        progTxt.textContent = i + ' / ' + total + ' · ' + matches.length + ' cruzaron ahora';
+        siguiente();
+      }).catch(function () { prog.hidden = true; alert('Error de red al re-cruzar.'); });
+    }
+    siguiente();
+  });
+
+  function pintar(matches) {
+    if (!matches.length) { previa.innerHTML = '<div class="integ-vacio">Ninguno cruzó esta vez.</div>'; return; }
+    previa.innerHTML =
+      '<div class="cruce-acciones"><div class="ads-nota-inline">' + matches.length + ' cruzaron</div>' +
+      '<button type="button" class="btn-guardar" id="pendAplicar" style="margin-left:auto;">✓ Aplicar y quitar de pendientes</button></div>' +
+      matches.map(function (m) {
+        return '<div class="cruce-card"><label class="cruce-check"><input type="checkbox" class="js-rc" checked ' +
+          'data-pedido="' + m.pedido.id + '" data-estado="' + (m.estado_nuevo || '') + '" ' +
+          'data-delivery="' + escapeHtml(m.excel.delivery || '') + '" data-ref="' + (m.ref == null ? '' : m.ref) + '"></label>' +
+          '<div class="cruce-info"><div class="cruce-fila"><span class="cruce-tag">PEDIDO</span> <b>' + escapeHtml(m.pedido.nombre) +
+          '</b> · ' + escapeHtml(m.pedido.celular) + ' · ' + escapeHtml(m.pedido.productos) + ' · estado: ' + escapeHtml(m.pedido.estado_actual) +
+          '</div><div class="cruce-fila cruce-fila-xls"><span class="cruce-tag xls">EXCEL</span> ' + escapeHtml(m.excel.nombre) +
+          ' · → <b class="cruce-estado-nuevo">' + escapeHtml(m.estado_nuevo_label) + '</b></div></div></div>';
+      }).join('');
+    document.getElementById('pendAplicar').addEventListener('click', aplicar);
+  }
+
+  function aplicar() {
+    var f = (ful.value || '').trim();
+    var rows = Array.prototype.slice.call(previa.querySelectorAll('.js-rc:checked'));
+    if (!rows.length) { alert('Marca al menos uno.'); return; }
+    var cambios = rows.map(function (c) {
+      return { pedido_id: parseInt(c.dataset.pedido, 10), estado: c.dataset.estado,
+               costo_delivery: c.dataset.delivery || '', costo_fulfillment: f };
+    });
+    var refs = rows.map(function (c) { return parseInt(c.dataset.ref, 10); }).filter(function (x) { return !isNaN(x); });
+    var btn = this; btn.disabled = true; btn.textContent = 'Aplicando…';
+    fetch(root.dataset.urlAplicar, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF, 'X-Requested-With': 'XMLHttpRequest' },
+      body: JSON.stringify({ cambios: cambios }),
+    }).then(function (r) { return r.json(); }).then(function (j) {
+      if (!j.ok) { btn.disabled = false; btn.textContent = '✓ Aplicar y quitar de pendientes'; alert('No se pudo aplicar.'); return; }
+      // Quita de pendientes los aplicados
+      if (refs.length) {
+        fetch(root.dataset.urlBorrar, {
+          method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF, 'X-Requested-With': 'XMLHttpRequest' },
+          body: JSON.stringify({ ids: refs }),
+        }).then(function () {
+          refs.forEach(function (id) { var tr = tabla.querySelector('tr[data-id="' + id + '"]'); if (tr) tr.remove(); });
+        });
+      }
+      alert('Aplicados: ' + j.aplicados);
+      rows.forEach(function (c) { c.checked = false; c.disabled = true; c.closest('.cruce-card').classList.add('cruce-aplicado'); });
+      btn.disabled = false; btn.textContent = '✓ Aplicar y quitar de pendientes';
+    }).catch(function () { btn.disabled = false; btn.textContent = '✓ Aplicar y quitar de pendientes'; alert('Error de red.'); });
+  }
+})();
+</script>
+{% endblock %}

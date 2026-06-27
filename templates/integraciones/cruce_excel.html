@@ -17,6 +17,7 @@
      data-url-previa="{% url 'integraciones:cruce_excel_preview' %}"
      data-url-ia="{% url 'integraciones:cruce_excel_ia' %}"
      data-url-aplicar="{% url 'integraciones:cruce_excel_aplicar' %}"
+     data-url-guardar-pend="{% url 'integraciones:cruce_guardar_pendientes' %}"
      data-ia-activa="{% if ia_activa %}1{% else %}0{% endif %}" id="cruceRoot">
   <div class="integ-header">
     <h2 class="integ-title">Cruzar pedidos por Excel</h2>
@@ -48,7 +49,9 @@
   <div id="crucePreviaWrap" hidden>
     <div class="cruce-acciones">
       <div class="ads-nota-inline" id="cruceResumen"></div>
-      <div style="margin-left:auto;display:flex;gap:8px;">
+      <label class="cruce-ful"><span>Costo fulfillment / pedido</span>
+        <input type="text" id="cruceFulfillment" inputmode="decimal" placeholder="0" style="width:90px;"></label>
+      <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap;">
         <button type="button" class="btn-probar" id="cruceTodos">Marcar todos</button>
         <button type="button" class="btn-probar" id="cruceNinguno">Ninguno</button>
         <button type="button" class="btn-guardar" id="cruceAplicar">✓ Aplicar seleccionados</button>
@@ -58,9 +61,14 @@
 
     <div id="cruceSinWrap" hidden>
       <div class="cruce-acciones" style="margin-top:18px;">
-        <div class="av-card-title" style="margin:0;">Sin cruce (<span id="cruceSinN">0</span>)</div>
-        <button type="button" class="btn-probar" id="cruceIaBtn" style="margin-left:auto;" hidden>🤖 Resolver sin cruce con IA</button>
+        <div class="av-card-title" style="margin:0;">Sin cruce / dudosos (<span id="cruceSinN">0</span>)</div>
+        <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap;">
+          <button type="button" class="btn-probar" id="cruceIaBtn" hidden>🤖 Resolver sin cruce con IA</button>
+          <button type="button" class="btn-guardar" id="cruceGuardarPend">💾 Guardar pendientes</button>
+        </div>
       </div>
+      <p class="ads-nota">«Guardar pendientes» guarda los sin cruce + los dudosos no marcados, para reconciliarlos luego en
+        <a href="{% url 'integraciones:pendientes' %}"><b>Pendientes de cruce</b></a> (cuando registres la fuente manual).</p>
       <div id="cruceIaProg" hidden style="margin-bottom:8px;">
         <div class="cruce-prog-bar"><div class="cruce-prog-fill" id="cruceIaFill"></div></div>
         <div class="ads-nota-inline" id="cruceIaTxt" style="margin-top:6px;display:block;"></div>
@@ -93,6 +101,7 @@
     { key: 'celular', label: 'Celular / Contacto', claves: ['contacto', 'celular', 'telefono', 'teléfono', 'whatsapp', 'wsp', 'numero', 'número', 'cel', 'phone'] },
     { key: 'producto', label: 'Producto', claves: ['producto', 'articulo', 'artículo', 'item', 'detalle'] },
     { key: 'precio', label: 'Precio (Shopify)', claves: ['monto tienda', 'precio', 'monto', 'importe', 'cobrar', 'total', 'venta'] },
+    { key: 'delivery', label: 'Costo Delivery', claves: ['costo delivery', 'delivery', 'flete', 'costo envio', 'costo envío', 'envio'] },
     { key: 'estado', label: 'Estado', claves: ['estado', 'status', 'situacion', 'situación', 'resultado', 'entrega'] },
   ];
 
@@ -138,7 +147,7 @@
       return {
         nombre: map.nombre ? r[map.nombre] : '', celular: map.celular ? r[map.celular] : '',
         producto: map.producto ? r[map.producto] : '', precio: map.precio ? r[map.precio] : '',
-        estado: map.estado ? r[map.estado] : '',
+        delivery: map.delivery ? r[map.delivery] : '', estado: map.estado ? r[map.estado] : '',
       };
     });
     cruzarEnLotes(filas);
@@ -207,6 +216,7 @@
       '<div class="cruce-card">' +
         '<label class="cruce-check"><input type="checkbox" class="js-cruce" data-i="' + i + '" ' +
             'data-pedido="' + m.pedido.id + '" data-estado="' + (m.estado_nuevo || '') + '" ' +
+            'data-delivery="' + escapeHtml(m.excel.delivery || '') + '" data-conf="' + m.confianza + '" ' +
             (estadoOk ? preMarcado : 'disabled') + '></label>' +
         '<div class="cruce-info">' +
           '<div class="cruce-fila cruce-fila-ped">' +
@@ -220,6 +230,7 @@
             '<span class="cruce-tag xls">EXCEL</span> ' + escapeHtml(m.excel.nombre) + ' · ' +
             escapeHtml(m.excel.celular) + ' · ' + escapeHtml(m.excel.producto) +
             ' · <span class="' + (precioDif ? 'cruce-precio-dif' : '') + '">S/ ' + escapeHtml(m.excel.precio) + '</span>' +
+            (m.excel.delivery ? ' · delivery: S/ ' + escapeHtml(m.excel.delivery) : '') +
             ' · → ' + (estadoOk ? '<b class="cruce-estado-nuevo">' + escapeHtml(m.estado_nuevo_label) + '</b>'
                                 : '<span class="cruce-precio-dif">estado no reconocido: ' + escapeHtml(m.excel.estado_texto) + '</span>') +
           '</div>' +
@@ -285,10 +296,17 @@
     siguiente();
   });
 
+  // Recuerda el último costo de fulfillment escrito
+  var fulInput = document.getElementById('cruceFulfillment');
+  fulInput.value = localStorage.getItem('cruce_fulfillment') || '';
+  fulInput.addEventListener('change', function () { localStorage.setItem('cruce_fulfillment', fulInput.value.trim()); });
+
   document.getElementById('cruceAplicar').addEventListener('click', function () {
+    var ful = (fulInput.value || '').trim();
     var cambios = [];
     previa.querySelectorAll('.js-cruce:checked').forEach(function (c) {
-      cambios.push({ pedido_id: parseInt(c.dataset.pedido, 10), estado: c.dataset.estado });
+      cambios.push({ pedido_id: parseInt(c.dataset.pedido, 10), estado: c.dataset.estado,
+                     costo_delivery: c.dataset.delivery || '', costo_fulfillment: ful });
     });
     if (!cambios.length) { alert('Marca al menos un cruce.'); return; }
     if (!confirm('¿Aplicar el cambio de estado a ' + cambios.length + ' pedido(s)?')) return;
@@ -309,6 +327,30 @@
       });
     })
     .catch(function () { btn.disabled = false; btn.textContent = '✓ Aplicar seleccionados'; alert('Error de red.'); });
+  });
+
+  // Guardar pendientes: sin cruce + dudosos (media/IA) NO marcados
+  document.getElementById('cruceGuardarPend').addEventListener('click', function () {
+    var pend = ESTADO.sin_cruce.map(function (s) { s.motivo = 'sin_cruce'; return s; });
+    previa.querySelectorAll('.js-cruce').forEach(function (c) {
+      var conf = c.dataset.conf;
+      if ((conf === 'media' || conf === 'ia') && !c.checked) {
+        var m = ESTADO.matches[parseInt(c.dataset.i, 10)];
+        if (m) pend.push({ nombre: m.excel.nombre, celular: m.excel.celular, producto: m.excel.producto,
+                           precio: m.excel.precio, delivery: m.excel.delivery, estado: m.excel.estado_texto, motivo: 'dudoso' });
+      }
+    });
+    if (!pend.length) { alert('No hay filas pendientes para guardar.'); return; }
+    if (!confirm('¿Guardar ' + pend.length + ' fila(s) como pendientes?')) return;
+    var btn = this; btn.disabled = true;
+    fetch(root.dataset.urlGuardarPend, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF, 'X-Requested-With': 'XMLHttpRequest' },
+      body: JSON.stringify({ filas: pend, origen: (document.getElementById('cruceFileLabel').textContent || '').replace('📄 ', '') }),
+    })
+    .then(function (r) { return r.json(); })
+    .then(function (j) { btn.disabled = false; alert(j.ok ? ('Guardados ' + j.guardados + ' pendientes.') : (j.error || 'No se pudo guardar.')); })
+    .catch(function () { btn.disabled = false; alert('Error de red.'); });
   });
 })();
 </script>

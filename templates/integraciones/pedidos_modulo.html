@@ -23,7 +23,10 @@
       <p class="integ-subtitle">Vista unificada de todas tus fuentes de pedidos · {% if puede_editar_pedidos %}edición en línea{% else %}solo lectura{% endif %}</p>
     </div>
     {% if puede_editar_pedidos %}
-    <a href="{% url 'integraciones:cruce_excel' %}" class="btn-probar">📥 Cruzar por Excel</a>
+    <div style="display:flex;gap:8px;">
+      <a href="{% url 'integraciones:cruce_excel' %}" class="btn-probar">📥 Cruzar por Excel</a>
+      <a href="{% url 'integraciones:pendientes' %}" class="btn-probar">🕗 Pendientes</a>
+    </div>
     {% endif %}
   </div>
 

@@ -207,7 +207,10 @@ class Pedido(models.Model):
     total = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     subtotal = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     descuentos = models.DecimalField(max_digits=12, decimal_places=2, default=0)
-    costo_envio = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    costo_envio = models.DecimalField(max_digits=12, decimal_places=2, default=0)   # cobrado al cliente
+    # Costos reales del negocio (se cargan al cruzar por Excel del courier/fulfillment)
+    costo_delivery = models.DecimalField(max_digits=12, decimal_places=2, default=0)      # lo que cobra el courier
+    costo_fulfillment = models.DecimalField(max_digits=12, decimal_places=2, default=0)   # lo que cobra el fulfillment
     moneda = models.CharField(max_length=10, blank=True)
     metodo_pago = models.CharField(max_length=120, blank=True)
     estado_pago = models.CharField(max_length=40, blank=True)       # financial_status
@@ -360,6 +363,34 @@ def registrar_cambio(pedido, usuario, campo, anterior, nuevo):
         valor_anterior=ant[:300],
         valor_nuevo=nue[:300],
     )
+
+
+class FilaPendiente(models.Model):
+    """Fila de un Excel de cruce que NO se aplicó (sin cruce o dudosa). Se guarda para
+    reconciliarla después contra los pedidos actuales (p. ej. tras registrar la fuente
+    manual). El usuario decide re-cruzar o borrar."""
+    MOTIVO_SIN_CRUCE = 'sin_cruce'
+    MOTIVO_DUDOSO = 'dudoso'
+    MOTIVO_CHOICES = [(MOTIVO_SIN_CRUCE, 'Sin cruce'), (MOTIVO_DUDOSO, 'Dudoso')]
+
+    nombre = models.CharField(max_length=200, blank=True)
+    celular = models.CharField(max_length=60, blank=True)
+    producto = models.CharField(max_length=300, blank=True)
+    precio = models.CharField(max_length=40, blank=True)
+    costo_delivery = models.CharField(max_length=40, blank=True)
+    estado_texto = models.CharField(max_length=80, blank=True)   # estado tal como vino en el Excel
+    motivo = models.CharField(max_length=12, choices=MOTIVO_CHOICES, default=MOTIVO_SIN_CRUCE)
+    origen = models.CharField(max_length=120, blank=True)        # etiqueta libre (Excel/empresa)
+    creado = models.DateTimeField(auto_now_add=True)
+    creado_por = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, blank=True)
+
+    class Meta:
+        ordering = ['-creado']
+        verbose_name = 'Fila pendiente de cruce'
+        verbose_name_plural = 'Filas pendientes de cruce'
+
+    def __str__(self):
+        return f'{self.nombre or self.celular} · {self.estado_texto} ({self.motivo})'
 
 
 # ───────────────────────── Shalom (rastreo por scraper) ─────────────────────────
