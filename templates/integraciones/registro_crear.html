@@ -56,12 +56,18 @@
     <div class="reg-seccion">Productos</div>
     <div class="reg-items" id="regItems">
       <div class="reg-item">
-        <input type="text" name="item_nombre" placeholder="Producto" class="reg-item-nombre">
+        <span class="reg-name-wrap">
+          <input type="text" name="item_nombre" placeholder="Producto" class="reg-item-nombre" list="catalogoProductos" autocomplete="off">
+          <button type="button" class="reg-name-edit" hidden title="Desbloquear para escribir a mano">🔒</button>
+        </span>
         <input type="number" name="item_cantidad" placeholder="Cant." min="1" value="1" class="reg-item-cant">
         <input type="text" name="item_precio" placeholder="Precio" inputmode="decimal" class="reg-item-precio">
       </div>
     </div>
     <button type="button" class="btn-probar" id="regAddItem">+ Agregar producto</button>
+    <datalist id="catalogoProductos">
+      {% for p in productos_catalogo %}<option value="{{ p }}"></option>{% endfor %}
+    </datalist>
 
     <div class="reg-seccion">Pago y envío</div>
     <div class="reg-grid">
@@ -124,9 +130,35 @@
 (function () {
   // Agregar líneas de producto
   var cont = document.getElementById('regItems');
+
+  // Quita el bloqueo del nombre (fila manual o clon): editable y sin candado
+  function resetNombre(row) {
+    var inp = row.querySelector('[name="item_nombre"]');
+    inp.readOnly = false; inp.classList.remove('reg-name-locked'); inp.title = '';
+    var b = row.querySelector('.reg-name-edit'); if (b) b.hidden = true;
+    return inp;
+  }
+  // Bloquea el nombre con el producto del catálogo más similar (flag de seguridad)
+  function lockNombre(row, canonical, raw, score) {
+    var inp = row.querySelector('[name="item_nombre"]');
+    inp.value = canonical || raw || '';
+    if (!canonical) return;   // sin catálogo: editable
+    inp.readOnly = true; inp.classList.add('reg-name-locked');
+    inp.title = 'Auto: ' + score + '% similar a tu catálogo (detectado: "' + (raw || '') + '"). Click 🔒 para escribir a mano.';
+    var b = row.querySelector('.reg-name-edit');
+    if (b) {
+      b.hidden = false;
+      b.onclick = function () {
+        inp.readOnly = false; inp.classList.remove('reg-name-locked'); inp.title = '';
+        b.hidden = true; inp.focus(); inp.select();
+      };
+    }
+  }
+
   document.getElementById('regAddItem').addEventListener('click', function () {
     var row = cont.firstElementChild.cloneNode(true);
     row.querySelectorAll('input').forEach(function (i) { if (i.name !== 'item_cantidad') i.value = ''; else i.value = '1'; });
+    resetNombre(row);
     cont.appendChild(row);
   });
   // Mostrar detalle de canal solo si "Otro"
@@ -162,9 +194,11 @@
       while (cont.children.length > 1) cont.removeChild(cont.lastElementChild);
       productos.forEach(function (p, idx) {
         var row = (idx === 0) ? cont.firstElementChild : cont.firstElementChild.cloneNode(true);
-        row.querySelector('[name="item_nombre"]').value = p.nombre || '';
         row.querySelector('[name="item_cantidad"]').value = p.cantidad || 1;
         row.querySelector('[name="item_precio"]').value = (p.precio != null ? p.precio : '');
+        resetNombre(row);
+        // Bloquea con el nombre del catálogo más similar (p.nombre_match); si no hay catálogo, usa el detectado
+        lockNombre(row, p.nombre_match, p.nombre, p.score);
         if (idx > 0) cont.appendChild(row);
       });
     }

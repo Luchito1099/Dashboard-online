@@ -20,6 +20,18 @@
   background: oklch(85% 0.09 75 / 0.18); color: oklch(45% 0.12 55); border: 1px solid oklch(75% 0.12 75 / 0.4);
 }
 
+/* Nombre de producto con candado (auto-match de catálogo) */
+.reg-name-wrap { position: relative; display: flex; flex: 1; min-width: 0; }
+.reg-name-wrap .reg-item-nombre { flex: 1; padding-right: 30px; }
+.reg-name-edit {
+  position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
+  border: none; background: none; cursor: pointer; font-size: 13px; padding: 2px 4px; line-height: 1;
+}
+.reg-name-locked {
+  background: oklch(62% 0.13 145 / 0.10); border-color: oklch(62% 0.13 145 / 0.5);
+  color: var(--text); cursor: default;
+}
+
 /* ── Nueva integración (fila inline) ── */
 .integ-nueva-grid {
   display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 12px; align-items: end;

@@ -1048,11 +1048,14 @@ def registro_crear(request):
         return redirect('integraciones:registro_pedidos')
 
     from core.models import HerramientaIA
+    from productos.models import Producto
     context = {
         'fuentes_manual': Pedido.FUENTE_MANUAL_CHOICES,
         'vendedores': _vendedores_qs(),
         # Muestra el panel de autocompletar solo si la IA de registro está lista
         'ia_registro_activa': HerramientaIA.registrar_pedido().lista_para_usar,
+        # Catálogo para el datalist de sugerencias de producto
+        'productos_catalogo': list(Producto.objects.filter(activo=True).values_list('nombre', flat=True)),
     }
     return render(request, 'integraciones/registro_crear.html', context)
 
@@ -1080,15 +1083,53 @@ def registro_ia_autocompletar(request):
     if not herr.lista_para_usar:
         return JsonResponse({'ok': False, 'error': 'Configura la IA en Configuración → IA.'}, status=400)
 
+    # Inyecta tus productos del catálogo en el prompt para que la IA use esos nombres.
+    # Si el prompt tiene el marcador {productos} lo reemplaza ahí; si no, lo añade al final.
+    from productos.models import Producto
+    catalogo = list(Producto.objects.filter(activo=True).values_list('nombre', flat=True))
+    prompt = herr.prompt
+    if catalogo:
+        lista_txt = '\n'.join(f'- {n}' for n in catalogo)
+        if '{productos}' in prompt:
+            prompt = prompt.replace('{productos}', lista_txt)
+        else:
+            prompt += ('\n\nProductos del catálogo (para "productos[].nombre" usa EXACTAMENTE uno '
+                       'de estos si corresponde; si ninguno corresponde, usa el nombre tal cual):\n' + lista_txt)
+
     try:
-        respuesta = ia.llamar(herr.conexion, herr.prompt, conversacion)
+        respuesta = ia.llamar(herr.conexion, prompt, conversacion)
     except ia.IAError as e:
         return JsonResponse({'ok': False, 'error': str(e)}, status=502)
 
     data = ia.extraer_json(respuesta)
     if data is None:
         return JsonResponse({'ok': False, 'error': 'La IA no devolvió datos válidos.'}, status=422)
+
+    # Para cada producto, calcula el nombre del catálogo MÁS SIMILAR (flag de seguridad:
+    # el formulario lo pondrá bloqueado con este nombre; el usuario puede desbloquear y editar).
+    if catalogo and isinstance(data.get('productos'), list):
+        for p in data['productos']:
+            raw = (p.get('nombre') or '').strip()
+            if raw:
+                mejor, score = _match_catalogo(raw, catalogo)
+                p['nombre_match'] = mejor
+                p['score'] = score
+            else:
+                p['nombre_match'] = ''
+                p['score'] = 0
     return JsonResponse({'ok': True, 'data': data})
+
+
+def _match_catalogo(nombre, catalogo):
+    """Devuelve (nombre_de_catálogo_más_similar, score 0-100) por similitud de texto."""
+    import difflib
+    mejor, mejor_score = nombre, 0.0
+    bajo = nombre.lower()
+    for c in catalogo:
+        s = difflib.SequenceMatcher(None, bajo, c.lower()).ratio()
+        if s > mejor_score:
+            mejor_score, mejor = s, c
+    return mejor, round(mejor_score * 100)
 
 
 # ───────────────────────── OAuth de Shopify ─────────────────────────
