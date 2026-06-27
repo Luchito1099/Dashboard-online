@@ -2,6 +2,30 @@
 
 .integ { max-width: 980px; }
 
+/* ── Cruce de pedidos por Excel ── */
+.cruce-drop {
+  display: inline-flex; align-items: center; gap: 8px; padding: 12px 18px; cursor: pointer;
+  border: 2px dashed var(--border-dark); border-radius: 10px; font-weight: 600; color: var(--text-secondary);
+}
+.cruce-drop:hover { border-color: var(--primary); color: var(--primary); }
+.cruce-acciones { display: flex; align-items: center; gap: 10px; margin: 14px 0 10px; flex-wrap: wrap; }
+.cruce-card {
+  display: flex; gap: 12px; align-items: flex-start; padding: 10px 12px; margin-bottom: 8px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+}
+.cruce-card.cruce-aplicado { opacity: .55; }
+.cruce-check { padding-top: 2px; }
+.cruce-info { flex: 1; min-width: 0; }
+.cruce-fila { font-size: 13px; line-height: 1.5; }
+.cruce-fila-xls { color: var(--text-secondary); }
+.cruce-tag { font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 5px; background: var(--bg); color: var(--muted); }
+.cruce-tag.xls { background: oklch(90% 0.08 250); color: oklch(42% 0.14 250); }
+.cruce-conf { font-size: 11px; color: var(--muted); }
+.cruce-estado-nuevo { color: var(--success, #22a06b); }
+.cruce-precio-dif { color: var(--error); font-weight: 700; }
+.cruce-sin { font-size: 12.5px; color: var(--text-secondary); }
+.cruce-sin-row { padding: 4px 0; border-bottom: 1px solid var(--border); }
+
 /* ── Autocompletar con IA (Registro de pedidos) ── */
 .reg-ia {
   background: var(--surface); border: 1px solid var(--primary); border-radius: var(--radius);

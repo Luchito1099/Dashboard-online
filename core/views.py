@@ -211,8 +211,10 @@ def configuracion(request):
         'metas_info': metas_info,
         'conexiones_ia': ConexionIA.objects.all(),
         'proveedores_ia': ConexionIA.PROVEEDOR_CHOICES,
-        # Asegura que exista la herramienta de registrar pedido y lista todas
-        'herramientas_ia': (HerramientaIA.registrar_pedido(), HerramientaIA.objects.all())[1],
+        # Asegura que existan las herramientas cableadas y lista todas
+        'herramientas_ia': (HerramientaIA.registrar_pedido(),
+                            HerramientaIA.matching_pedidos(),
+                            HerramientaIA.objects.all())[2],
     }
     return render(request, 'core/configuracion.html', context)
 

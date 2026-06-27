@@ -1,6 +1,7 @@
 # integraciones/views.py
 import json
 import secrets
+from collections import defaultdict
 from datetime import timedelta
 from decimal import Decimal, InvalidOperation
 
@@ -1130,6 +1131,182 @@ def _match_catalogo(nombre, catalogo):
         if s > mejor_score:
             mejor_score, mejor = s, c
     return mejor, round(mejor_score * 100)
+
+
+# ───────────────────────── Cruce de pedidos por Excel ─────────────────────────
+
+_ESTADO_SINONIMOS = {
+    'entregado': Pedido.ESTADO_ENTREGADO, 'entrega': Pedido.ESTADO_ENTREGADO, 'delivered': Pedido.ESTADO_ENTREGADO,
+    'cancelado': Pedido.ESTADO_CANCELADO, 'anulado': Pedido.ESTADO_CANCELADO, 'rechazado': Pedido.ESTADO_CANCELADO,
+    'devuelto': Pedido.ESTADO_CANCELADO, 'cancel': Pedido.ESTADO_CANCELADO,
+    'confirmado': Pedido.ESTADO_CONFIRMADO, 'confirmacion': Pedido.ESTADO_CONFIRMADO,
+    'despachado': Pedido.ESTADO_DESPACHADO, 'en camino': Pedido.ESTADO_DESPACHADO,
+    'enviado': Pedido.ESTADO_DESPACHADO, 'transito': Pedido.ESTADO_DESPACHADO, 'en transito': Pedido.ESTADO_DESPACHADO,
+    'sin respuesta': Pedido.ESTADO_SIN_RESPUESTA, 'no contesta': Pedido.ESTADO_SIN_RESPUESTA,
+    'no concreto': Pedido.ESTADO_SIN_CONFIRMAR,
+}
+
+
+def _mapear_estado(texto):
+    """Mapea el texto de estado del Excel a una clave de ESTADO_CHOICES. '' si no se reconoce."""
+    n = _norm(texto)
+    if not n:
+        return ''
+    if n in _ESTADO_SINONIMOS:
+        return _ESTADO_SINONIMOS[n]
+    for k, v in _ESTADO_SINONIMOS.items():
+        if k in n:
+            return v
+    for val, label in Pedido.ESTADO_CHOICES:
+        if n == _norm(label) or n == val:
+            return val
+    return ''
+
+
+def _digitos(s):
+    d = ''.join(ch for ch in str(s or '') if ch.isdigit())
+    return d[-9:] if len(d) >= 9 else d
+
+
+def _score_pedido(fila, ped, productos_txt):
+    """Similitud 0-1 de una fila de Excel contra un pedido (nombre + producto)."""
+    import difflib
+    sn = difflib.SequenceMatcher(None, _norm(fila.get('nombre')), _norm(ped.nombre_cliente)).ratio()
+    sp = difflib.SequenceMatcher(None, _norm(fila.get('producto')), _norm(productos_txt)).ratio()
+    return round(0.6 * sn + 0.4 * sp, 3)
+
+
+@login_required
+def cruce_excel(request):
+    """Página para subir un Excel y cruzarlo con los pedidos (confirmación masiva)."""
+    from core.permisos import puede_ver, destino_vendedor
+    if not (es_admin(request.user) or puede_ver(request.user, 'vendedor_puede_editar_pedidos')):
+        messages.error(request, 'No tienes permisos para confirmar pedidos en lote.')
+        return redirect(destino_vendedor(request.user))
+    return render(request, 'integraciones/cruce_excel.html', {'estados': Pedido.ESTADO_CHOICES})
+
+
+@login_required
+def cruce_excel_preview(request):
+    """Cruza las filas del Excel (JSON) con los pedidos y devuelve la previa. POST JSON
+    {filas:[{nombre,celular,producto,precio,estado}]}."""
+    if not (es_admin(request.user) or _puede_editar(request.user)):
+        return JsonResponse({'ok': False, 'error': 'Sin permiso'}, status=403)
+    if request.method != 'POST':
+        return HttpResponseNotAllowed(['POST'])
+    try:
+        filas = json.loads(request.body or '{}').get('filas') or []
+    except ValueError:
+        filas = []
+    if not filas:
+        return JsonResponse({'ok': False, 'error': 'El Excel no tiene filas.'}, status=400)
+
+    # Índice de pedidos candidatos (excluye cancelados)
+    pedidos = list(Pedido.objects.exclude(estado=Pedido.ESTADO_CANCELADO).prefetch_related('items'))
+    prod_txt = {p.id: ' '.join(it.nombre for it in p.items.all()) for p in pedidos}
+    por_tel = defaultdict(list)
+    for p in pedidos:
+        tel = _digitos(p.telefono)
+        if tel:
+            por_tel[tel].append(p)
+
+    from core.models import HerramientaIA
+    herr = HerramientaIA.matching_pedidos()
+
+    matches, sin_cruce = [], []
+    for fila in filas:
+        estado_nuevo = _mapear_estado(fila.get('estado'))
+        cel = _digitos(fila.get('celular'))
+        candidatos = por_tel.get(cel, []) if cel else []
+
+        elegido, confianza = None, ''
+        if len(candidatos) == 1:
+            elegido, confianza = candidatos[0], 'alta'
+        elif len(candidatos) > 1:
+            candidatos.sort(key=lambda p: _score_pedido(fila, p, prod_txt[p.id]), reverse=True)
+            elegido, confianza = candidatos[0], 'media'
+        else:
+            # Sin teléfono: similitud por nombre+producto sobre todos
+            ranked = sorted(((_score_pedido(fila, p, prod_txt[p.id]), p) for p in pedidos),
+                            key=lambda x: x[0], reverse=True)[:5]
+            if ranked and ranked[0][0] >= 0.72:
+                elegido, confianza = ranked[0][1], 'media'
+            elif ranked and herr.lista_para_usar:
+                elegido = _ia_elige(herr, fila, [p for _, p in ranked], prod_txt)
+                confianza = 'ia' if elegido else ''
+
+        if elegido:
+            matches.append({
+                'pedido': {
+                    'id': elegido.id, 'numero': elegido.numero or elegido.external_id,
+                    'nombre': elegido.nombre_cliente, 'celular': elegido.telefono,
+                    'productos': prod_txt[elegido.id], 'total': float(elegido.total or 0),
+                    'estado_actual': elegido.get_estado_display(),
+                },
+                'excel': {
+                    'nombre': fila.get('nombre', ''), 'celular': fila.get('celular', ''),
+                    'producto': fila.get('producto', ''), 'precio': fila.get('precio', ''),
+                    'estado_texto': fila.get('estado', ''),
+                },
+                'estado_nuevo': estado_nuevo,
+                'estado_nuevo_label': dict(Pedido.ESTADO_CHOICES).get(estado_nuevo, ''),
+                'confianza': confianza,
+            })
+        else:
+            sin_cruce.append({'nombre': fila.get('nombre', ''), 'celular': fila.get('celular', ''),
+                              'producto': fila.get('producto', ''), 'estado_texto': fila.get('estado', '')})
+
+    return JsonResponse({'ok': True, 'matches': matches, 'sin_cruce': sin_cruce})
+
+
+def _ia_elige(herr, fila, candidatos, prod_txt):
+    """Usa la IA para elegir el pedido correcto entre candidatos. Devuelve el pedido o None."""
+    from core import ia
+    cand = [{'id': p.id, 'nombre': p.nombre_cliente, 'celular': p.telefono, 'producto': prod_txt[p.id]}
+            for p in candidatos]
+    texto = ('FILA:\n' + json.dumps({'nombre': fila.get('nombre'), 'celular': fila.get('celular'),
+                                     'producto': fila.get('producto')}, ensure_ascii=False) +
+             '\n\nCANDIDATOS:\n' + json.dumps(cand, ensure_ascii=False))
+    try:
+        data = ia.extraer_json(ia.llamar(herr.conexion, herr.prompt, texto))
+    except ia.IAError:
+        return None
+    pid = (data or {}).get('pedido_id')
+    return next((p for p in candidatos if p.id == pid), None)
+
+
+@login_required
+def cruce_excel_aplicar(request):
+    """Aplica los cambios de estado seleccionados. POST JSON {cambios:[{pedido_id,estado}]}."""
+    if not (es_admin(request.user) or _puede_editar(request.user)):
+        return JsonResponse({'ok': False, 'error': 'Sin permiso'}, status=403)
+    if request.method != 'POST':
+        return HttpResponseNotAllowed(['POST'])
+    try:
+        cambios = json.loads(request.body or '{}').get('cambios') or []
+    except ValueError:
+        cambios = []
+
+    estados_validos = dict(Pedido.ESTADO_CHOICES)
+    aplicados, errores = 0, 0
+    for c in cambios:
+        nuevo = c.get('estado')
+        ped = Pedido.objects.filter(id=c.get('pedido_id')).first()
+        if not ped or nuevo not in estados_validos or ped.estado == nuevo:
+            errores += 1
+            continue
+        registrar_cambio(ped, request.user, 'estado', ped.get_estado_display(), estados_validos[nuevo])
+        ped.estado = nuevo
+        ped.editado_por = request.user
+        ped.editado_en = timezone.now()
+        ped.save()
+        aplicados += 1
+    return JsonResponse({'ok': True, 'aplicados': aplicados, 'errores': errores})
+
+
+def _puede_editar(user):
+    from core.permisos import puede_ver
+    return puede_ver(user, 'vendedor_puede_editar_pedidos')
 
 
 # ───────────────────────── OAuth de Shopify ─────────────────────────

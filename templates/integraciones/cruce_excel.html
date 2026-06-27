@@ -1,0 +1,197 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% comment %} templates/integraciones/cruce_excel.html — Cruce de pedidos por Excel {% endcomment %}
+
+{% block title %}Cruzar por Excel · Pedidos · Dashboard{% endblock %}
+{% block nav_pedidos %}active{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'core/css/integraciones.css' %}">
+{% endblock %}
+
+{% block breadcrumb %}<span>›</span><a href="{% url 'integraciones:pedidos_modulo' %}">Pedidos</a><span>›</span><span>Cruzar por Excel</span>{% endblock %}
+
+{% block content %}
+<div class="pedidos-mod"
+     data-url-previa="{% url 'integraciones:cruce_excel_preview' %}"
+     data-url-aplicar="{% url 'integraciones:cruce_excel_aplicar' %}" id="cruceRoot">
+  <div class="integ-header">
+    <h2 class="integ-title">Cruzar pedidos por Excel</h2>
+    <p class="integ-subtitle">Sube un Excel (nombre, celular, producto, precio, estado). Cruzamos por celular + nombre + producto,
+      verás una previa para confirmar, y al aplicar se cambia el estado del pedido al que indica el Excel.</p>
+  </div>
+
+  <div class="av-card av-card-wide">
+    <label class="cruce-drop">
+      <input type="file" id="cruceFile" accept=".xlsx,.xls,.csv" hidden>
+      <span id="cruceFileLabel">📄 Elegir archivo Excel…</span>
+    </label>
+    <span class="ads-nota-inline" id="cruceInfo"></span>
+  </div>
+
+  <div id="crucePreviaWrap" hidden>
+    <div class="cruce-acciones">
+      <div class="ads-nota-inline" id="cruceResumen"></div>
+      <div style="margin-left:auto;display:flex;gap:8px;">
+        <button type="button" class="btn-probar" id="cruceTodos">Marcar todos</button>
+        <button type="button" class="btn-probar" id="cruceNinguno">Ninguno</button>
+        <button type="button" class="btn-guardar" id="cruceAplicar">✓ Aplicar seleccionados</button>
+      </div>
+    </div>
+    <div id="crucePrevia"></div>
+
+    <div id="cruceSinWrap" hidden>
+      <div class="av-card-title" style="margin-top:18px;">Sin cruce ({{ '' }}<span id="cruceSinN">0</span>)</div>
+      <div id="cruceSin" class="cruce-sin"></div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script>
+(function () {
+  var root = document.getElementById('cruceRoot');
+  var CSRF = '{{ csrf_token }}';
+  var fileInput = document.getElementById('cruceFile');
+  var fileLabel = document.getElementById('cruceFileLabel');
+  var info = document.getElementById('cruceInfo');
+  var previaWrap = document.getElementById('crucePreviaWrap');
+  var previa = document.getElementById('crucePrevia');
+
+  // Detecta una columna por palabras clave en los encabezados
+  function col(headers, claves) {
+    for (var i = 0; i < headers.length; i++) {
+      var h = (headers[i] || '').toString().toLowerCase();
+      for (var k = 0; k < claves.length; k++) if (h.indexOf(claves[k]) >= 0) return headers[i];
+    }
+    return null;
+  }
+
+  fileInput.addEventListener('change', function () {
+    var file = fileInput.files[0];
+    if (!file) return;
+    fileLabel.textContent = '📄 ' + file.name;
+    var reader = new FileReader();
+    reader.onload = function (e) {
+      var wb = XLSX.read(e.target.result, { type: 'array' });
+      var ws = wb.Sheets[wb.SheetNames[0]];
+      var rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+      if (!rows.length) { info.textContent = 'El Excel está vacío.'; return; }
+      var headers = Object.keys(rows[0]);
+      var cN = col(headers, ['nombre', 'cliente', 'destinatario']);
+      var cC = col(headers, ['celular', 'telefono', 'teléfono', 'cel', 'phone']);
+      var cP = col(headers, ['producto', 'articulo', 'artículo', 'item']);
+      var cPr = col(headers, ['precio', 'monto', 'total', 'importe', 'cobrar']);
+      var cE = col(headers, ['estado', 'status', 'situacion', 'situación']);
+      var filas = rows.map(function (r) {
+        return {
+          nombre: cN ? r[cN] : '', celular: cC ? r[cC] : '', producto: cP ? r[cP] : '',
+          precio: cPr ? r[cPr] : '', estado: cE ? r[cE] : '',
+        };
+      });
+      info.textContent = filas.length + ' fila(s) leída(s). Cruzando…';
+      enviarPrevia(filas);
+    };
+    reader.readAsArrayBuffer(file);
+  });
+
+  function enviarPrevia(filas) {
+    fetch(root.dataset.urlPrevia, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF, 'X-Requested-With': 'XMLHttpRequest' },
+      body: JSON.stringify({ filas: filas }),
+    })
+    .then(function (r) { return r.json(); })
+    .then(function (j) {
+      if (!j.ok) { info.textContent = j.error || 'No se pudo procesar.'; return; }
+      render(j);
+    })
+    .catch(function () { info.textContent = 'Error de red.'; });
+  }
+
+  function escapeHtml(s) { return (s == null ? '' : String(s)).replace(/[&<>]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]; }); }
+
+  function render(j) {
+    info.textContent = '';
+    previaWrap.hidden = false;
+    document.getElementById('cruceResumen').textContent =
+      j.matches.length + ' cruce(s) · ' + j.sin_cruce.length + ' sin cruce';
+
+    previa.innerHTML = j.matches.map(function (m, i) {
+      var conf = { alta: '✓ alta', media: '~ media', ia: '🤖 IA' }[m.confianza] || '';
+      var preMarcado = (m.confianza === 'alta') ? 'checked' : '';
+      var estadoOk = !!m.estado_nuevo;
+      var precioDif = Math.abs(parseFloat(m.pedido.total || 0) - parseFloat(m.excel.precio || 0)) > 0.5;
+      return '' +
+      '<div class="cruce-card">' +
+        '<label class="cruce-check"><input type="checkbox" class="js-cruce" data-i="' + i + '" ' +
+            'data-pedido="' + m.pedido.id + '" data-estado="' + (m.estado_nuevo || '') + '" ' +
+            (estadoOk ? preMarcado : 'disabled') + '></label>' +
+        '<div class="cruce-info">' +
+          '<div class="cruce-fila cruce-fila-ped">' +
+            '<span class="cruce-tag">PEDIDO</span> <b>' + escapeHtml(m.pedido.nombre) + '</b> · ' +
+            escapeHtml(m.pedido.celular) + ' · ' + escapeHtml(m.pedido.productos) +
+            ' · <span class="' + (precioDif ? 'cruce-precio-dif' : '') + '">S/ ' + (m.pedido.total).toFixed(2) + '</span>' +
+            ' · estado: ' + escapeHtml(m.pedido.estado_actual) +
+            ' <span class="cruce-conf">' + conf + '</span>' +
+          '</div>' +
+          '<div class="cruce-fila cruce-fila-xls">' +
+            '<span class="cruce-tag xls">EXCEL</span> ' + escapeHtml(m.excel.nombre) + ' · ' +
+            escapeHtml(m.excel.celular) + ' · ' + escapeHtml(m.excel.producto) +
+            ' · <span class="' + (precioDif ? 'cruce-precio-dif' : '') + '">S/ ' + escapeHtml(m.excel.precio) + '</span>' +
+            ' · → ' + (estadoOk ? '<b class="cruce-estado-nuevo">' + escapeHtml(m.estado_nuevo_label) + '</b>'
+                                : '<span class="cruce-precio-dif">estado no reconocido: ' + escapeHtml(m.excel.estado_texto) + '</span>') +
+          '</div>' +
+        '</div>' +
+      '</div>';
+    }).join('') || '<div class="integ-vacio">Ningún pedido cruzó con el Excel.</div>';
+
+    var sinWrap = document.getElementById('cruceSinWrap');
+    if (j.sin_cruce.length) {
+      sinWrap.hidden = false;
+      document.getElementById('cruceSinN').textContent = j.sin_cruce.length;
+      document.getElementById('cruceSin').innerHTML = j.sin_cruce.map(function (s) {
+        return '<div class="cruce-sin-row">' + escapeHtml(s.nombre) + ' · ' + escapeHtml(s.celular) +
+               ' · ' + escapeHtml(s.producto) + ' · (' + escapeHtml(s.estado_texto) + ')</div>';
+      }).join('');
+    } else { sinWrap.hidden = true; }
+  }
+
+  document.getElementById('cruceTodos').addEventListener('click', function () {
+    previa.querySelectorAll('.js-cruce:not(:disabled)').forEach(function (c) { c.checked = true; });
+  });
+  document.getElementById('cruceNinguno').addEventListener('click', function () {
+    previa.querySelectorAll('.js-cruce').forEach(function (c) { c.checked = false; });
+  });
+
+  document.getElementById('cruceAplicar').addEventListener('click', function () {
+    var cambios = [];
+    previa.querySelectorAll('.js-cruce:checked').forEach(function (c) {
+      cambios.push({ pedido_id: parseInt(c.dataset.pedido, 10), estado: c.dataset.estado });
+    });
+    if (!cambios.length) { alert('Marca al menos un cruce.'); return; }
+    if (!confirm('¿Aplicar el cambio de estado a ' + cambios.length + ' pedido(s)?')) return;
+    var btn = this; btn.disabled = true; btn.textContent = 'Aplicando…';
+    fetch(root.dataset.urlAplicar, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF, 'X-Requested-With': 'XMLHttpRequest' },
+      body: JSON.stringify({ cambios: cambios }),
+    })
+    .then(function (r) { return r.json(); })
+    .then(function (j) {
+      btn.disabled = false; btn.textContent = '✓ Aplicar seleccionados';
+      if (!j.ok) { alert(j.error || 'No se pudo aplicar.'); return; }
+      alert('Aplicados: ' + j.aplicados + (j.errores ? (' · errores: ' + j.errores) : ''));
+      previa.querySelectorAll('.js-cruce:checked').forEach(function (c) {
+        c.checked = false; c.disabled = true;
+        c.closest('.cruce-card').classList.add('cruce-aplicado');
+      });
+    })
+    .catch(function () { btn.disabled = false; btn.textContent = '✓ Aplicar seleccionados'; alert('Error de red.'); });
+  });
+})();
+</script>
+{% endblock %}

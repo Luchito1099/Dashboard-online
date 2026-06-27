@@ -161,9 +161,21 @@ PROMPT_REGISTRAR_PEDIDO = (
 )
 
 
+PROMPT_MATCHING_PEDIDOS = (
+    'Eres un asistente que decide a qué pedido del sistema corresponde una fila de un '
+    'Excel de entregas. Te doy una fila (nombre, celular, producto) y una lista de '
+    'pedidos candidatos con su id. Responde SOLO con un JSON, sin texto ni backticks:\n'
+    '{"pedido_id": null}\n'
+    '- Pon en "pedido_id" el id del pedido que corresponde a la fila, o null si ninguno '
+    'coincide con seguridad.\n'
+    '- Prioriza el celular; si no hay celular, usa nombre y producto.\n'
+    '- No inventes ids: usa solo los de la lista de candidatos.'
+)
+
+
 class HerramientaIA(models.Model):
     """Una tarea donde se puede usar IA (con su propio prompt y la conexión que usa).
-    Es extensible; por ahora la única cableada es 'registrar_pedido'."""
+    Es extensible; cableadas: 'registrar_pedido' y 'matching_pedidos'."""
     slug = models.SlugField(max_length=50, unique=True)
     nombre = models.CharField(max_length=80)
     descripcion = models.CharField(max_length=255, blank=True)
@@ -186,14 +198,24 @@ class HerramientaIA(models.Model):
         return bool(self.activa and self.conexion and self.conexion.activa and self.conexion.api_key)
 
     @classmethod
-    def registrar_pedido(cls):
-        """Devuelve (creando si falta) la herramienta de autocompletar el registro de pedidos."""
+    def _seed(cls, slug, nombre, descripcion, prompt):
         obj, creado = cls.objects.get_or_create(
-            slug='registrar_pedido',
-            defaults={'nombre': 'Registrar pedido',
-                      'descripcion': 'Pega una conversación y autocompleta el formulario de pedido manual.',
-                      'prompt': PROMPT_REGISTRAR_PEDIDO})
+            slug=slug, defaults={'nombre': nombre, 'descripcion': descripcion, 'prompt': prompt})
         if creado and ConexionIA.objects.filter(activa=True).exists():
             obj.conexion = ConexionIA.objects.filter(activa=True).first()
             obj.save(update_fields=['conexion'])
         return obj
+
+    @classmethod
+    def registrar_pedido(cls):
+        """Devuelve (creando si falta) la herramienta de autocompletar el registro de pedidos."""
+        return cls._seed('registrar_pedido', 'Registrar pedido',
+                         'Pega una conversación y autocompleta el formulario de pedido manual.',
+                         PROMPT_REGISTRAR_PEDIDO)
+
+    @classmethod
+    def matching_pedidos(cls):
+        """Devuelve (creando si falta) la herramienta de cruce de pedidos por Excel."""
+        return cls._seed('matching_pedidos', 'Matching de pedidos (Excel)',
+                         'Resuelve los cruces dudosos al subir un Excel para confirmar pedidos.',
+                         PROMPT_MATCHING_PEDIDOS)

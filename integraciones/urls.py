@@ -25,6 +25,10 @@ urlpatterns = [
     path('registro-pedidos/', views.registro_pedidos, name='registro_pedidos'),
     path('registro-pedidos/crear/', views.registro_crear, name='registro_crear'),
     path('registro-pedidos/ia-autocompletar/', views.registro_ia_autocompletar, name='registro_ia_autocompletar'),
+    # Cruce de pedidos por Excel (confirmación masiva)
+    path('pedidos/cruce-excel/', views.cruce_excel, name='cruce_excel'),
+    path('pedidos/cruce-excel/previa/', views.cruce_excel_preview, name='cruce_excel_preview'),
+    path('pedidos/cruce-excel/aplicar/', views.cruce_excel_aplicar, name='cruce_excel_aplicar'),
     # OAuth de Shopify
     path('integraciones/oauth/iniciar/<int:integracion_id>/', views.oauth_iniciar, name='oauth_iniciar'),
     path('integraciones/oauth/callback/', views.oauth_callback, name='oauth_callback'),
