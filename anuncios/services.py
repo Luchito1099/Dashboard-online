@@ -382,13 +382,16 @@ def _estados_tipo(tipo):
     return None   # todos
 
 
-def serie_meta_vs_pedidos(desde, hasta, integracion_id=None, tipo='todos'):
+def serie_meta_vs_pedidos(desde, hasta, integracion_id=None, tipo='todos',
+                          campana_ids=None, producto_ids=None):
     """Serie para el gráfico del Inicio: gasto de Meta vs nº de pedidos.
     Si el rango es un solo día → granularidad por HORA (0–23, lo más fino que da Meta).
     Si abarca varios días → granularidad por DÍA. Devuelve un dict listo para Chart.js.
 
     `tipo` filtra el conteo de pedidos por etapa: 'todos' (cualquier estado),
     'preventa' (confirmado+despachado) o 'venta' (entregado).
+    `campana_ids`/`producto_ids` limitan a una campaña: el gasto a esos anuncios y los
+    pedidos a los productos casados con esa campaña.
 
     A diferencia de los dashboards de análisis, aquí se muestra el gasto TOTAL de Meta
     (no se filtra por incluir_en_extraccion): el Inicio es una vista de negocio.
@@ -398,23 +401,33 @@ def serie_meta_vs_pedidos(desde, hasta, integracion_id=None, tipo='todos'):
     por_hora = (desde == hasta)
     estados = _estados_tipo(tipo)
 
-    if por_hora:
-        # ── Gasto Meta por hora (todo el gasto, sin filtro de análisis) ──
-        gi = InsightHorarioMeta.objects.filter(fecha=desde)
+    def _filtrar_pedidos(qs):
+        if estados is not None:
+            qs = qs.filter(estado__in=estados)
+        if producto_ids is not None:
+            qs = qs.filter(items__producto_id__in=producto_ids).distinct()
         if integracion_id:
-            gi = gi.filter(campana__cuenta__integracion_id=integracion_id)
+            qs = qs.filter(integracion_id=integracion_id)
+        return qs
+
+    def _filtrar_gasto(qs):
+        if campana_ids is not None:
+            qs = qs.filter(campana_id__in=campana_ids)
+        if integracion_id:
+            qs = qs.filter(campana__cuenta__integracion_id=integracion_id)
+        return qs
+
+    if por_hora:
+        # ── Gasto Meta por hora ──
+        gi = _filtrar_gasto(InsightHorarioMeta.objects.filter(fecha=desde))
         gasto_por = {r['hora']: float(r['s'] or 0)
                      for r in gi.order_by().values('hora').annotate(s=Sum('gasto'))}
 
         # ── Pedidos por hora (hora local de Perú) ──
-        pi = Pedido.objects.filter(fecha_pedido__date=desde)
-        if estados is not None:
-            pi = pi.filter(estado__in=estados)
-        if integracion_id:
-            pi = pi.filter(integracion_id=integracion_id)
+        pi = _filtrar_pedidos(Pedido.objects.filter(fecha_pedido__date=desde))
         ped_por, monto_por = defaultdict(int), defaultdict(float)
         for r in (pi.order_by().annotate(h=ExtractHour('fecha_pedido'))
-                  .values('h').annotate(n=Count('id'), m=Sum('total'))):
+                  .values('h').annotate(n=Count('id', distinct=True), m=Sum('total'))):
             ped_por[r['h']] = r['n']
             monto_por[r['h']] = float(r['m'] or 0)
 
@@ -424,22 +437,16 @@ def serie_meta_vs_pedidos(desde, hasta, integracion_id=None, tipo='todos'):
         monto = [round(monto_por.get(h, 0), 2) for h in range(24)]
         granularidad = 'hora'
     else:
-        # ── Gasto Meta por día (todo el gasto, sin filtro de análisis) ──
-        gi = InsightDiarioMeta.objects.filter(fecha__range=(desde, hasta))
-        if integracion_id:
-            gi = gi.filter(campana__cuenta__integracion_id=integracion_id)
+        # ── Gasto Meta por día ──
+        gi = _filtrar_gasto(InsightDiarioMeta.objects.filter(fecha__range=(desde, hasta)))
         gasto_por = {r['fecha']: float(r['s'] or 0)
                      for r in gi.order_by().values('fecha').annotate(s=Sum('gasto'))}
 
         # ── Pedidos por día ──
-        pi = Pedido.objects.filter(fecha_pedido__date__range=(desde, hasta))
-        if estados is not None:
-            pi = pi.filter(estado__in=estados)
-        if integracion_id:
-            pi = pi.filter(integracion_id=integracion_id)
+        pi = _filtrar_pedidos(Pedido.objects.filter(fecha_pedido__date__range=(desde, hasta)))
         ped_por, monto_por = defaultdict(int), defaultdict(float)
         for r in (pi.order_by().annotate(d=TruncDate('fecha_pedido'))
-                  .values('d').annotate(n=Count('id'), m=Sum('total'))):
+                  .values('d').annotate(n=Count('id', distinct=True), m=Sum('total'))):
             ped_por[r['d']] = r['n']
             monto_por[r['d']] = float(r['m'] or 0)
 
@@ -465,10 +472,11 @@ def serie_meta_vs_pedidos(desde, hasta, integracion_id=None, tipo='todos'):
     }
 
 
-def heatmap_pedidos_hora(desde, hasta, integracion_id=None):
+def heatmap_pedidos_hora(desde, hasta, integracion_id=None, campana_ids=None, producto_ids=None):
     """Mapa de calor 7×24 (día de semana × hora) de PEDIDOS recibidos y GASTO de Meta,
     agregados sobre el rango [desde, hasta]. Sirve para ver el patrón semanal: a qué
     horas y días caen los pedidos (mañana/almuerzo/noche) frente al gasto.
+    `campana_ids`/`producto_ids` limitan a una campaña (gasto + pedidos casados).
 
     La hora de los pedidos se calcula en America/Lima; la del gasto es la de Meta
     (zona del anunciante), así que el cruce horario es aproximado."""
@@ -477,6 +485,8 @@ def heatmap_pedidos_hora(desde, hasta, integracion_id=None):
 
     # Pedidos: hora local de Perú (weekday 0=Lun … 6=Dom)
     pq = Pedido.objects.filter(fecha_pedido__date__range=(desde, hasta))
+    if producto_ids is not None:
+        pq = pq.filter(items__producto_id__in=producto_ids).distinct()
     if integracion_id:
         pq = pq.filter(integracion_id=integracion_id)
     for p in pq.only('fecha_pedido'):
@@ -485,6 +495,8 @@ def heatmap_pedidos_hora(desde, hasta, integracion_id=None):
 
     # Gasto Meta por (fecha, hora) → acumula en su día de semana
     gq = InsightHorarioMeta.objects.filter(fecha__range=(desde, hasta))
+    if campana_ids is not None:
+        gq = gq.filter(campana_id__in=campana_ids)
     if integracion_id:
         gq = gq.filter(campana__cuenta__integracion_id=integracion_id)
     for r in gq.order_by().values('fecha', 'hora').annotate(s=Sum('gasto')):

@@ -200,8 +200,23 @@ def api_inicio_serie(request):
     if tipo not in ('todos', 'preventa', 'venta'):
         tipo = 'todos'
 
+    campana_ids, producto_ids = _campana_inicio(request.GET.get('campana', ''))
     _auto_sync_si_necesario()
-    return JsonResponse(services.serie_meta_vs_pedidos(desde, hasta, tipo=tipo))
+    return JsonResponse(services.serie_meta_vs_pedidos(
+        desde, hasta, tipo=tipo, campana_ids=campana_ids, producto_ids=producto_ids))
+
+
+def _campana_inicio(campaign_id):
+    """Resuelve (campana_ids, producto_ids) para una campaña en el Inicio. A diferencia
+    de los dashboards, NO exige incluir_en_extraccion (el Inicio muestra todo). Devuelve
+    (None, None) si no se filtra por campaña."""
+    campaign_id = (campaign_id or '').strip()
+    if not campaign_id:
+        return None, None
+    campana_ids = list(CampanaMeta.objects.filter(campaign_id=campaign_id).values_list('id', flat=True))
+    producto_ids = list(MatchProductoAnuncio.objects.filter(campana_id__in=campana_ids)
+                        .values_list('producto_id', flat=True))
+    return campana_ids, producto_ids
 
 
 @login_required
@@ -219,7 +234,9 @@ def api_inicio_heatmap(request):
 
     hoy = timezone.localdate()
     desde = hoy - timedelta(days=semanas * 7 - 1)
-    return JsonResponse(services.heatmap_pedidos_hora(desde, hoy))
+    campana_ids, producto_ids = _campana_inicio(request.GET.get('campana', ''))
+    return JsonResponse(services.heatmap_pedidos_hora(
+        desde, hoy, campana_ids=campana_ids, producto_ids=producto_ids))
 
 
 @login_required

@@ -49,6 +49,14 @@ def home(request):
         d_hoy_m=Sum('pedidos__total', filter=Q(pedidos__fecha_pedido__date=hoy)),
     )
 
+    # Campañas para el filtro de los gráficos de publicidad (solo si puede ver ads)
+    from .permisos import puede_ver_ads
+    campanas_ads = []
+    if puede_ver_ads(request.user):
+        from anuncios.models import CampanaMeta
+        campanas_ads = list(CampanaMeta.objects.order_by('campaign_name')
+                            .values('campaign_id', 'campaign_name').distinct())
+
     context = {
         'cap_total': total,
         'cap_done': done,
@@ -58,6 +66,7 @@ def home(request):
         'ped_tot_m': glob['tot_m'] or 0,
         'ped_moneda': moneda,
         'ped_fuentes': fuentes,
+        'campanas_ads': campanas_ads,
     }
     return render(request, 'core/home.html', context)
 

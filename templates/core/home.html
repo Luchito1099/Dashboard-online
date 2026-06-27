@@ -94,6 +94,10 @@
         <option value="preventa">Preventa (conf.+desp.)</option>
         <option value="venta">Venta (entregado)</option>
       </select>
+      <select class="hm2-semanas mp-campana" title="Filtrar por campaña">
+        <option value="">Todas las campañas</option>
+        {% for c in campanas_ads %}<option value="{{ c.campaign_id }}">{{ c.campaign_name|default:"(sin campaña)" }}</option>{% endfor %}
+      </select>
     </div>
   </div>
   <div class="mp-resumen" id="mpResumen"></div>
@@ -109,9 +113,17 @@
       <button type="button" class="mp-pill hm2-metric active" data-metric="pedidos">Pedidos</button>
       <button type="button" class="mp-pill hm2-metric" data-metric="gasto">Gasto Meta</button>
       <select class="hm2-semanas" id="hmSemanas" title="Periodo a promediar">
-        <option value="4">Últimas 4 semanas</option>
+        <option value="1">Última 1 semana</option>
+        <option value="2">Últimas 2 semanas</option>
+        <option value="3">Últimas 3 semanas</option>
+        <option value="4" selected>Últimas 4 semanas</option>
+        <option value="6">Últimas 6 semanas</option>
         <option value="8">Últimas 8 semanas</option>
         <option value="12">Últimas 12 semanas</option>
+      </select>
+      <select class="hm2-semanas hm-campana" title="Filtrar por campaña">
+        <option value="">Todas las campañas</option>
+        {% for c in campanas_ads %}<option value="{{ c.campaign_id }}">{{ c.campaign_name|default:"(sin campaña)" }}</option>{% endfor %}
       </select>
     </div>
   </div>
@@ -177,17 +189,18 @@
 
   let modoActual = 'hoy';
   const selTipo = document.getElementById('mpTipo');
+  const selCampana = card.querySelector('.mp-campana');
 
   // El servidor calcula hoy/7d en hora de Perú; aquí solo mandamos el modo.
   // Para 'rango' enviamos las fechas elegidas (que ya son fechas de calendario locales).
   function paramsDe(modo) {
-    const tipo = `&tipo=${selTipo.value}`;
+    const extra = `&tipo=${selTipo.value}&campana=${encodeURIComponent(selCampana.value)}`;
     if (modo === 'rango') {
       const d = document.getElementById('mpDesde').value;
       const h = document.getElementById('mpHasta').value;
-      return `modo=rango&desde=${d}&hasta=${h || d}${tipo}`;
+      return `modo=rango&desde=${d}&hasta=${h || d}${extra}`;
     }
-    return `modo=${modo}${tipo}`;
+    return `modo=${modo}${extra}`;
   }
 
   function pintar(data) {
@@ -244,6 +257,7 @@
   }));
   document.getElementById('mpAplicar').addEventListener('click', () => cargar('rango'));
   selTipo.addEventListener('change', () => cargar(modoActual));
+  selCampana.addEventListener('change', () => cargar(modoActual));
 
   cargar('hoy');
 })();
@@ -258,6 +272,7 @@
   const grid = document.getElementById('hmGrid');
   const resumen = document.getElementById('hmResumen');
   const selSemanas = document.getElementById('hmSemanas');
+  const selCampana = card.querySelector('.hm-campana');
   let datos = null, metric = 'pedidos';
 
   function pintar() {
@@ -289,7 +304,8 @@
 
   function cargar() {
     resumen.innerHTML = '<span class="mp-gran">Cargando…</span>';
-    fetch(`${base}?semanas=${selSemanas.value}`, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+    const campana = encodeURIComponent(selCampana.value);
+    fetch(`${base}?semanas=${selSemanas.value}&campana=${campana}`, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
       .then(r => r.ok ? r.json() : Promise.reject())
       .then(d => { datos = d; pintar(); })
       .catch(() => { resumen.innerHTML = '<span class="mp-gran">No se pudo cargar.</span>'; });
@@ -302,6 +318,7 @@
     pintar();
   }));
   selSemanas.addEventListener('change', cargar);
+  selCampana.addEventListener('change', cargar);
 
   cargar();
 })();
