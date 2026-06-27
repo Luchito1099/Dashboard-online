@@ -33,6 +33,24 @@ def aplicar_movimiento(producto, almacen, delta, motivo, variante=None,
         pedido=pedido, usuario=usuario, nota=nota[:255])
 
 
+@transaction.atomic
+def fijar_stock(producto, almacen, nuevo, variante=None, usuario=None):
+    """Fija el stock a un valor ABSOLUTO (ajuste manual) y registra el movimiento con el
+    delta. Es idempotente ante guardados concurrentes: ambos dejan el mismo valor final.
+    Devuelve (nuevo, anterior)."""
+    sp, _ = (StockProducto.objects.select_for_update()
+             .get_or_create(producto=producto, variante=variante, almacen=almacen))
+    anterior = sp.cantidad
+    if anterior != nuevo:
+        sp.cantidad = nuevo
+        sp.save(update_fields=['cantidad', 'actualizado'])
+        MovimientoStock.objects.create(
+            producto=producto, variante=variante, almacen=almacen,
+            delta=nuevo - anterior, motivo=MovimientoStock.MOTIVO_AJUSTE,
+            usuario=usuario, nota='Ajuste manual de stock')
+    return nuevo, anterior
+
+
 def stock_total(producto):
     return StockProducto.objects.filter(producto=producto).aggregate(s=Sum('cantidad'))['s'] or 0
 

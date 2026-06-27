@@ -38,7 +38,16 @@ class StockProducto(models.Model):
     actualizado = models.DateTimeField(auto_now=True)
 
     class Meta:
-        unique_together = ('producto', 'variante', 'almacen')
+        # Restricciones parciales: a diferencia de unique_together, sí imponen unicidad
+        # cuando variante es NULL (Postgres trata los NULL como distintos).
+        constraints = [
+            models.UniqueConstraint(
+                fields=['producto', 'almacen'], condition=models.Q(variante__isnull=True),
+                name='uniq_stock_sin_variante'),
+            models.UniqueConstraint(
+                fields=['producto', 'variante', 'almacen'], condition=models.Q(variante__isnull=False),
+                name='uniq_stock_con_variante'),
+        ]
         verbose_name = 'Stock por almacén'
         verbose_name_plural = 'Stock por almacén'
 

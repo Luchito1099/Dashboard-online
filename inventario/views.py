@@ -83,12 +83,11 @@ def ajustar_stock(request):
     except ValueError:
         nuevo = 0
 
-    actual = (StockProducto.objects.filter(producto=producto, variante=variante, almacen=almacen)
-              .values_list('cantidad', flat=True).first() or 0)
-    delta = nuevo - actual
-    if delta != 0:
-        services.aplicar_movimiento(producto, almacen, delta, MovimientoStock.MOTIVO_AJUSTE,
-                                    variante=variante, usuario=request.user, nota='Ajuste manual de stock')
+    # Ajuste manual = fija un valor ABSOLUTO (no suma delta). Así dos guardados casi
+    # simultáneos (Enter) convergen al mismo valor y no se duplica.
+    nuevo, actual = services.fijar_stock(producto, almacen, nuevo, variante=variante,
+                                         usuario=request.user)
+    if actual != nuevo:
         messages.success(request, f'Stock de «{producto.nombre}» en {almacen.nombre}: {actual} → {nuevo}.')
 
     # Guardado fluido (AJAX): devuelve el nuevo total del producto, sin recargar

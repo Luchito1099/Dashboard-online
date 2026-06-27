@@ -93,6 +93,9 @@
   function guardar(inp) {
     var prev = inp.dataset.guardado || inp.defaultValue;
     if (inp.value === prev) return;            // sin cambios reales
+    if (inp.dataset.enviando === '1') return;  // ya hay un guardado en curso (evita dobles)
+    inp.dataset.enviando = '1';
+    inp.dataset.guardado = inp.value;          // marca optimista: deduplica llamadas casi simultáneas
     inp.classList.remove('inv-ok', 'inv-err');
     inp.classList.add('inv-saving');
     fetch(URL, {
@@ -105,9 +108,9 @@
     })
     .then(function (r) { return r.json(); })
     .then(function (j) {
+      inp.dataset.enviando = '';
       inp.classList.remove('inv-saving');
-      if (!j.ok) { inp.classList.add('inv-err'); return; }
-      inp.dataset.guardado = inp.value;
+      if (!j.ok) { inp.classList.add('inv-err'); inp.dataset.guardado = prev; return; }
       inp.classList.add('inv-ok');
       setTimeout(function () { inp.classList.remove('inv-ok'); }, 1200);
       // Total del producto (lo devuelve el servidor, suma todas las variantes)
@@ -122,14 +125,15 @@
         totFila.textContent = s;
       }
     })
-    .catch(function () { inp.classList.remove('inv-saving'); inp.classList.add('inv-err'); });
+    .catch(function () { inp.dataset.enviando = ''; inp.dataset.guardado = prev; inp.classList.remove('inv-saving'); inp.classList.add('inv-err'); });
   }
 
   document.querySelectorAll('.inv-stock-input').forEach(function (inp) {
     inp.dataset.guardado = inp.value;
     inp.addEventListener('change', function () { guardar(inp); });   // al salir / cambiar
     inp.addEventListener('keydown', function (e) {
-      if (e.key === 'Enter') { e.preventDefault(); inp.blur(); guardar(inp); }
+      // Enter solo quita el foco; el evento 'change' resultante hace el único guardado.
+      if (e.key === 'Enter') { e.preventDefault(); inp.blur(); }
     });
   });
 })();
