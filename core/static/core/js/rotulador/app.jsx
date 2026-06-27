@@ -96,9 +96,31 @@ function buildPrintHtml(orders,page,all,totalPages,cfg,logoUrl){
 }
 function doPrint(orders,page,all,totalPages,cfg,logoUrl){
   const html=buildPrintHtml(orders,page,all,totalPages,cfg,logoUrl);
-  const w=window.open("","_blank");
-  if(!w){alert("Activa popups para este sitio e intenta de nuevo.");return;}
-  w.document.write(html);w.document.close();w.focus();setTimeout(()=>w.print(),500);
+  // Imprime desde un IFRAME oculto del mismo documento. Es mucho más fiable que
+  // window.open("")+document.write, que en Chrome moderno suele salir en blanco y
+  // además lo bloquean los popups.
+  const viejo=document.getElementById("rotPrintFrame");
+  if(viejo)viejo.remove();
+  const f=document.createElement("iframe");
+  f.id="rotPrintFrame";
+  f.setAttribute("style","position:fixed;left:-10000px;top:0;width:210mm;height:297mm;border:0;");
+  document.body.appendChild(f);
+  const d=(f.contentWindow||f).document;
+  d.open();d.write(html);d.close();
+  let impreso=false;
+  const lanzar=()=>{
+    if(impreso)return;impreso=true;
+    try{f.contentWindow.focus();f.contentWindow.print();}
+    catch(e){alert("No se pudo abrir la impresión: "+e.message);}
+  };
+  // Espera a que el iframe y sus imágenes (logo) terminen de cargar
+  f.onload=()=>{
+    const imgs=Array.prototype.slice.call(d.images||[]);
+    Promise.all(imgs.map(img=>img.complete?Promise.resolve():new Promise(r=>{img.onload=img.onerror=r;})))
+      .then(()=>setTimeout(lanzar,250));
+  };
+  // Respaldo por si onload no dispara
+  setTimeout(lanzar,1200);
 }
 
 // ── API (backend Django) ──

@@ -70,7 +70,9 @@
       "PowerShell(python manage.py sincronizar_ads --dias 3 2>&1)",
       "PowerShell(python manage.py alertas_ads 2>&1)",
       "Bash(mkdir -p inventario/migrations)",
-      "Bash(touch inventario/__init__.py inventario/migrations/__init__.py)"
+      "Bash(touch inventario/__init__.py inventario/migrations/__init__.py)",
+      "Bash(sed -n '97,124p' core/static/core/js/rotulador/app.jsx)",
+      "Bash(node --check /tmp/doprint_check.js)"
     ]
   }
 }
