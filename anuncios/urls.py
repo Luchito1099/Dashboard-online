@@ -17,6 +17,8 @@ urlpatterns = [
     path('publicidad/ajustes/', views.ajustes, name='ajustes'),
     path('publicidad/cuenta/<int:cuenta_id>/probar/', views.probar_cuenta, name='probar_cuenta'),
     path('publicidad/cuenta/<int:cuenta_id>/sincronizar/', views.sincronizar_cuenta, name='sincronizar_cuenta'),
+    # API para el gráfico del Inicio (Gasto Meta vs Pedidos)
+    path('publicidad/api/inicio-serie/', views.api_inicio_serie, name='api_inicio_serie'),
     # Webhook de n8n (alternativa; la extracción principal es directa a la Graph API)
     path('publicidad/webhook/n8n/', views.webhook_n8n_meta, name='webhook_n8n'),
 ]

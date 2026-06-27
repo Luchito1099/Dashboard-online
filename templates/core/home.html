@@ -76,6 +76,27 @@
   {% endif %}
 </div>
 
+{% if puede_ver_ads %}
+{# ── Gasto Meta vs Pedidos (solo admin/marketing) ── #}
+<div class="meta-ped-card" id="metaPedCard" data-url="{% url 'anuncios:api_inicio_serie' %}">
+  <div class="mp-head">
+    <h3 class="mp-title">📊 Gasto Meta vs Pedidos</h3>
+    <div class="mp-filtros">
+      <button type="button" class="mp-pill active" data-modo="hoy">Hoy (por hora)</button>
+      <button type="button" class="mp-pill" data-modo="7d">7 días</button>
+      <button type="button" class="mp-pill" data-modo="rango">Rango</button>
+      <span class="mp-rango" id="mpRango" hidden>
+        <input type="date" id="mpDesde"> <input type="date" id="mpHasta">
+        <button type="button" class="mp-rango-aplicar" id="mpAplicar">Ver</button>
+      </span>
+    </div>
+  </div>
+  <div class="mp-resumen" id="mpResumen"></div>
+  <div class="mp-canvas-wrap"><canvas id="metaPedChart" height="92"></canvas></div>
+  <div class="mp-vacio" id="mpVacio" hidden>Sin datos en este periodo. La sincronización con Meta corre en segundo plano; vuelve en unos minutos.</div>
+</div>
+{% endif %}
+
 {# Card de progreso de capacitación del día #}
 <a href="{% url 'capacitacion:index' %}" class="cap-card">
   <div class="cap-card-icon">
@@ -115,4 +136,93 @@
   pills.forEach(p => p.addEventListener('click', () => aplicar(p.dataset.modo)));
 })();
 </script>
+
+{% if puede_ver_ads %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<script>
+// ── Gráfico Gasto Meta vs Pedidos (fluido, sin recargar) ──
+(function () {
+  const card = document.getElementById('metaPedCard');
+  if (!card || !window.Chart) return;
+  const base = card.dataset.url;
+  const resumen = document.getElementById('mpResumen');
+  const vacio = document.getElementById('mpVacio');
+  const rangoBox = document.getElementById('mpRango');
+  const canvas = document.getElementById('metaPedChart');
+  let chart = null;
+
+  function ymd(d) { return d.toISOString().slice(0, 10); }
+
+  function rangoDe(modo) {
+    const hoy = new Date();
+    if (modo === '7d') {
+      const ini = new Date(hoy); ini.setDate(hoy.getDate() - 6);
+      return { desde: ymd(ini), hasta: ymd(hoy) };
+    }
+    if (modo === 'rango') {
+      const d = document.getElementById('mpDesde').value;
+      const h = document.getElementById('mpHasta').value;
+      return { desde: d || ymd(hoy), hasta: h || d || ymd(hoy) };
+    }
+    return { desde: ymd(hoy), hasta: ymd(hoy) };   // hoy
+  }
+
+  function pintar(data) {
+    const hayDatos = data.tot_gasto > 0 || data.tot_pedidos > 0;
+    vacio.hidden = hayDatos;
+    canvas.style.display = hayDatos ? '' : 'none';
+    resumen.innerHTML = hayDatos
+      ? `<span class="mp-kpi"><b>${data.moneda} ${data.tot_gasto.toFixed(2)}</b> gasto</span>`
+        + `<span class="mp-kpi"><b>${data.tot_pedidos}</b> pedidos</span>`
+        + `<span class="mp-gran">· por ${data.granularidad === 'hora' ? 'hora' : 'día'}</span>`
+      : '';
+    if (!hayDatos) { if (chart) { chart.destroy(); chart = null; } return; }
+
+    const cfg = {
+      type: 'bar',
+      data: {
+        labels: data.labels,
+        datasets: [
+          { type: 'bar', label: 'Gasto Meta (' + data.moneda + ')', data: data.gasto,
+            backgroundColor: 'rgba(232,131,58,.55)', borderColor: '#e8833a', yAxisID: 'y', order: 2 },
+          { type: 'line', label: 'Pedidos', data: data.pedidos,
+            borderColor: '#22a06b', backgroundColor: 'rgba(34,160,107,.1)', yAxisID: 'y1',
+            tension: .3, order: 1 },
+        ],
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        scales: {
+          y: { type: 'linear', position: 'left', title: { display: true, text: 'Gasto ' + data.moneda }, beginAtZero: true },
+          y1: { type: 'linear', position: 'right', title: { display: true, text: 'Pedidos' },
+                grid: { drawOnChartArea: false }, beginAtZero: true, ticks: { precision: 0 } },
+        },
+      },
+    };
+    if (chart) { chart.data = cfg.data; chart.update(); }
+    else chart = new Chart(canvas, cfg);
+  }
+
+  function cargar(modo) {
+    const { desde, hasta } = rangoDe(modo);
+    resumen.innerHTML = '<span class="mp-gran">Cargando…</span>';
+    fetch(`${base}?desde=${desde}&hasta=${hasta}`, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+      .then(r => r.ok ? r.json() : Promise.reject())
+      .then(pintar)
+      .catch(() => { resumen.innerHTML = '<span class="mp-gran">No se pudo cargar.</span>'; });
+  }
+
+  card.querySelectorAll('.mp-pill').forEach(p => p.addEventListener('click', function () {
+    card.querySelectorAll('.mp-pill').forEach(x => x.classList.remove('active'));
+    p.classList.add('active');
+    rangoBox.hidden = p.dataset.modo !== 'rango';
+    if (p.dataset.modo !== 'rango') cargar(p.dataset.modo);
+  }));
+  document.getElementById('mpAplicar').addEventListener('click', () => cargar('rango'));
+
+  cargar('hoy');
+})();
+</script>
+{% endif %}
 {% endblock %}

@@ -10,6 +10,25 @@
 .config-title { font-size: 20px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
 .config-subtitle { font-size: 13px; color: var(--text-secondary); }
 
+/* ── Pestañas de secciones ── */
+.cfg-tabs {
+  display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 18px;
+  border-bottom: 1px solid var(--border); padding-bottom: 0;
+}
+.cfg-tab {
+  border: none; background: transparent; cursor: pointer; font-family: inherit;
+  font-size: 13.5px; font-weight: 600; color: var(--text-secondary);
+  padding: 9px 16px; border-radius: 8px 8px 0 0; border-bottom: 2px solid transparent;
+  margin-bottom: -1px; transition: color .15s, border-color .15s, background .15s;
+}
+.cfg-tab:hover:not(:disabled) { color: var(--primary); background: var(--bg); }
+.cfg-tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+.cfg-tab-soon { opacity: .5; cursor: not-allowed; }
+
+/* ── Paneles de sección ── */
+.cfg-section { display: none; }
+.cfg-section.active { display: block; }
+
 /* ── Secciones tipo card ── */
 .cfg-card {
   background: var(--surface);

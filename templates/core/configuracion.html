@@ -23,6 +23,17 @@
     <p class="config-subtitle">Gestiona usuarios, roles y los permisos del sistema.</p>
   </div>
 
+  {# ── Pestañas de secciones ── #}
+  <div class="cfg-tabs">
+    <button type="button" class="cfg-tab active" data-sec="usuarios">👥 Usuarios</button>
+    <button type="button" class="cfg-tab" data-sec="permisos">🔐 Permisos</button>
+    <button type="button" class="cfg-tab" data-sec="metas">🎯 Metas</button>
+    <button type="button" class="cfg-tab cfg-tab-soon" disabled title="Próximamente">🤖 IA</button>
+  </div>
+
+  {# ═════════ SECCIÓN: USUARIOS ═════════ #}
+  <div class="cfg-section active" data-sec="usuarios">
+
   <!-- ── CREAR USUARIO ── -->
   <div class="cfg-card">
     <div class="cfg-card-title">Crear usuario</div>
@@ -97,6 +108,11 @@
       </tbody>
     </table>
   </div>
+
+  </div>{# /sección usuarios #}
+
+  {# ═════════ SECCIÓN: PERMISOS ═════════ #}
+  <div class="cfg-section" data-sec="permisos">
 
   <!-- ── LIMITACIONES POR ROL (toggles) ── -->
   <div class="cfg-card">
@@ -254,6 +270,39 @@
     </form>
   </div>
 
+  <!-- ── TABLA INFORMATIVA DE PERMISOS ── -->
+  <div class="cfg-card">
+    <div class="cfg-card-title">Qué puede hacer cada rol</div>
+    <table class="tabla-permisos">
+      <thead>
+        <tr><th>Acción</th><th>Vendedor</th><th>Admin</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Ver Inicio / KPIs</td><td class="{% if config.vendedor_puede_ver_inicio %}si{% else %}no{% endif %}">{% if config.vendedor_puede_ver_inicio %}Sí{% else %}No{% endif %}</td><td class="si">Sí</td></tr>
+        <tr><td>Ver runbook y marcar tareas</td><td class="{% if config.vendedor_puede_ver_capacitacion %}si{% else %}no{% endif %}">{% if config.vendedor_puede_ver_capacitacion %}Sí{% else %}No{% endif %}</td><td class="si">Sí</td></tr>
+        <tr><td>Ver catálogo y fichas rápidas</td><td class="{% if config.vendedor_puede_ver_productos %}si{% else %}no{% endif %}">{% if config.vendedor_puede_ver_productos %}Sí{% else %}No{% endif %}</td><td class="si">Sí</td></tr>
+        <tr><td>Ver Herramientas</td><td class="{% if config.vendedor_puede_ver_herramientas %}si{% else %}no{% endif %}">{% if config.vendedor_puede_ver_herramientas %}Sí{% else %}No{% endif %}</td><td class="si">Sí</td></tr>
+        <tr><td>Ver Pedidos (vista unificada)</td><td class="{% if config.vendedor_puede_ver_pedidos or config.vendedor_puede_editar_pedidos %}si{% else %}no{% endif %}">{% if config.vendedor_puede_ver_pedidos or config.vendedor_puede_editar_pedidos %}Sí{% else %}No{% endif %}</td><td class="si">Sí</td></tr>
+        <tr><td>Editar Pedidos (estado, precio, adelanto)</td><td class="{% if config.vendedor_puede_editar_pedidos %}si{% else %}no{% endif %}">{% if config.vendedor_puede_editar_pedidos %}Sí{% else %}No{% endif %}</td><td class="si">Sí</td></tr>
+        <tr><td>Ver Seguimiento (embudo, estrategia)</td><td class="{% if config.vendedor_puede_ver_seguimiento or config.vendedor_puede_editar_seguimiento %}si{% else %}no{% endif %}">{% if config.vendedor_puede_ver_seguimiento or config.vendedor_puede_editar_seguimiento %}Sí{% else %}No{% endif %}</td><td class="si">Sí</td></tr>
+        <tr><td>Editar Seguimiento</td><td class="{% if config.vendedor_puede_editar_seguimiento %}si{% else %}no{% endif %}">{% if config.vendedor_puede_editar_seguimiento %}Sí{% else %}No{% endif %}</td><td class="si">Sí</td></tr>
+        <tr><td>Registrar pedidos manuales</td><td class="{% if config.vendedor_puede_registrar_pedidos %}si{% else %}no{% endif %}">{% if config.vendedor_puede_registrar_pedidos %}Sí{% else %}No{% endif %}</td><td class="si">Sí</td></tr>
+        <tr><td>Ver Avances (KPIs / funnel)</td><td class="{% if config.vendedor_puede_ver_avances %}si{% else %}no{% endif %}">{% if config.vendedor_puede_ver_avances %}Sí{% else %}No{% endif %}</td><td class="si">Sí</td></tr>
+        <tr><td>Revertir cambios del historial</td><td class="no">No</td><td class="si">Sí</td></tr>
+        <tr><td>Compartir material por WhatsApp</td><td class="{% if config.vendedor_puede_compartir %}si{% else %}no{% endif %}">{% if config.vendedor_puede_compartir %}Sí{% else %}No{% endif %}</td><td class="si">Sí</td></tr>
+        <tr><td>Simular hora / guardar videos</td><td class="si">Sí</td><td class="si">Sí</td></tr>
+        <tr><td>Editar tareas del runbook</td><td class="no">No</td><td class="si">Sí</td></tr>
+        <tr><td>Administrar productos</td><td class="no">No</td><td class="si">Sí</td></tr>
+        <tr><td>Gestionar usuarios y configuración</td><td class="no">No</td><td class="si">Sí</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  </div>{# /sección permisos #}
+
+  {# ═════════ SECCIÓN: METAS ═════════ #}
+  <div class="cfg-section" data-sec="metas">
+
   <!-- ── METAS DIARIAS POR VENDEDOR ── -->
   <div class="cfg-card">
     <div class="cfg-card-title">🎯 Metas diarias por vendedor</div>
@@ -286,38 +335,35 @@
     </form>
   </div>
 
-  <!-- ── TABLA INFORMATIVA DE PERMISOS ── -->
-  <div class="cfg-card">
-    <div class="cfg-card-title">Qué puede hacer cada rol</div>
-    <table class="tabla-permisos">
-      <thead>
-        <tr><th>Acción</th><th>Vendedor</th><th>Admin</th></tr>
-      </thead>
-      <tbody>
-        <tr><td>Ver Inicio / KPIs</td><td class="{% if config.vendedor_puede_ver_inicio %}si{% else %}no{% endif %}">{% if config.vendedor_puede_ver_inicio %}Sí{% else %}No{% endif %}</td><td class="si">Sí</td></tr>
-        <tr><td>Ver runbook y marcar tareas</td><td class="{% if config.vendedor_puede_ver_capacitacion %}si{% else %}no{% endif %}">{% if config.vendedor_puede_ver_capacitacion %}Sí{% else %}No{% endif %}</td><td class="si">Sí</td></tr>
-        <tr><td>Ver catálogo y fichas rápidas</td><td class="{% if config.vendedor_puede_ver_productos %}si{% else %}no{% endif %}">{% if config.vendedor_puede_ver_productos %}Sí{% else %}No{% endif %}</td><td class="si">Sí</td></tr>
-        <tr><td>Ver Herramientas</td><td class="{% if config.vendedor_puede_ver_herramientas %}si{% else %}no{% endif %}">{% if config.vendedor_puede_ver_herramientas %}Sí{% else %}No{% endif %}</td><td class="si">Sí</td></tr>
-        <tr><td>Ver Pedidos (vista unificada)</td><td class="{% if config.vendedor_puede_ver_pedidos or config.vendedor_puede_editar_pedidos %}si{% else %}no{% endif %}">{% if config.vendedor_puede_ver_pedidos or config.vendedor_puede_editar_pedidos %}Sí{% else %}No{% endif %}</td><td class="si">Sí</td></tr>
-        <tr><td>Editar Pedidos (estado, precio, adelanto)</td><td class="{% if config.vendedor_puede_editar_pedidos %}si{% else %}no{% endif %}">{% if config.vendedor_puede_editar_pedidos %}Sí{% else %}No{% endif %}</td><td class="si">Sí</td></tr>
-        <tr><td>Ver Seguimiento (embudo, estrategia)</td><td class="{% if config.vendedor_puede_ver_seguimiento or config.vendedor_puede_editar_seguimiento %}si{% else %}no{% endif %}">{% if config.vendedor_puede_ver_seguimiento or config.vendedor_puede_editar_seguimiento %}Sí{% else %}No{% endif %}</td><td class="si">Sí</td></tr>
-        <tr><td>Editar Seguimiento</td><td class="{% if config.vendedor_puede_editar_seguimiento %}si{% else %}no{% endif %}">{% if config.vendedor_puede_editar_seguimiento %}Sí{% else %}No{% endif %}</td><td class="si">Sí</td></tr>
-        <tr><td>Registrar pedidos manuales</td><td class="{% if config.vendedor_puede_registrar_pedidos %}si{% else %}no{% endif %}">{% if config.vendedor_puede_registrar_pedidos %}Sí{% else %}No{% endif %}</td><td class="si">Sí</td></tr>
-        <tr><td>Ver Avances (KPIs / funnel)</td><td class="{% if config.vendedor_puede_ver_avances %}si{% else %}no{% endif %}">{% if config.vendedor_puede_ver_avances %}Sí{% else %}No{% endif %}</td><td class="si">Sí</td></tr>
-        <tr><td>Revertir cambios del historial</td><td class="no">No</td><td class="si">Sí</td></tr>
-        <tr><td>Compartir material por WhatsApp</td><td class="{% if config.vendedor_puede_compartir %}si{% else %}no{% endif %}">{% if config.vendedor_puede_compartir %}Sí{% else %}No{% endif %}</td><td class="si">Sí</td></tr>
-        <tr><td>Simular hora / guardar videos</td><td class="si">Sí</td><td class="si">Sí</td></tr>
-        <tr><td>Editar tareas del runbook</td><td class="no">No</td><td class="si">Sí</td></tr>
-        <tr><td>Administrar productos</td><td class="no">No</td><td class="si">Sí</td></tr>
-        <tr><td>Gestionar usuarios y configuración</td><td class="no">No</td><td class="si">Sí</td></tr>
-      </tbody>
-    </table>
-  </div>
+  </div>{# /sección metas #}
 
-</div>
+</div>{# /.config #}
 
 {% endblock %}
 
 {% block extra_js %}
 <script src="{% static 'core/js/extras.js' %}"></script>
+<script>
+// Pestañas de Configuración (persistencia en localStorage)
+(function () {
+  const KEY = 'cfg_seccion';
+  const tabs = document.querySelectorAll('.cfg-tab');
+  const secciones = document.querySelectorAll('.cfg-section');
+
+  function mostrar(sec) {
+    tabs.forEach(t => t.classList.toggle('active', t.dataset.sec === sec));
+    secciones.forEach(s => s.classList.toggle('active', s.dataset.sec === sec));
+    localStorage.setItem(KEY, sec);
+  }
+
+  tabs.forEach(t => {
+    if (t.disabled) return;
+    t.addEventListener('click', () => mostrar(t.dataset.sec));
+  });
+
+  // Restaura la última sección abierta (tras guardar y redirigir)
+  const guardado = localStorage.getItem(KEY);
+  if (guardado && document.querySelector(`.cfg-section[data-sec="${guardado}"]`)) mostrar(guardado);
+})();
+</script>
 {% endblock %}

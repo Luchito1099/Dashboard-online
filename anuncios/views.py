@@ -107,7 +107,7 @@ def _filtro_campanas(integracion_id, f_proyecto, f_campana):
 def _auto_sync_si_necesario():
     """Dispara sincronización en background para cuentas con >15 min sin actualizar.
     Se llama desde dashboard(); no bloquea el request."""
-    limite = timezone.now() - timedelta(minutes=15)
+    limite = timezone.now() - timedelta(minutes=30)
     from django.db.models import Q
     cuentas = CuentaPublicitaria.objects.filter(activo=True).exclude(access_token='').filter(
         Q(ultimo_sync_en__isnull=True) | Q(ultimo_sync_en__lt=limite)
@@ -157,6 +157,25 @@ def dashboard(request):
     ctx['pendientes'] = (CampanaMeta.objects.filter(incluir_en_extraccion=True, match__isnull=True)
                          .count())
     return render(request, 'anuncios/dashboard.html', ctx)
+
+
+@login_required
+def api_inicio_serie(request):
+    """JSON para el gráfico del Inicio (Gasto Meta vs Pedidos). Protegido: solo quien
+    puede ver Publicidad (el gasto es sensible). Lee ?desde=&hasta= (YYYY-MM-DD);
+    por defecto, hoy. Dispara el auto-sync para mantener los datos frescos."""
+    if not puede_ver_ads(request.user):
+        return JsonResponse({'error': 'sin permiso'}, status=403)
+
+    from django.utils.dateparse import parse_date
+    hoy = timezone.localdate()
+    desde = parse_date(request.GET.get('desde', '') or '') or hoy
+    hasta = parse_date(request.GET.get('hasta', '') or '') or hoy
+    if hasta < desde:
+        desde, hasta = hasta, desde
+
+    _auto_sync_si_necesario()
+    return JsonResponse(services.serie_meta_vs_pedidos(desde, hasta))
 
 
 # ───────────────────────── Matching producto ↔ anuncio ─────────────────────────

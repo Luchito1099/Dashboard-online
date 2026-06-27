@@ -11,7 +11,7 @@ from decimal import Decimal
 
 from django.conf import settings
 from django.db.models import Sum, Count
-from django.db.models.functions import TruncDate
+from django.db.models.functions import TruncDate, ExtractHour
 from django.utils import timezone
 
 from .models import (CuentaPublicitaria, CampanaMeta, InsightDiarioMeta,
@@ -319,6 +319,82 @@ def heatmap(fecha_ini, fecha_fin, integracion_id=None):
         'filas_gasto': filas_gasto, 'filas_conf': filas_conf,
         'total_gasto': round(sum(c for fila in gasto for c in fila), 2),
         'total_conf': sum(c for fila in conf for c in fila),
+    }
+
+
+# ───────────────────────── Inicio: Gasto Meta vs Pedidos ─────────────────────────
+
+def serie_meta_vs_pedidos(desde, hasta, integracion_id=None):
+    """Serie para el gráfico del Inicio: gasto de Meta vs nº de pedidos.
+    Si el rango es un solo día → granularidad por HORA (0–23, lo más fino que da Meta).
+    Si abarca varios días → granularidad por DÍA. Devuelve un dict listo para Chart.js.
+
+    Nota: la hora de Meta es la de la zona del anunciante y los pedidos se agrupan en
+    America/Lima; el cruce horario es una aproximación de alto nivel."""
+    por_hora = (desde == hasta)
+
+    if por_hora:
+        # ── Gasto Meta por hora ──
+        gi = InsightHorarioMeta.objects.filter(
+            campana__incluir_en_extraccion=True, fecha=desde)
+        if integracion_id:
+            gi = gi.filter(campana__cuenta__integracion_id=integracion_id)
+        gasto_por = {r['hora']: float(r['s'] or 0)
+                     for r in gi.order_by().values('hora').annotate(s=Sum('gasto'))}
+
+        # ── Pedidos por hora (hora local de Perú) ──
+        pi = Pedido.objects.filter(fecha_pedido__date=desde)
+        if integracion_id:
+            pi = pi.filter(integracion_id=integracion_id)
+        ped_por, monto_por = defaultdict(int), defaultdict(float)
+        for r in (pi.order_by().annotate(h=ExtractHour('fecha_pedido'))
+                  .values('h').annotate(n=Count('id'), m=Sum('total'))):
+            ped_por[r['h']] = r['n']
+            monto_por[r['h']] = float(r['m'] or 0)
+
+        labels = [f'{h:02d}h' for h in range(24)]
+        gasto = [round(gasto_por.get(h, 0), 2) for h in range(24)]
+        pedidos = [ped_por.get(h, 0) for h in range(24)]
+        monto = [round(monto_por.get(h, 0), 2) for h in range(24)]
+        granularidad = 'hora'
+    else:
+        # ── Gasto Meta por día ──
+        gi = InsightDiarioMeta.objects.filter(
+            campana__incluir_en_extraccion=True, fecha__range=(desde, hasta))
+        if integracion_id:
+            gi = gi.filter(campana__cuenta__integracion_id=integracion_id)
+        gasto_por = {r['fecha']: float(r['s'] or 0)
+                     for r in gi.order_by().values('fecha').annotate(s=Sum('gasto'))}
+
+        # ── Pedidos por día ──
+        pi = Pedido.objects.filter(fecha_pedido__date__range=(desde, hasta))
+        if integracion_id:
+            pi = pi.filter(integracion_id=integracion_id)
+        ped_por, monto_por = defaultdict(int), defaultdict(float)
+        for r in (pi.order_by().annotate(d=TruncDate('fecha_pedido'))
+                  .values('d').annotate(n=Count('id'), m=Sum('total'))):
+            ped_por[r['d']] = r['n']
+            monto_por[r['d']] = float(r['m'] or 0)
+
+        labels, gasto, pedidos, monto = [], [], [], []
+        dia = desde
+        while dia <= hasta:
+            labels.append(dia.strftime('%d/%m'))
+            gasto.append(round(gasto_por.get(dia, 0), 2))
+            pedidos.append(ped_por.get(dia, 0))
+            monto.append(round(monto_por.get(dia, 0), 2))
+            dia += timedelta(days=1)
+        granularidad = 'dia'
+
+    return {
+        'labels': labels,
+        'gasto': gasto,
+        'pedidos': pedidos,
+        'monto': monto,
+        'granularidad': granularidad,
+        'moneda': moneda_ads(integracion_id),
+        'tot_gasto': round(sum(gasto), 2),
+        'tot_pedidos': sum(pedidos),
     }
 
 
