@@ -88,25 +88,31 @@
       <div class="ads-extraccion-acciones">
         <button type="button" class="btn-probar" id="selTodos">Seleccionar todos</button>
         <button type="button" class="btn-probar" id="selNinguno">Ninguno</button>
+        <button type="button" class="btn-probar" id="adsColapsarTodas">⊟ Colapsar todas</button>
       </div>
       {% endif %}
 
-      {# Agrupado por campaña #}
+      {# Agrupado por campaña (colapsable) #}
       {% regroup anuncios by campaign_name as grupos %}
       {% for g in grupos %}
-      <div class="ads-campana">
+      <div class="ads-campana ads-camp-colap collapsed" data-camp="{{ forloop.counter }}">
         <div class="ads-campana-head" style="display:flex;align-items:center;gap:10px;justify-content:space-between;">
-          <label class="ads-campana-titulo">
-            <input type="checkbox" class="js-camp-all" data-camp="{{ forloop.counter }}">
+          <span class="ads-camp-toggle js-camp-toggle" title="Click para abrir/cerrar">
+            <svg class="pa-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg>
             📁 {{ g.grouper|default:"(sin campaña)" }}
-            <span class="ads-nota-inline">· {{ g.list|length }} anuncio(s)</span>
-          </label>
-          <input type="text" name="proyecto_camp_{{ g.list.0.campaign_id }}" value="{{ g.list.0.proyecto }}"
-                 placeholder="🗂 proyecto de la campaña" class="ads-etiqueta" style="width:180px;" title="Proyecto al que pertenece esta campaña">
+            <span class="ads-camp-contador" data-total="{{ g.list|length }}">· 0 de {{ g.list|length }} seleccionados</span>
+          </span>
+          <span style="display:flex;align-items:center;gap:8px;" onclick="event.stopPropagation();">
+            <label class="ads-nota-inline" style="display:flex;align-items:center;gap:4px;cursor:pointer;">
+              <input type="checkbox" class="js-camp-all" data-camp="{{ forloop.counter }}"> todos
+            </label>
+            <input type="text" name="proyecto_camp_{{ g.list.0.campaign_id }}" value="{{ g.list.0.proyecto }}"
+                   placeholder="🗂 proyecto de la campaña" class="ads-etiqueta" style="width:180px;" title="Proyecto al que pertenece esta campaña">
+          </span>
         </div>
         <div class="ads-extraccion">
           {% for a in g.list %}
-          <div class="ads-extraccion-item">
+          <div class="ads-extraccion-item {% if a.incluir_en_extraccion %}ads-sel{% endif %}">
             <label class="ads-ad-check">
               <input type="checkbox" name="incluir" value="{{ a.id }}" class="js-ad" data-camp="{{ forloop.parentloop.counter }}" {% if a.incluir_en_extraccion %}checked{% endif %}>
               <span class="ads-ad-nombre">{{ a.ad_name|default:a.adset_name|default:a.ad_id }}</span>
@@ -146,11 +152,32 @@
 {% block extra_js %}
 <script>
 (function () {
+  // Actualiza el contador "X de Y" y el resaltado de cada campaña
+  function refrescarCamp(camp) {
+    var grupo = document.querySelector('.ads-camp-colap[data-camp="' + camp + '"]');
+    if (!grupo) return;
+    var checks = grupo.querySelectorAll('input.js-ad');
+    var sel = 0;
+    checks.forEach(function (ch) {
+      ch.closest('.ads-extraccion-item').classList.toggle('ads-sel', ch.checked);
+      if (ch.checked) sel++;
+    });
+    var cont = grupo.querySelector('.ads-camp-contador');
+    if (cont) cont.textContent = '· ' + sel + ' de ' + cont.dataset.total + ' seleccionados';
+    // Sincroniza el check "todos" de la campaña
+    var todosCamp = grupo.querySelector('input.js-camp-all');
+    if (todosCamp) todosCamp.checked = sel === checks.length && checks.length > 0;
+  }
+  function refrescarTodas() {
+    document.querySelectorAll('.ads-camp-colap').forEach(function (g) { refrescarCamp(g.dataset.camp); });
+  }
+
+  // Seleccionar todos / ninguno (global)
   var todos = document.getElementById('selTodos');
   var ninguno = document.getElementById('selNinguno');
   function marcar(v) {
     document.querySelectorAll('#formExtraccion input.js-ad').forEach(function (ch) { ch.checked = v; });
-    document.querySelectorAll('#formExtraccion input.js-camp-all').forEach(function (ch) { ch.checked = v; });
+    refrescarTodas();
   }
   if (todos) todos.addEventListener('click', function () { marcar(true); });
   if (ninguno) ninguno.addEventListener('click', function () { marcar(false); });
@@ -160,8 +187,32 @@
     cab.addEventListener('change', function () {
       document.querySelectorAll('#formExtraccion input.js-ad[data-camp="' + cab.dataset.camp + '"]')
         .forEach(function (ch) { ch.checked = cab.checked; });
+      refrescarCamp(cab.dataset.camp);
     });
   });
+
+  // Cada checkbox de anuncio actualiza su contador
+  document.querySelectorAll('#formExtraccion input.js-ad').forEach(function (ch) {
+    ch.addEventListener('change', function () { refrescarCamp(ch.dataset.camp); });
+  });
+
+  // Colapsar / expandir una campaña (click en la cabecera izquierda)
+  document.querySelectorAll('.js-camp-toggle').forEach(function (head) {
+    head.addEventListener('click', function () {
+      head.closest('.ads-camp-colap').classList.toggle('collapsed');
+    });
+  });
+
+  // Colapsar / expandir todas
+  var colTodas = document.getElementById('adsColapsarTodas');
+  if (colTodas) colTodas.addEventListener('click', function () {
+    var grupos = document.querySelectorAll('.ads-camp-colap');
+    var algunaAbierta = [].some.call(grupos, function (g) { return !g.classList.contains('collapsed'); });
+    grupos.forEach(function (g) { g.classList.toggle('collapsed', algunaAbierta); });
+    colTodas.textContent = algunaAbierta ? '⊞ Expandir todas' : '⊟ Colapsar todas';
+  });
+
+  refrescarTodas();
 })();
 </script>
 {% endblock %}

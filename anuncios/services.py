@@ -21,7 +21,12 @@ from .models import (CuentaPublicitaria, CampanaMeta, InsightDiarioMeta,
 from integraciones.models import Pedido, PedidoEditLog
 
 ESTADOS_CONFIRMADOS = [Pedido.ESTADO_CONFIRMADO, Pedido.ESTADO_DESPACHADO, Pedido.ESTADO_ENTREGADO]
+# Etapas para el análisis de CPA/ROAS:
+#   preventa = confirmado + despachado · venta = entregado · ambos = los tres
+ESTADOS_PREVENTA = [Pedido.ESTADO_CONFIRMADO, Pedido.ESTADO_DESPACHADO]
+ESTADOS_VENTA = [Pedido.ESTADO_ENTREGADO]
 LABEL_CONFIRMADO = dict(Pedido.ESTADO_CHOICES)[Pedido.ESTADO_CONFIRMADO]   # 'Pedido confirmado'
+LABEL_DESPACHADO = dict(Pedido.ESTADO_CHOICES)[Pedido.ESTADO_DESPACHADO]   # 'Despachado / En camino'
 LABEL_ENTREGADO = dict(Pedido.ESTADO_CHOICES)[Pedido.ESTADO_ENTREGADO]     # 'Entregado'
 
 
@@ -142,20 +147,23 @@ def serie_diaria(fecha_ini, fecha_fin, integracion_id=None, campana_ids=None, pr
     gasto_por_dia = {r['fecha']: r['s'] for r in
                      gasto_qs.order_by().values('fecha').annotate(s=Sum('gasto'))}
 
-    # Confirmados / entregados por día (cuándo el pedido alcanzó ese estado)
+    # Confirmados / despachados / entregados por día (cuándo el pedido alcanzó ese estado)
     logs = PedidoEditLog.objects.filter(
-        campo_modificado='estado', valor_nuevo__in=[LABEL_CONFIRMADO, LABEL_ENTREGADO],
+        campo_modificado='estado',
+        valor_nuevo__in=[LABEL_CONFIRMADO, LABEL_DESPACHADO, LABEL_ENTREGADO],
         timestamp__date__range=(fecha_ini, fecha_fin))
     if producto_ids is not None:
         ped_ids = Pedido.objects.filter(items__producto__in=producto_ids).values('id')
         logs = logs.filter(pedido_id__in=ped_ids)
     elif integracion_id:
         logs = logs.filter(pedido__integracion_id=integracion_id)
-    conf_por_dia, entr_por_dia = defaultdict(int), defaultdict(int)
+    conf_por_dia, desp_por_dia, entr_por_dia = defaultdict(int), defaultdict(int), defaultdict(int)
     for r in (logs.order_by().annotate(d=TruncDate('timestamp'))
               .values('d', 'valor_nuevo').annotate(n=Count('id'))):
         if r['valor_nuevo'] == LABEL_CONFIRMADO:
             conf_por_dia[r['d']] += r['n']
+        elif r['valor_nuevo'] == LABEL_DESPACHADO:
+            desp_por_dia[r['d']] += r['n']
         else:
             entr_por_dia[r['d']] += r['n']
 
@@ -166,6 +174,7 @@ def serie_diaria(fecha_ini, fecha_fin, integracion_id=None, campana_ids=None, pr
             'fecha': dia,
             'gasto': float(gasto_por_dia.get(dia, 0) or 0),
             'confirmados': conf_por_dia.get(dia, 0),
+            'despachados': desp_por_dia.get(dia, 0),
             'entregados': entr_por_dia.get(dia, 0),
         })
         dia += timedelta(days=1)
@@ -201,13 +210,27 @@ def tabla_productos(fecha_ini, fecha_fin, integracion_id=None):
         if integracion_id:
             base = base.filter(integracion_id=integracion_id)
         base = base.distinct()
-        confirmados = base.filter(estado__in=ESTADOS_CONFIRMADOS).count()
-        entregados_qs = base.filter(estado=Pedido.ESTADO_ENTREGADO)
-        entregados = entregados_qs.count()
-        ingreso = float(entregados_qs.aggregate(s=Sum('total'))['s'] or 0)
 
-        cpa_real = round(gasto / entregados, 2) if entregados else None
-        roas_real = round(ingreso / gasto, 2) if gasto else None
+        # Conteo + ingreso por etapa (mismo rango de fechas que el gasto)
+        def _etapa(estados):
+            qs = base.filter(estado__in=estados)
+            return qs.count(), float(qs.aggregate(s=Sum('total'))['s'] or 0)
+
+        n_preventa, ing_preventa = _etapa(ESTADOS_PREVENTA)
+        n_venta, ing_venta = _etapa(ESTADOS_VENTA)
+        n_ambos, ing_ambos = _etapa(ESTADOS_CONFIRMADOS)
+
+        def _cpa(n):
+            return round(gasto / n, 2) if n else None
+
+        def _roas(ing):
+            return round(ing / gasto, 2) if gasto else None
+
+        # Compatibilidad: confirmados = preventa+venta (lo que antes era "confirmados"),
+        # entregados = venta. Las métricas por defecto siguen siendo de venta (entregado).
+        confirmados = n_ambos
+        entregados = n_venta
+        ingreso = ing_venta
         # % de caída entre etapas
         caida_conf = round((1 - confirmados / meta_atribuidos) * 100) if meta_atribuidos else None
         caida_entr = round((1 - entregados / confirmados) * 100) if confirmados else None
@@ -215,12 +238,17 @@ def tabla_productos(fecha_ini, fecha_fin, integracion_id=None):
         filas.append({
             'producto': producto, 'gasto': gasto, 'meta_atribuidos': meta_atribuidos,
             'confirmados': confirmados, 'entregados': entregados, 'ingreso': ingreso,
-            'cpa_real': cpa_real, 'roas_real': roas_real,
+            # Métricas por etapa (para el selector Preventa / Venta / Ambos)
+            'n_preventa': n_preventa, 'n_venta': n_venta, 'n_ambos': n_ambos,
+            'cpa_preventa': _cpa(n_preventa), 'cpa_venta': _cpa(n_venta), 'cpa_ambos': _cpa(n_ambos),
+            'roas_preventa': _roas(ing_preventa), 'roas_venta': _roas(ing_venta), 'roas_ambos': _roas(ing_ambos),
+            # Por defecto = venta (comportamiento anterior)
+            'cpa_real': _cpa(n_venta), 'roas_real': _roas(ing_venta),
             'caida_conf': caida_conf, 'caida_entr': caida_entr,
             'n_anuncios': len(campana_ids),
         })
-    # Orden por ROAS real (los None al final), luego por gasto
-    filas.sort(key=lambda f: (f['roas_real'] is None, -(f['roas_real'] or 0), -f['gasto']))
+    # Orden por ROAS de venta (los None al final), luego por gasto
+    filas.sort(key=lambda f: (f['roas_venta'] is None, -(f['roas_venta'] or 0), -f['gasto']))
     return filas
 
 
@@ -324,10 +352,22 @@ def heatmap(fecha_ini, fecha_fin, integracion_id=None):
 
 # ───────────────────────── Inicio: Gasto Meta vs Pedidos ─────────────────────────
 
-def serie_meta_vs_pedidos(desde, hasta, integracion_id=None):
+def _estados_tipo(tipo):
+    """Mapa de etapa → lista de estados para filtrar pedidos. 'todos' = sin filtro."""
+    if tipo == 'preventa':
+        return ESTADOS_PREVENTA
+    if tipo == 'venta':
+        return ESTADOS_VENTA
+    return None   # todos
+
+
+def serie_meta_vs_pedidos(desde, hasta, integracion_id=None, tipo='todos'):
     """Serie para el gráfico del Inicio: gasto de Meta vs nº de pedidos.
     Si el rango es un solo día → granularidad por HORA (0–23, lo más fino que da Meta).
     Si abarca varios días → granularidad por DÍA. Devuelve un dict listo para Chart.js.
+
+    `tipo` filtra el conteo de pedidos por etapa: 'todos' (cualquier estado),
+    'preventa' (confirmado+despachado) o 'venta' (entregado).
 
     A diferencia de los dashboards de análisis, aquí se muestra el gasto TOTAL de Meta
     (no se filtra por incluir_en_extraccion): el Inicio es una vista de negocio.
@@ -335,6 +375,7 @@ def serie_meta_vs_pedidos(desde, hasta, integracion_id=None):
     Nota: la hora de los pedidos se agrupa en America/Lima; la hora de Meta es la de la
     zona del anunciante, así que el cruce horario es una aproximación de alto nivel."""
     por_hora = (desde == hasta)
+    estados = _estados_tipo(tipo)
 
     if por_hora:
         # ── Gasto Meta por hora (todo el gasto, sin filtro de análisis) ──
@@ -346,6 +387,8 @@ def serie_meta_vs_pedidos(desde, hasta, integracion_id=None):
 
         # ── Pedidos por hora (hora local de Perú) ──
         pi = Pedido.objects.filter(fecha_pedido__date=desde)
+        if estados is not None:
+            pi = pi.filter(estado__in=estados)
         if integracion_id:
             pi = pi.filter(integracion_id=integracion_id)
         ped_por, monto_por = defaultdict(int), defaultdict(float)
@@ -369,6 +412,8 @@ def serie_meta_vs_pedidos(desde, hasta, integracion_id=None):
 
         # ── Pedidos por día ──
         pi = Pedido.objects.filter(fecha_pedido__date__range=(desde, hasta))
+        if estados is not None:
+            pi = pi.filter(estado__in=estados)
         if integracion_id:
             pi = pi.filter(integracion_id=integracion_id)
         ped_por, monto_por = defaultdict(int), defaultdict(float)

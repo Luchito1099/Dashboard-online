@@ -1,16 +1,30 @@
-{% comment %} Tabla por producto: embudo, CPA real y ROAS real {% endcomment %}
+{% comment %} Tabla por producto: embudo, CPA real y ROAS real con selector de etapa {% endcomment %}
+<div class="ads-etapa-bar">
+  <span class="ads-etapa-lbl">CPA / ROAS según:</span>
+  <div class="ads-etapa-pills" id="adsEtapa">
+    <button type="button" class="ads-etapa-pill" data-etapa="preventa">Preventa</button>
+    <button type="button" class="ads-etapa-pill active" data-etapa="venta">Venta</button>
+    <button type="button" class="ads-etapa-pill" data-etapa="ambos">Ambos</button>
+  </div>
+  <span class="ads-nota-inline" id="adsEtapaHint">Venta = entregado</span>
+</div>
+
 <div class="ped-tabla-wrap">
-  <table class="ped-tabla">
+  <table class="ped-tabla" id="adsTablaProd">
     <thead>
       <tr>
         <th>Producto</th><th class="ped-num">Gasto</th><th class="ped-num">Meta dice</th>
-        <th class="ped-num">Confirmados</th><th class="ped-num">Entregados</th>
-        <th class="ped-num">% caída</th><th class="ped-num">CPA real</th><th class="ped-num">ROAS real</th>
+        <th class="ped-num">Confirmados</th><th class="ped-num">Despachados</th><th class="ped-num">Entregados</th>
+        <th class="ped-num">N (<span class="ads-etapa-txt">venta</span>)</th>
+        <th class="ped-num">CPA real</th><th class="ped-num">ROAS real</th>
       </tr>
     </thead>
     <tbody>
       {% for f in filas %}
-      <tr>
+      <tr
+        data-n-preventa="{{ f.n_preventa }}" data-n-venta="{{ f.n_venta }}" data-n-ambos="{{ f.n_ambos }}"
+        data-cpa-preventa="{{ f.cpa_preventa|default_if_none:'' }}" data-cpa-venta="{{ f.cpa_venta|default_if_none:'' }}" data-cpa-ambos="{{ f.cpa_ambos|default_if_none:'' }}"
+        data-roas-preventa="{{ f.roas_preventa|default_if_none:'' }}" data-roas-venta="{{ f.roas_venta|default_if_none:'' }}" data-roas-ambos="{{ f.roas_ambos|default_if_none:'' }}">
         <td>
           <div class="ped-cliente-nombre">{{ f.producto.nombre }}</div>
           <div class="ped-editado-fecha">{{ f.n_anuncios }} anuncio(s)</div>
@@ -18,22 +32,55 @@
         <td class="ped-num">{{ moneda }} {{ f.gasto|floatformat:2 }}</td>
         <td class="ped-num">{{ f.meta_atribuidos }}</td>
         <td class="ped-num">{{ f.confirmados }}{% if f.caida_conf != None %} <span class="ads-caida">↓{{ f.caida_conf }}%</span>{% endif %}</td>
+        <td class="ped-num">{{ f.n_preventa }}</td>
         <td class="ped-num">{{ f.entregados }}{% if f.caida_entr != None %} <span class="ads-caida">↓{{ f.caida_entr }}%</span>{% endif %}</td>
-        <td class="ped-num">
-          {% if f.caida_conf != None %}{{ f.caida_conf }}% / {% endif %}{% if f.caida_entr != None %}{{ f.caida_entr }}%{% else %}—{% endif %}
-        </td>
-        <td class="ped-num">{% if f.cpa_real != None %}{{ moneda }} {{ f.cpa_real }}{% else %}—{% endif %}</td>
-        <td class="ped-num">
-          {% if f.roas_real != None %}<span class="ads-roas {% if f.roas_real >= 1 %}ok{% else %}bad{% endif %}">{{ f.roas_real }}x</span>{% else %}—{% endif %}
+        <td class="ped-num ads-cell-n">{{ f.n_venta }}</td>
+        <td class="ped-num ads-cell-cpa">{% if f.cpa_venta != None %}{{ moneda }} {{ f.cpa_venta }}{% else %}—{% endif %}</td>
+        <td class="ped-num ads-cell-roas">
+          {% if f.roas_venta != None %}<span class="ads-roas {% if f.roas_venta >= 1 %}ok{% else %}bad{% endif %}">{{ f.roas_venta }}x</span>{% else %}—{% endif %}
         </td>
       </tr>
       {% empty %}
-      <tr><td colspan="8" class="integ-vacio-cell">No hay productos con anuncios casados todavía. Ve a «Matching».</td></tr>
+      <tr><td colspan="9" class="integ-vacio-cell">No hay productos con anuncios casados todavía. Ve a «Matching».</td></tr>
       {% endfor %}
     </tbody>
   </table>
 </div>
-<p class="ads-nota">CPA real = gasto ÷ entregados (no por clicks). ROAS real = ingreso de entregados ÷ gasto. Ordenado por ROAS real.</p>
+<p class="ads-nota">CPA real = gasto ÷ N de la etapa elegida. ROAS real = ingreso de la etapa ÷ gasto.
+  <b>Preventa</b> = confirmado + despachado · <b>Venta</b> = entregado · <b>Ambos</b> = los tres.
+  Los pedidos se cuentan por su fecha de creación dentro del rango (mismo periodo que el gasto).</p>
 <p class="ads-nota">¿Confirmados/entregados en 0? Es que los productos de tus <b>pedidos</b> aún no están vinculados al catálogo.
   Hazlo en <a href="{% url 'productos:reconocer' %}"><b>Productos › Reconocer de pedidos</b></a> y volverá a cuadrar.
   ⚠️ Ojo: el gasto está en USD y los ingresos de pedidos en soles; el ROAS mezcla monedas hasta que configuremos el tipo de cambio.</p>
+
+<script>
+(function () {
+  const moneda = '{{ moneda }}';
+  const hints = { preventa: 'Preventa = confirmado + despachado', venta: 'Venta = entregado', ambos: 'Ambos = confirmado + despachado + entregado' };
+  const pills = document.querySelectorAll('#adsEtapa .ads-etapa-pill');
+
+  function aplicar(etapa) {
+    document.getElementById('adsEtapaHint').textContent = hints[etapa];
+    document.querySelectorAll('#adsTablaProd .ads-etapa-txt').forEach(e => e.textContent = etapa);
+    document.querySelectorAll('#adsTablaProd tbody tr').forEach(function (tr) {
+      if (!tr.dataset.nVenta && tr.dataset.nVenta !== '0') return;   // fila vacía
+      const n = tr.dataset['n' + etapa.charAt(0).toUpperCase() + etapa.slice(1)];
+      const cpa = tr.dataset['cpa' + etapa.charAt(0).toUpperCase() + etapa.slice(1)];
+      const roas = tr.dataset['roas' + etapa.charAt(0).toUpperCase() + etapa.slice(1)];
+      const cN = tr.querySelector('.ads-cell-n');
+      const cCpa = tr.querySelector('.ads-cell-cpa');
+      const cRoas = tr.querySelector('.ads-cell-roas');
+      if (cN) cN.textContent = n || '0';
+      if (cCpa) cCpa.textContent = cpa ? `${moneda} ${cpa}` : '—';
+      if (cRoas) {
+        cRoas.innerHTML = roas
+          ? `<span class="ads-roas ${parseFloat(roas) >= 1 ? 'ok' : 'bad'}">${roas}x</span>`
+          : '—';
+      }
+    });
+    pills.forEach(p => p.classList.toggle('active', p.dataset.etapa === etapa));
+  }
+
+  pills.forEach(p => p.addEventListener('click', () => aplicar(p.dataset.etapa)));
+})();
+</script>

@@ -108,6 +108,38 @@
 .btn-danger-sm:hover { background: var(--error); color: #fff; }
 .hidden { display: none; }
 
+/* ── Selector de etapa (Por producto: Preventa/Venta/Ambos) ── */
+.ads-etapa-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
+.ads-etapa-lbl { font-size: 12px; font-weight: 700; color: var(--text-secondary); }
+.ads-etapa-pills { display: inline-flex; background: var(--surface); border: 1px solid var(--border); border-radius: 999px; padding: 3px; }
+.ads-etapa-pill {
+  border: none; background: transparent; cursor: pointer; font-family: inherit;
+  font-size: 12.5px; font-weight: 600; color: var(--text-secondary);
+  padding: 5px 14px; border-radius: 999px; transition: background .15s, color .15s;
+}
+.ads-etapa-pill.active { background: var(--primary); color: #fff; }
+
+/* ── Botones rápidos de rango (dashboard) ── */
+.ads-rango-btns { display: inline-flex; gap: 4px; }
+.ads-rango-btn {
+  border: 1px solid var(--border-dark); background: var(--surface); color: var(--text-secondary);
+  font-family: inherit; font-size: 12.5px; font-weight: 600; padding: 7px 12px;
+  border-radius: 8px; cursor: pointer; transition: all .15s;
+}
+.ads-rango-btn:hover { border-color: var(--primary); color: var(--primary); }
+.ads-fijar.activo { border-color: var(--primary); color: var(--primary); font-weight: 700; }
+
+/* KPI despachados */
+.ped-kpi-num.azul { color: #3b82f6; }
+
+/* ── Ajustes: campañas colapsables + selección visible ── */
+.ads-camp-toggle { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; font-size: 13px; font-weight: 700; color: var(--text); }
+.ads-camp-toggle .pa-chevron { width: 14px; height: 14px; color: var(--muted); transition: transform .2s; }
+.ads-camp-colap:not(.collapsed) .ads-camp-toggle .pa-chevron { transform: rotate(90deg); }
+.ads-camp-colap.collapsed .ads-extraccion { display: none; }
+.ads-camp-contador { font-size: 11.5px; font-weight: 500; color: var(--muted); }
+.ads-extraccion-item.ads-sel { border-color: var(--primary); background: var(--primary-bg, oklch(62% 0.18 195 / 0.06)); }
+
 @media (max-width: 700px) {
   .match-card { grid-template-columns: 1fr; }
 }

@@ -15,6 +15,8 @@ class Perfil(models.Model):
     activo = models.BooleanField(default=True)
     # Filtro fijado del módulo Pedidos (querystring), atado al usuario y portable entre dispositivos
     pedidos_filtro = models.TextField(blank=True, default='')
+    # Filtro fijado del dashboard de Publicidad (mismo mecanismo)
+    ads_filtro = models.TextField(blank=True, default='')
 
     class Meta:
         verbose_name = 'Perfil'

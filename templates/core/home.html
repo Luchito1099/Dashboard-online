@@ -89,6 +89,11 @@
         <input type="date" id="mpDesde"> <input type="date" id="mpHasta">
         <button type="button" class="mp-rango-aplicar" id="mpAplicar">Ver</button>
       </span>
+      <select class="hm2-semanas" id="mpTipo" title="Qué pedidos contar">
+        <option value="todos">Todos los pedidos</option>
+        <option value="preventa">Preventa (conf.+desp.)</option>
+        <option value="venta">Venta (entregado)</option>
+      </select>
     </div>
   </div>
   <div class="mp-resumen" id="mpResumen"></div>
@@ -170,15 +175,19 @@
   const canvas = document.getElementById('metaPedChart');
   let chart = null;
 
+  let modoActual = 'hoy';
+  const selTipo = document.getElementById('mpTipo');
+
   // El servidor calcula hoy/7d en hora de Perú; aquí solo mandamos el modo.
   // Para 'rango' enviamos las fechas elegidas (que ya son fechas de calendario locales).
   function paramsDe(modo) {
+    const tipo = `&tipo=${selTipo.value}`;
     if (modo === 'rango') {
       const d = document.getElementById('mpDesde').value;
       const h = document.getElementById('mpHasta').value;
-      return `modo=rango&desde=${d}&hasta=${h || d}`;
+      return `modo=rango&desde=${d}&hasta=${h || d}${tipo}`;
     }
-    return `modo=${modo}`;
+    return `modo=${modo}${tipo}`;
   }
 
   function pintar(data) {
@@ -219,6 +228,7 @@
   }
 
   function cargar(modo) {
+    modoActual = modo;
     resumen.innerHTML = '<span class="mp-gran">Cargando…</span>';
     fetch(`${base}?${paramsDe(modo)}`, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
       .then(r => r.ok ? r.json() : Promise.reject())
@@ -233,6 +243,7 @@
     if (p.dataset.modo !== 'rango') cargar(p.dataset.modo);
   }));
   document.getElementById('mpAplicar').addEventListener('click', () => cargar('rango'));
+  selTipo.addEventListener('change', () => cargar(modoActual));
 
   cargar('hoy');
 })();

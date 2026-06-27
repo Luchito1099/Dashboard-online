@@ -13,6 +13,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.http import JsonResponse, HttpResponse, HttpResponseNotAllowed
+from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 
@@ -127,7 +128,13 @@ def dashboard(request):
         messages.error(request, 'No tienes permisos para ver Publicidad.')
         return redirect(destino_vendedor(request.user))
 
-    # Auto-sync: si alguna cuenta tiene >15 min sin actualizar, dispara en background
+    # Filtro fijado por el usuario: al entrar sin parámetros, se aplica solo.
+    from core.models import Perfil
+    perfil, _ = Perfil.objects.get_or_create(usuario=request.user)
+    if not request.GET and perfil.ads_filtro:
+        return redirect(f"{reverse('anuncios:dashboard')}?{perfil.ads_filtro}")
+
+    # Auto-sync: si alguna cuenta tiene >30 min sin actualizar, dispara en background
     _auto_sync_si_necesario()
 
     vista = request.GET.get('vista', 'diario')
@@ -146,9 +153,11 @@ def dashboard(request):
         ctx['serie'] = serie
         ctx['serie_json'] = json.dumps([
             {'fecha': s['fecha'].strftime('%d/%m'), 'gasto': s['gasto'],
-             'confirmados': s['confirmados'], 'entregados': s['entregados']} for s in serie])
+             'confirmados': s['confirmados'], 'despachados': s['despachados'],
+             'entregados': s['entregados']} for s in serie])
         ctx['tot_gasto'] = round(sum(s['gasto'] for s in serie), 2)
         ctx['tot_conf'] = sum(s['confirmados'] for s in serie)
+        ctx['tot_desp'] = sum(s['despachados'] for s in serie)
         ctx['tot_entr'] = sum(s['entregados'] for s in serie)
         ctx['campanas'] = services.tabla_campanas(desde, hasta, integracion_id, campana_ids)
         ctx['hay_datos'] = ctx['tot_gasto'] > 0 or ctx['tot_conf'] > 0
@@ -156,6 +165,7 @@ def dashboard(request):
     # contador de matching pendiente (para el badge)
     ctx['pendientes'] = (CampanaMeta.objects.filter(incluir_en_extraccion=True, match__isnull=True)
                          .count())
+    ctx['filtro_fijado'] = bool(perfil.ads_filtro)
     return render(request, 'anuncios/dashboard.html', ctx)
 
 
@@ -186,8 +196,12 @@ def api_inicio_serie(request):
     else:   # hoy
         desde = hasta = hoy
 
+    tipo = request.GET.get('tipo', 'todos')
+    if tipo not in ('todos', 'preventa', 'venta'):
+        tipo = 'todos'
+
     _auto_sync_si_necesario()
-    return JsonResponse(services.serie_meta_vs_pedidos(desde, hasta))
+    return JsonResponse(services.serie_meta_vs_pedidos(desde, hasta, tipo=tipo))
 
 
 @login_required
@@ -206,6 +220,22 @@ def api_inicio_heatmap(request):
     hoy = timezone.localdate()
     desde = hoy - timedelta(days=semanas * 7 - 1)
     return JsonResponse(services.heatmap_pedidos_hora(desde, hoy))
+
+
+@login_required
+def fijar_filtro(request):
+    """Fija (o limpia) el filtro del dashboard de Publicidad para el usuario actual.
+    POST con 'qs' = querystring a recordar (vacío = limpiar). Espejo de
+    integraciones.views.pedido_filtro."""
+    if request.method != 'POST':
+        return HttpResponseNotAllowed(['POST'])
+    if not puede_ver_ads(request.user):
+        return JsonResponse({'error': 'sin permiso'}, status=403)
+    from core.models import Perfil
+    perfil, _ = Perfil.objects.get_or_create(usuario=request.user)
+    perfil.ads_filtro = (request.POST.get('qs') or '').strip().lstrip('?')[:2000]
+    perfil.save(update_fields=['ads_filtro'])
+    return JsonResponse({'ok': True, 'fijado': bool(perfil.ads_filtro)})
 
 
 # ───────────────────────── Matching producto ↔ anuncio ─────────────────────────

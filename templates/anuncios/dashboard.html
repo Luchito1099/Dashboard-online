@@ -37,7 +37,7 @@
   {% endwith %}
 
   {# ── Filtros ── #}
-  <form method="get" class="ped-filtros">
+  <form method="get" class="ped-filtros" id="adsFiltros">
     <input type="hidden" name="vista" value="{{ vista }}">
     <select name="tienda" onchange="this.form.submit()">
       <option value="">Todas las tiendas</option>
@@ -57,10 +57,21 @@
       <option value="{{ c.campaign_id }}" {% if f_campana == c.campaign_id %}selected{% endif %}>{{ c.campaign_name|default:"(sin campaña)" }}</option>
       {% endfor %}
     </select>
+    {# Botones rápidos de rango (rellenan desde/hasta y envían) #}
+    <div class="ads-rango-btns" id="adsRangoBtns">
+      <button type="button" class="ads-rango-btn" data-rango="hoy">Hoy</button>
+      <button type="button" class="ads-rango-btn" data-rango="7d">7d</button>
+      <button type="button" class="ads-rango-btn" data-rango="30d">30d</button>
+      <button type="button" class="ads-rango-btn" data-rango="todo">Todo</button>
+    </div>
     <div class="ped-fechas">
       <label>Desde <input type="date" name="desde" value="{{ f_desde }}" onchange="this.form.submit()"></label>
       <label>Hasta <input type="date" name="hasta" value="{{ f_hasta }}" onchange="this.form.submit()"></label>
     </div>
+    <button type="button" class="btn-probar ads-fijar {% if filtro_fijado %}activo{% endif %}" id="adsFijar"
+            data-url="{% url 'anuncios:fijar_filtro' %}" data-fijado="{% if filtro_fijado %}1{% else %}0{% endif %}">
+      {% if filtro_fijado %}📌 Filtros fijados ✓{% else %}📌 Fijar filtros{% endif %}
+    </button>
   </form>
 
   {% if vista == 'productos' %}
@@ -69,9 +80,10 @@
     {% include 'anuncios/_tab_heatmap.html' %}
   {% else %}
     {# ── Diario ── #}
-    <div class="ped-kpis" style="grid-template-columns:repeat(3,1fr);">
+    <div class="ped-kpis" style="grid-template-columns:repeat(4,1fr);">
       <div class="ped-kpi"><div class="ped-kpi-num naranja">{{ moneda }} {{ tot_gasto }}</div><div class="ped-kpi-label">Gasto Meta</div><div class="ped-kpi-sub">en el rango</div></div>
       <div class="ped-kpi"><div class="ped-kpi-num verde">{{ tot_conf }}</div><div class="ped-kpi-label">Confirmados reales</div><div class="ped-kpi-sub">eventos del periodo</div></div>
+      <div class="ped-kpi"><div class="ped-kpi-num azul">{{ tot_desp }}</div><div class="ped-kpi-label">Despachados reales</div><div class="ped-kpi-sub">eventos del periodo</div></div>
       <div class="ped-kpi"><div class="ped-kpi-num">{{ tot_entr }}</div><div class="ped-kpi-label">Entregados reales</div><div class="ped-kpi-sub">eventos del periodo</div></div>
     </div>
     <div class="av-card av-card-wide">
@@ -136,6 +148,8 @@
           borderColor: '#e8833a', backgroundColor: 'rgba(232,131,58,.1)', yAxisID: 'y', tension: .3 },
         { label: 'Confirmados', data: serie.map(function (s) { return s.confirmados; }),
           borderColor: '#22a06b', yAxisID: 'y1', tension: .3 },
+        { label: 'Despachados', data: serie.map(function (s) { return s.despachados; }),
+          borderColor: '#8b5cf6', yAxisID: 'y1', tension: .3 },
         { label: 'Entregados', data: serie.map(function (s) { return s.entregados; }),
           borderColor: '#3b82f6', yAxisID: 'y1', tension: .3 },
       ],
@@ -152,4 +166,50 @@
 })();
 </script>
 {% endif %}
+
+<script>
+// ── Botones rápidos de rango + Fijar filtros ──
+(function () {
+  const form = document.getElementById('adsFiltros');
+  if (!form) return;
+
+  function ymdLocal(d) {
+    return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+  }
+  function rango(tipo) {
+    const hoy = new Date();
+    if (tipo === 'hoy') return { d: ymdLocal(hoy), h: ymdLocal(hoy) };
+    if (tipo === '7d') { const i = new Date(hoy); i.setDate(hoy.getDate()-6); return { d: ymdLocal(i), h: ymdLocal(hoy) }; }
+    if (tipo === '30d') { const i = new Date(hoy); i.setDate(hoy.getDate()-29); return { d: ymdLocal(i), h: ymdLocal(hoy) }; }
+    return { d: '2020-01-01', h: ymdLocal(hoy) };   // todo
+  }
+  document.querySelectorAll('#adsRangoBtns .ads-rango-btn').forEach(b =>
+    b.addEventListener('click', function () {
+      const r = rango(b.dataset.rango);
+      form.desde.value = r.d; form.hasta.value = r.h; form.submit();
+    }));
+
+  // Fijar filtros (persistente por usuario, igual que en Pedidos)
+  const fijar = document.getElementById('adsFijar');
+  if (fijar) {
+    const CSRF = '{{ csrf_token }}';
+    fijar.addEventListener('click', function () {
+      const yaFijado = fijar.dataset.fijado === '1';
+      const qs = yaFijado ? '' : location.search.replace(/^\?/, '');
+      fetch(fijar.dataset.url, {
+        method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' },
+        body: new URLSearchParams({ csrfmiddlewaretoken: CSRF, qs: qs }),
+      })
+      .then(r => r.json())
+      .then(j => {
+        if (!j.ok) { alert('No se pudo guardar el filtro.'); return; }
+        fijar.dataset.fijado = j.fijado ? '1' : '0';
+        fijar.classList.toggle('activo', j.fijado);
+        fijar.textContent = j.fijado ? '📌 Filtros fijados ✓' : '📌 Fijar filtros';
+      })
+      .catch(() => alert('Error de red.'));
+    });
+  }
+})();
+</script>
 {% endblock %}

@@ -21,6 +21,8 @@ urlpatterns = [
     path('publicidad/api/inicio-serie/', views.api_inicio_serie, name='api_inicio_serie'),
     # API para el mapa de calor del Inicio (pedidos/gasto por día×hora)
     path('publicidad/api/inicio-heatmap/', views.api_inicio_heatmap, name='api_inicio_heatmap'),
+    # Fijar/limpiar el filtro del dashboard (persistente por usuario)
+    path('publicidad/fijar-filtro/', views.fijar_filtro, name='fijar_filtro'),
     # Webhook de n8n (alternativa; la extracción principal es directa a la Graph API)
     path('publicidad/webhook/n8n/', views.webhook_n8n_meta, name='webhook_n8n'),
 ]
