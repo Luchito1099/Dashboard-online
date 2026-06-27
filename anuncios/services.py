@@ -329,14 +329,16 @@ def serie_meta_vs_pedidos(desde, hasta, integracion_id=None):
     Si el rango es un solo día → granularidad por HORA (0–23, lo más fino que da Meta).
     Si abarca varios días → granularidad por DÍA. Devuelve un dict listo para Chart.js.
 
-    Nota: la hora de Meta es la de la zona del anunciante y los pedidos se agrupan en
-    America/Lima; el cruce horario es una aproximación de alto nivel."""
+    A diferencia de los dashboards de análisis, aquí se muestra el gasto TOTAL de Meta
+    (no se filtra por incluir_en_extraccion): el Inicio es una vista de negocio.
+
+    Nota: la hora de los pedidos se agrupa en America/Lima; la hora de Meta es la de la
+    zona del anunciante, así que el cruce horario es una aproximación de alto nivel."""
     por_hora = (desde == hasta)
 
     if por_hora:
-        # ── Gasto Meta por hora ──
-        gi = InsightHorarioMeta.objects.filter(
-            campana__incluir_en_extraccion=True, fecha=desde)
+        # ── Gasto Meta por hora (todo el gasto, sin filtro de análisis) ──
+        gi = InsightHorarioMeta.objects.filter(fecha=desde)
         if integracion_id:
             gi = gi.filter(campana__cuenta__integracion_id=integracion_id)
         gasto_por = {r['hora']: float(r['s'] or 0)
@@ -358,9 +360,8 @@ def serie_meta_vs_pedidos(desde, hasta, integracion_id=None):
         monto = [round(monto_por.get(h, 0), 2) for h in range(24)]
         granularidad = 'hora'
     else:
-        # ── Gasto Meta por día ──
-        gi = InsightDiarioMeta.objects.filter(
-            campana__incluir_en_extraccion=True, fecha__range=(desde, hasta))
+        # ── Gasto Meta por día (todo el gasto, sin filtro de análisis) ──
+        gi = InsightDiarioMeta.objects.filter(fecha__range=(desde, hasta))
         if integracion_id:
             gi = gi.filter(campana__cuenta__integracion_id=integracion_id)
         gasto_por = {r['fecha']: float(r['s'] or 0)
