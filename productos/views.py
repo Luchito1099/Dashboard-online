@@ -228,14 +228,7 @@ def reconocer_productos(request):
                .values('nombre').annotate(n=Count('id')).order_by('-n'))
 
     productos = list(Producto.objects.all())
-    items = []
-    for r in nombres:
-        nombre = r['nombre']
-        scored = sorted(
-            ((difflib.SequenceMatcher(None, nombre.lower(), p.nombre.lower()).ratio(), p)
-             for p in productos), key=lambda x: x[0], reverse=True)
-        sugerencias = [{'producto': p, 'score': round(s * 100)} for s, p in scored[:3] if s > 0]
-        items.append({'nombre': nombre, 'n': r['n'], 'sugerencias': sugerencias})
+    items = [{'nombre': r['nombre'], 'n': r['n']} for r in nombres]
 
     # Aliases ya vinculados (para la sección "Ya vinculados")
     aliases = (ProductoAlias.objects.select_related('producto')
@@ -272,6 +265,23 @@ def vincular_producto(request):
     # Vincular los pedidos existentes con ese nombre
     n = PedidoItem.objects.filter(nombre__iexact=nombre, producto__isnull=True).update(producto=producto)
     messages.success(request, f'«{nombre}» vinculado a «{producto.nombre}» ({n} línea(s) de pedido).')
+    return redirect('productos:reconocer')
+
+
+@login_required
+def quitar_alias(request):
+    """Elimina un alias (desvincula nombre de pedido del catálogo). Solo admin (POST)."""
+    if not es_admin(request.user):
+        return JsonResponse({'error': 'sin permiso'}, status=403)
+    if request.method != 'POST':
+        return HttpResponseNotAllowed(['POST'])
+
+    from integraciones.models import PedidoItem
+    nombre = request.POST.get('nombre', '').strip()
+    if nombre:
+        ProductoAlias.objects.filter(nombre_externo__iexact=nombre, integracion=None).delete()
+        PedidoItem.objects.filter(nombre__iexact=nombre).update(producto=None)
+        messages.success(request, f'Vínculo «{nombre}» eliminado.')
     return redirect('productos:reconocer')
 
 

@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% load static %}
 
-{% comment %} templates/productos/reconocer.html — Vincular nombres de producto de pedidos al catálogo {% endcomment %}
+{% comment %} templates/productos/reconocer.html {% endcomment %}
 
 {% block title %}Reconocer productos · Dashboard{% endblock %}
 {% block nav_productos %}active{% endblock %}
@@ -18,71 +18,73 @@
   <div class="integ-header">
     <h2 class="integ-title">Reconocer productos de pedidos</h2>
     <p class="integ-subtitle">{{ total }} nombre(s) sin vincular · {{ vinculados }} línea(s) ya vinculada(s).
-      Vincula el nombre que llega en los pedidos con tu producto del catálogo. Queda guardado para los próximos pedidos.</p>
+      Elige a qué producto del catálogo corresponde cada nombre que llega en los pedidos.</p>
   </div>
 
-  {# ── Pendientes ── #}
+  {# ── Pendientes de vincular ── #}
   {% if total == 0 %}
   <div class="integ-vacio">Todos los productos de los pedidos ya están vinculados al catálogo. 🎉</div>
   {% endif %}
 
   {% for it in items %}
-  <div class="match-card">
-    <div class="match-ad">
-      <div class="match-ad-nombre">{{ it.nombre }}</div>
-      <div class="match-ad-meta">Nombre exacto del pedido · aparece en {{ it.n }} línea(s)</div>
+  <div class="match-card" style="display:flex;align-items:center;gap:18px;flex-wrap:wrap;">
+    <div style="flex:1;min-width:0;">
+      <div style="font-family:monospace;font-size:15px;font-weight:700;color:var(--text);letter-spacing:.02em;">{{ it.nombre }}</div>
+      <div class="match-ad-meta">Nombre exacto en pedidos · aparece en {{ it.n }} línea(s)</div>
     </div>
-    <div class="match-acciones">
-      <div class="match-sugerencias">
-        {% for s in it.sugerencias %}
-        <form method="post" action="{% url 'productos:vincular' %}" class="match-sug-form">
-          {% csrf_token %}
-          <input type="hidden" name="nombre" value="{{ it.nombre }}">
-          <input type="hidden" name="producto_id" value="{{ s.producto.id }}">
-          <button type="submit" class="match-sug" title="Vincular a este producto del catálogo">
-            {{ s.producto.nombre }} <span class="match-score">{{ s.score }}%</span>
-          </button>
-        </form>
-        {% empty %}<span class="ads-nota-inline">Sin sugerencias automáticas.</span>{% endfor %}
-      </div>
-      <form method="post" action="{% url 'productos:vincular' %}" class="match-manual">
-        {% csrf_token %}
-        <input type="hidden" name="nombre" value="{{ it.nombre }}">
-        <select name="producto_id" required>
-          <option value="">— Elegir producto del catálogo…</option>
-          {% for p in productos %}<option value="{{ p.id }}">{{ p.nombre }}</option>{% endfor %}
-        </select>
-        <button type="submit" class="btn-guardar">Vincular</button>
-      </form>
-    </div>
+    <form method="post" action="{% url 'productos:vincular' %}" style="display:flex;gap:8px;align-items:center;flex-shrink:0;">
+      {% csrf_token %}
+      <input type="hidden" name="nombre" value="{{ it.nombre }}">
+      <select name="producto_id" required style="padding:8px 10px;border:1px solid var(--border-dark);border-radius:8px;font-size:13px;font-family:inherit;background:var(--surface);color:var(--text);min-width:220px;">
+        <option value="">— Elegir producto del catálogo…</option>
+        {% for p in productos %}<option value="{{ p.id }}">{{ p.nombre }}</option>{% endfor %}
+      </select>
+      <button type="submit" class="btn-guardar">Vincular</button>
+    </form>
   </div>
   {% endfor %}
 
-  {# ── Ya vinculados ── #}
+  {# ── Ya vinculados (editables) ── #}
   {% if aliases %}
   <div style="margin-top:28px;">
-    <div class="ads-campana-head" style="cursor:pointer;" onclick="this.nextElementSibling.classList.toggle('hidden')">
-      ✅ Ya vinculados ({{ aliases|length }}) — haz click para ver
-    </div>
-    <div class="hidden" style="margin-top:8px;">
-      <div class="ped-tabla-wrap">
-        <table class="ped-tabla">
-          <thead>
-            <tr>
-              <th>Nombre en pedido</th>
-              <th>Producto del catálogo</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for a in aliases %}
-            <tr>
-              <td><code style="font-size:13px;background:var(--surface-2,#f4f4f4);padding:2px 6px;border-radius:4px;">{{ a.nombre_externo }}</code></td>
-              <td>{{ a.producto.nombre }}</td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
+    <h3 style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:10px;">✅ Ya vinculados ({{ aliases|length }})</h3>
+    <div class="ped-tabla-wrap">
+      <table class="ped-tabla">
+        <thead>
+          <tr>
+            <th>Nombre en pedido</th>
+            <th>Producto del catálogo</th>
+            <th>Cambiar a</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for a in aliases %}
+          <tr>
+            <td><code style="font-size:13px;background:var(--surface-2,#f0f4f8);padding:3px 8px;border-radius:5px;font-family:monospace;">{{ a.nombre_externo }}</code></td>
+            <td><strong>{{ a.producto.nombre }}</strong></td>
+            <td>
+              <form method="post" action="{% url 'productos:vincular' %}" style="display:flex;gap:6px;align-items:center;">
+                {% csrf_token %}
+                <input type="hidden" name="nombre" value="{{ a.nombre_externo }}">
+                <select name="producto_id" required style="padding:6px 8px;border:1px solid var(--border-dark);border-radius:7px;font-size:12.5px;font-family:inherit;background:var(--surface);color:var(--text);min-width:170px;">
+                  <option value="">— Cambiar a…</option>
+                  {% for p in productos %}<option value="{{ p.id }}" {% if p.id == a.producto.id %}selected{% endif %}>{{ p.nombre }}</option>{% endfor %}
+                </select>
+                <button type="submit" class="btn-guardar" style="padding:6px 12px;font-size:12px;">Cambiar</button>
+              </form>
+            </td>
+            <td>
+              <form method="post" action="{% url 'productos:quitar_alias' %}">
+                {% csrf_token %}
+                <input type="hidden" name="nombre" value="{{ a.nombre_externo }}">
+                <button type="submit" class="btn-danger-sm" onclick="return confirm('¿Quitar el vínculo de «{{ a.nombre_externo }}»?')">Quitar</button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
     </div>
   </div>
   {% endif %}

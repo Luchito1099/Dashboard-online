@@ -14,6 +14,7 @@ urlpatterns = [
     # Reconocer productos de pedidos (vincular nombres externos al catálogo) — solo admin
     path('productos/reconocer/', views.reconocer_productos, name='reconocer'),
     path('productos/reconocer/vincular/', views.vincular_producto, name='vincular'),
+    path('productos/reconocer/quitar/', views.quitar_alias, name='quitar_alias'),
     # Administración de productos (solo admin)
     path('productos/admin/', views.admin_productos, name='admin'),
     path('productos/crear/', views.crear_producto, name='crear'),
