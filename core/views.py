@@ -55,13 +55,15 @@ def home(request):
     campanas_incluidas, campanas_otras, proyectos_ads = [], [], []
     if puede_ver_ads(request.user):
         from anuncios.models import CampanaMeta
-        from django.db.models import Max
+        from django.db.models import Max, Count
+        # Nota: Max() sobre el booleano incluir_en_extraccion no existe en PostgreSQL;
+        # usamos Count con filtro (cross-DB) → "incluida" = al menos un anuncio incluido.
         camps = (CampanaMeta.objects.values('campaign_id')
                  .annotate(nombre=Max('campaign_name'), proyecto=Max('proyecto'),
-                           incluida=Max('incluir_en_extraccion'))
+                           n_incluidos=Count('id', filter=Q(incluir_en_extraccion=True)))
                  .order_by('nombre'))
         for c in camps:
-            destino = campanas_incluidas if c['incluida'] else campanas_otras
+            destino = campanas_incluidas if c['n_incluidos'] else campanas_otras
             destino.append({'campaign_id': c['campaign_id'],
                             'nombre': c['nombre'] or '(sin campaña)',
                             'proyecto': c['proyecto'] or ''})
