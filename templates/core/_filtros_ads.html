@@ -1,0 +1,31 @@
+{% comment %} Filtros de publicidad para los gráficos del Inicio: proyecto (single) +
+   campañas (multi, agrupadas: incluidas primero, luego otras). Reutilizable: se pasa
+   `prefijo` (mp/hm) para ids únicos. El JS initFiltrosAds() los conecta. {% endcomment %}
+<select class="hm2-semanas js-fa-proyecto" title="Filtrar por proyecto">
+  <option value="">Todos los proyectos</option>
+  {% for p in proyectos_ads %}<option value="{{ p }}">🗂 {{ p }}</option>{% endfor %}
+</select>
+
+<div class="fa-multi js-fa-multi">
+  <button type="button" class="hm2-semanas fa-multi-btn">Todas las campañas ▾</button>
+  <div class="fa-multi-panel">
+    <input type="text" class="fa-multi-buscar" placeholder="Filtrar campañas…">
+    <div class="fa-multi-lista">
+      {% if campanas_incluidas %}<div class="fa-multi-grupo">✓ Incluidas en análisis</div>{% endif %}
+      {% for c in campanas_incluidas %}
+      <label class="fa-multi-opt" data-proyecto="{{ c.proyecto }}">
+        <input type="checkbox" class="js-fa-camp" value="{{ c.campaign_id }}"> <span>{{ c.nombre }}</span>
+      </label>
+      {% endfor %}
+      {% if campanas_otras %}<div class="fa-multi-grupo">Otras</div>{% endif %}
+      {% for c in campanas_otras %}
+      <label class="fa-multi-opt" data-proyecto="{{ c.proyecto }}">
+        <input type="checkbox" class="js-fa-camp" value="{{ c.campaign_id }}"> <span>{{ c.nombre }}</span>
+      </label>
+      {% endfor %}
+      {% if not campanas_incluidas and not campanas_otras %}
+      <div class="fa-multi-vacio">Sin campañas todavía.</div>
+      {% endif %}
+    </div>
+  </div>
+</div>

@@ -49,13 +49,23 @@ def home(request):
         d_hoy_m=Sum('pedidos__total', filter=Q(pedidos__fecha_pedido__date=hoy)),
     )
 
-    # Campañas para el filtro de los gráficos de publicidad (solo si puede ver ads)
+    # Campañas y proyectos para los filtros de los gráficos de publicidad (solo si puede ver ads).
+    # Las campañas se agrupan: primero las INCLUIDAS en el análisis (Ajustes), luego las otras.
     from .permisos import puede_ver_ads
-    campanas_ads = []
+    campanas_incluidas, campanas_otras, proyectos_ads = [], [], []
     if puede_ver_ads(request.user):
         from anuncios.models import CampanaMeta
-        campanas_ads = list(CampanaMeta.objects.order_by('campaign_name')
-                            .values('campaign_id', 'campaign_name').distinct())
+        from django.db.models import Max
+        camps = (CampanaMeta.objects.values('campaign_id')
+                 .annotate(nombre=Max('campaign_name'), proyecto=Max('proyecto'),
+                           incluida=Max('incluir_en_extraccion'))
+                 .order_by('nombre'))
+        for c in camps:
+            destino = campanas_incluidas if c['incluida'] else campanas_otras
+            destino.append({'campaign_id': c['campaign_id'],
+                            'nombre': c['nombre'] or '(sin campaña)',
+                            'proyecto': c['proyecto'] or ''})
+        proyectos_ads = sorted({c['proyecto'] for c in camps if c['proyecto']})
 
     context = {
         'cap_total': total,
@@ -66,7 +76,9 @@ def home(request):
         'ped_tot_m': glob['tot_m'] or 0,
         'ped_moneda': moneda,
         'ped_fuentes': fuentes,
-        'campanas_ads': campanas_ads,
+        'campanas_incluidas': campanas_incluidas,
+        'campanas_otras': campanas_otras,
+        'proyectos_ads': proyectos_ads,
     }
     return render(request, 'core/home.html', context)
 

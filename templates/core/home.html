@@ -94,10 +94,7 @@
         <option value="preventa">Preventa (conf.+desp.)</option>
         <option value="venta">Venta (entregado)</option>
       </select>
-      <select class="hm2-semanas mp-campana" title="Filtrar por campaña">
-        <option value="">Todas las campañas</option>
-        {% for c in campanas_ads %}<option value="{{ c.campaign_id }}">{{ c.campaign_name|default:"(sin campaña)" }}</option>{% endfor %}
-      </select>
+      <span class="js-fa-root" id="mpFiltrosAds">{% include 'core/_filtros_ads.html' %}</span>
     </div>
   </div>
   <div class="mp-resumen" id="mpResumen"></div>
@@ -121,10 +118,7 @@
         <option value="8">Últimas 8 semanas</option>
         <option value="12">Últimas 12 semanas</option>
       </select>
-      <select class="hm2-semanas hm-campana" title="Filtrar por campaña">
-        <option value="">Todas las campañas</option>
-        {% for c in campanas_ads %}<option value="{{ c.campaign_id }}">{{ c.campaign_name|default:"(sin campaña)" }}</option>{% endfor %}
-      </select>
+      <span class="js-fa-root" id="hmFiltrosAds">{% include 'core/_filtros_ads.html' %}</span>
     </div>
   </div>
   <div class="mp-resumen" id="hmResumen"></div>
@@ -176,6 +170,50 @@
 {% if puede_ver_ads %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
 <script>
+// Componente reutilizable: proyecto (single) + campañas (multi, agrupadas).
+// Devuelve params() con el fragmento de querystring (&proyecto=&campana=&campana=...).
+function initFiltrosAds(root, onChange) {
+  const proyecto = root.querySelector('.js-fa-proyecto');
+  const multi = root.querySelector('.js-fa-multi');
+  const btn = root.querySelector('.fa-multi-btn');
+  const buscar = root.querySelector('.fa-multi-buscar');
+  const checks = () => Array.from(root.querySelectorAll('.js-fa-camp'));
+
+  btn.addEventListener('click', e => { e.stopPropagation(); multi.classList.toggle('open'); });
+  document.addEventListener('click', e => { if (!multi.contains(e.target)) multi.classList.remove('open'); });
+
+  buscar.addEventListener('input', () => {
+    const q = buscar.value.toLowerCase();
+    root.querySelectorAll('.fa-multi-opt').forEach(o => {
+      const okProy = !proyecto.value || o.dataset.proyecto === proyecto.value;
+      o.style.display = (okProy && o.textContent.toLowerCase().includes(q)) ? '' : 'none';
+    });
+  });
+
+  function filtrarPorProyecto() {
+    const p = proyecto.value;
+    root.querySelectorAll('.fa-multi-opt').forEach(o => {
+      o.style.display = (!p || o.dataset.proyecto === p) ? '' : 'none';
+    });
+  }
+  function actualizarLabel() {
+    const n = checks().filter(c => c.checked).length;
+    btn.textContent = (n ? `${n} campaña(s)` : 'Todas las campañas') + ' ▾';
+  }
+
+  proyecto.addEventListener('change', () => { filtrarPorProyecto(); onChange(); });
+  root.addEventListener('change', e => {
+    if (e.target.classList.contains('js-fa-camp')) { actualizarLabel(); onChange(); }
+  });
+
+  return function params() {
+    let s = '';
+    if (proyecto.value) s += `&proyecto=${encodeURIComponent(proyecto.value)}`;
+    checks().filter(c => c.checked).forEach(c => { s += `&campana=${encodeURIComponent(c.value)}`; });
+    return s;
+  };
+}
+
 // ── Gráfico Gasto Meta vs Pedidos (fluido, sin recargar) ──
 (function () {
   const card = document.getElementById('metaPedCard');
@@ -189,12 +227,12 @@
 
   let modoActual = 'hoy';
   const selTipo = document.getElementById('mpTipo');
-  const selCampana = card.querySelector('.mp-campana');
+  const faParams = initFiltrosAds(document.getElementById('mpFiltrosAds'), () => cargar(modoActual));
 
   // El servidor calcula hoy/7d en hora de Perú; aquí solo mandamos el modo.
   // Para 'rango' enviamos las fechas elegidas (que ya son fechas de calendario locales).
   function paramsDe(modo) {
-    const extra = `&tipo=${selTipo.value}&campana=${encodeURIComponent(selCampana.value)}`;
+    const extra = `&tipo=${selTipo.value}${faParams()}`;
     if (modo === 'rango') {
       const d = document.getElementById('mpDesde').value;
       const h = document.getElementById('mpHasta').value;
@@ -257,7 +295,6 @@
   }));
   document.getElementById('mpAplicar').addEventListener('click', () => cargar('rango'));
   selTipo.addEventListener('change', () => cargar(modoActual));
-  selCampana.addEventListener('change', () => cargar(modoActual));
 
   cargar('hoy');
 })();
@@ -272,7 +309,7 @@
   const grid = document.getElementById('hmGrid');
   const resumen = document.getElementById('hmResumen');
   const selSemanas = document.getElementById('hmSemanas');
-  const selCampana = card.querySelector('.hm-campana');
+  const faParams = initFiltrosAds(document.getElementById('hmFiltrosAds'), () => cargar());
   let datos = null, metric = 'pedidos';
 
   function pintar() {
@@ -304,8 +341,7 @@
 
   function cargar() {
     resumen.innerHTML = '<span class="mp-gran">Cargando…</span>';
-    const campana = encodeURIComponent(selCampana.value);
-    fetch(`${base}?semanas=${selSemanas.value}&campana=${campana}`, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+    fetch(`${base}?semanas=${selSemanas.value}${faParams()}`, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
       .then(r => r.ok ? r.json() : Promise.reject())
       .then(d => { datos = d; pintar(); })
       .catch(() => { resumen.innerHTML = '<span class="mp-gran">No se pudo cargar.</span>'; });
@@ -318,7 +354,6 @@
     pintar();
   }));
   selSemanas.addEventListener('change', cargar);
-  selCampana.addEventListener('change', cargar);
 
   cargar();
 })();

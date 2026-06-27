@@ -200,20 +200,27 @@ def api_inicio_serie(request):
     if tipo not in ('todos', 'preventa', 'venta'):
         tipo = 'todos'
 
-    campana_ids, producto_ids = _campana_inicio(request.GET.get('campana', ''))
+    campana_ids, producto_ids = _campana_inicio(
+        request.GET.getlist('campana'), request.GET.get('proyecto', ''))
     _auto_sync_si_necesario()
     return JsonResponse(services.serie_meta_vs_pedidos(
         desde, hasta, tipo=tipo, campana_ids=campana_ids, producto_ids=producto_ids))
 
 
-def _campana_inicio(campaign_id):
-    """Resuelve (campana_ids, producto_ids) para una campaña en el Inicio. A diferencia
-    de los dashboards, NO exige incluir_en_extraccion (el Inicio muestra todo). Devuelve
-    (None, None) si no se filtra por campaña."""
-    campaign_id = (campaign_id or '').strip()
-    if not campaign_id:
+def _campana_inicio(campaign_ids, proyecto):
+    """Resuelve (campana_ids, producto_ids) para los filtros del Inicio: una o varias
+    campañas (campaign_id) y/o un proyecto. A diferencia de los dashboards, NO exige
+    incluir_en_extraccion (el Inicio muestra todo). Devuelve (None, None) si no hay filtro."""
+    campaign_ids = [c for c in (campaign_ids or []) if c and c.strip()]
+    proyecto = (proyecto or '').strip()
+    if not campaign_ids and not proyecto:
         return None, None
-    campana_ids = list(CampanaMeta.objects.filter(campaign_id=campaign_id).values_list('id', flat=True))
+    cqs = CampanaMeta.objects.all()
+    if proyecto:
+        cqs = cqs.filter(proyecto=proyecto)
+    if campaign_ids:
+        cqs = cqs.filter(campaign_id__in=campaign_ids)
+    campana_ids = list(cqs.values_list('id', flat=True))
     producto_ids = list(MatchProductoAnuncio.objects.filter(campana_id__in=campana_ids)
                         .values_list('producto_id', flat=True))
     return campana_ids, producto_ids
@@ -234,7 +241,8 @@ def api_inicio_heatmap(request):
 
     hoy = timezone.localdate()
     desde = hoy - timedelta(days=semanas * 7 - 1)
-    campana_ids, producto_ids = _campana_inicio(request.GET.get('campana', ''))
+    campana_ids, producto_ids = _campana_inicio(
+        request.GET.getlist('campana'), request.GET.get('proyecto', ''))
     return JsonResponse(services.heatmap_pedidos_hora(
         desde, hoy, campana_ids=campana_ids, producto_ids=producto_ids))
 

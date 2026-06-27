@@ -67,6 +67,31 @@
 .mp-canvas-wrap { position: relative; height: 220px; }
 .mp-vacio { font-size: 13px; color: var(--muted); padding: 28px 0; text-align: center; }
 
+/* ── Multi-select de campañas (filtros de ads) ── */
+.js-fa-root { display: inline-flex; gap: 6px; align-items: center; }
+.fa-multi { position: relative; display: inline-block; }
+.fa-multi-btn { cursor: pointer; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fa-multi-panel {
+  display: none; position: absolute; right: 0; top: calc(100% + 4px); z-index: 50;
+  width: 320px; max-height: 320px; overflow-y: auto; background: var(--surface);
+  border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 8px 28px rgba(0,0,0,.16); padding: 8px;
+}
+.fa-multi.open .fa-multi-panel { display: block; }
+.fa-multi-buscar {
+  width: 100%; padding: 7px 9px; border: 1px solid var(--border-dark); border-radius: 7px;
+  font-size: 12.5px; font-family: inherit; background: var(--surface); color: var(--text); margin-bottom: 6px;
+}
+.fa-multi-grupo {
+  font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em;
+  color: var(--muted); padding: 8px 6px 4px;
+}
+.fa-multi-opt {
+  display: flex; align-items: center; gap: 8px; padding: 6px 6px; border-radius: 6px;
+  font-size: 13px; color: var(--text); cursor: pointer;
+}
+.fa-multi-opt:hover { background: var(--bg); }
+.fa-multi-vacio { font-size: 12px; color: var(--muted); padding: 8px 6px; }
+
 /* ── Mapa de calor semanal (día × hora) ── */
 .hm2-card {
   margin-bottom: 22px; background: var(--surface); border: 1px solid var(--border);
