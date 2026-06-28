@@ -8,6 +8,15 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'core/css/integraciones.css' %}">
+<style>
+  .cruce-modos { display:flex; gap:10px; flex-wrap:wrap; }
+  .cruce-modo { flex:1 1 220px; display:flex; flex-direction:column; gap:2px;
+    border:1px solid var(--borde,#d8dce3); border-radius:10px; padding:10px 12px; cursor:pointer; }
+  .cruce-modo:has(input:checked) { border-color:#2a6df4; background:rgba(42,109,244,.06); }
+  .cruce-modo input { margin-right:6px; }
+  .cruce-modo b { font-size:.95rem; }
+  .cruce-modo span { font-size:.8rem; opacity:.75; }
+</style>
 {% endblock %}
 
 {% block breadcrumb %}<span>›</span><a href="{% url 'integraciones:pedidos_modulo' %}">Pedidos</a><span>›</span><span>Cruzar por Excel</span>{% endblock %}
@@ -22,9 +31,9 @@
      data-ia-activa="{% if ia_activa %}1{% else %}0{% endif %}" id="cruceRoot">
   <div class="integ-header">
     <h2 class="integ-title">Cruzar pedidos por Excel</h2>
-    <p class="integ-subtitle">Sube un Excel (nombre, celular, producto, precio, estado). Cruzamos por celular + nombre + producto
-      <b>solo con pedidos aún sin cambios (estado «creado»)</b>, verás una previa para confirmar, y al aplicar se cambia el
-      estado del pedido al que indica el Excel.</p>
+    <p class="integ-subtitle">Sube un Excel (nombre, celular, producto, precio, destino, estado) y elige el <b>modo de cruce</b>
+      (Exacto, Robusto o Simple). Cruzamos <b>solo con pedidos aún sin cambios (estado «creado»)</b>; los nombres y destinos
+      pueden venir incompletos. Verás una previa para confirmar, y al aplicar se cambia el estado del pedido que indica el Excel.</p>
   </div>
 
   <div class="av-card av-card-wide">
@@ -39,6 +48,17 @@
   <div class="av-card av-card-wide" id="cruceMapWrap" hidden>
     <div class="av-card-title">Asocia las columnas de tu Excel</div>
     <div class="cruce-map" id="cruceMap"></div>
+
+    <div class="av-card-title" style="margin-top:14px;">Modo de cruce</div>
+    <div class="cruce-modos" id="cruceModos">
+      <label class="cruce-modo"><input type="radio" name="cruceModo" value="exacto" checked>
+        <b>Exacto</b><span>Celular + nombre + producto. El más estricto (recomendado si tienes el celular).</span></label>
+      <label class="cruce-modo"><input type="radio" name="cruceModo" value="robusto">
+        <b>Robusto</b><span>Busca por todo: nombre, producto, celular y destino. Tolera nombres/destinos incompletos.</span></label>
+      <label class="cruce-modo"><input type="radio" name="cruceModo" value="simple">
+        <b>Simple</b><span>Solo nombre + destino, por similitud. Útil cuando no tienes celular ni producto.</span></label>
+    </div>
+
     <button type="button" class="btn-guardar" id="cruceCruzar" style="margin-top:12px;">Cruzar con pedidos →</button>
 
     <div id="cruceProgreso" hidden style="margin-top:14px;">
@@ -122,6 +142,7 @@
     { key: 'producto', label: 'Producto', claves: ['producto', 'articulo', 'artículo', 'item', 'detalle'] },
     { key: 'precio', label: 'Precio (Shopify)', claves: ['monto tienda', 'precio', 'monto', 'importe', 'cobrar', 'total', 'venta'] },
     { key: 'delivery', label: 'Costo Delivery', claves: ['costo delivery', 'delivery', 'flete', 'costo envio', 'costo envío', 'envio'] },
+    { key: 'destino', label: 'Destino / Dirección', claves: ['destino', 'direccion', 'dirección', 'distrito', 'provincia', 'departamento', 'ubicacion', 'ubicación', 'zona', 'agencia', 'localidad'] },
     { key: 'estado', label: 'Estado', claves: ['estado', 'status', 'situacion', 'situación', 'resultado', 'entrega'] },
   ];
 
@@ -167,7 +188,8 @@
       return {
         nombre: map.nombre ? r[map.nombre] : '', celular: map.celular ? r[map.celular] : '',
         producto: map.producto ? r[map.producto] : '', precio: map.precio ? r[map.precio] : '',
-        delivery: map.delivery ? r[map.delivery] : '', estado: map.estado ? r[map.estado] : '',
+        delivery: map.delivery ? r[map.delivery] : '', destino: map.destino ? r[map.destino] : '',
+        estado: map.estado ? r[map.estado] : '',
       };
     });
     cruzarEnLotes(filas);
@@ -179,8 +201,14 @@
   var ESTADO = { matches: [], sin_cruce: [] };   // estado compartido (cruces + sin cruce)
 
   // Procesa las filas por LOTES para mostrar avance real y no colgar la petición.
+  function modoElegido() {
+    var r = document.querySelector('input[name="cruceModo"]:checked');
+    return r ? r.value : 'exacto';
+  }
+
   function cruzarEnLotes(filas) {
     var LOTE = 25, total = filas.length, i = 0;
+    var modo = modoElegido();
     ESTADO = { matches: [], sin_cruce: [] };
     var btn = document.getElementById('cruceCruzar');
     btn.disabled = true; prog.hidden = false; info.textContent = '';
@@ -197,7 +225,7 @@
       fetch(root.dataset.urlPrevia, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF, 'X-Requested-With': 'XMLHttpRequest' },
-        body: JSON.stringify({ filas: chunk }),
+        body: JSON.stringify({ filas: chunk, modo: modo }),
       })
       .then(function (r) { return r.json(); })
       .then(function (j) {
@@ -241,6 +269,7 @@
           '<div class="cruce-fila cruce-fila-ped">' +
             '<span class="cruce-tag">PEDIDO</span> <b>' + escapeHtml(m.pedido.nombre) + '</b> · ' +
             escapeHtml(m.pedido.celular) + ' · ' + escapeHtml(m.pedido.productos) +
+            (m.pedido.destino ? ' · 📍 ' + escapeHtml(m.pedido.destino) : '') +
             ' · <span class="' + (precioDif ? 'cruce-precio-dif' : '') + '">S/ ' + (m.pedido.total).toFixed(2) + '</span>' +
             ' · estado: ' + escapeHtml(m.pedido.estado_actual) +
             ' <span class="cruce-conf">' + conf + '</span>' +
@@ -248,6 +277,7 @@
           '<div class="cruce-fila cruce-fila-xls">' +
             '<span class="cruce-tag xls">EXCEL</span> ' + escapeHtml(m.excel.nombre) + ' · ' +
             escapeHtml(m.excel.celular) + ' · ' + escapeHtml(m.excel.producto) +
+            (m.excel.destino ? ' · 📍 ' + escapeHtml(m.excel.destino) : '') +
             ' · <span class="' + (precioDif ? 'cruce-precio-dif' : '') + '">S/ ' + escapeHtml(m.excel.precio) + '</span>' +
             (m.excel.delivery ? ' · delivery: S/ ' + escapeHtml(m.excel.delivery) : '') +
             ' · → ' + selEstadoHtml(m.estado_nuevo) + aviso +
@@ -264,7 +294,8 @@
       document.getElementById('cruceSinN').textContent = ESTADO.sin_cruce.length;
       document.getElementById('cruceSin').innerHTML = ESTADO.sin_cruce.map(function (s) {
         return '<div class="cruce-sin-row">' + escapeHtml(s.nombre) + ' · ' + escapeHtml(s.celular) +
-               ' · ' + escapeHtml(s.producto) + ' · (' + escapeHtml(s.estado_texto || s.estado) + ')</div>';
+               ' · ' + escapeHtml(s.producto) + (s.destino ? ' · 📍 ' + escapeHtml(s.destino) : '') +
+               ' · (' + escapeHtml(s.estado_texto || s.estado) + ')</div>';
       }).join('');
       iaBtn.hidden = (root.dataset.iaActiva !== '1');   // solo si la herramienta IA está lista
     } else { sinWrap.hidden = true; iaBtn.hidden = true; }
@@ -359,7 +390,8 @@
       if ((conf === 'media' || conf === 'ia') && !c.checked) {
         var m = ESTADO.matches[parseInt(c.dataset.i, 10)];
         if (m) pend.push({ nombre: m.excel.nombre, celular: m.excel.celular, producto: m.excel.producto,
-                           precio: m.excel.precio, delivery: m.excel.delivery, estado: m.excel.estado_texto, motivo: 'dudoso' });
+                           precio: m.excel.precio, delivery: m.excel.delivery, destino: m.excel.destino || '',
+                           estado: m.excel.estado_texto, motivo: 'dudoso' });
       }
     });
     if (!pend.length) { alert('No hay filas pendientes para guardar.'); return; }

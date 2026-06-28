@@ -378,6 +378,7 @@ class FilaPendiente(models.Model):
     producto = models.CharField(max_length=300, blank=True)
     precio = models.CharField(max_length=40, blank=True)
     costo_delivery = models.CharField(max_length=40, blank=True)
+    destino = models.CharField(max_length=300, blank=True)       # destino/dirección tal como vino en el Excel
     estado_texto = models.CharField(max_length=80, blank=True)   # estado tal como vino en el Excel
     motivo = models.CharField(max_length=12, choices=MOTIVO_CHOICES, default=MOTIVO_SIN_CRUCE)
     origen = models.CharField(max_length=120, blank=True)        # etiqueta libre (Excel/empresa)

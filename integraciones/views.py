@@ -1176,12 +1176,86 @@ def _digitos(s):
     return d[-9:] if len(d) >= 9 else d
 
 
-def _score_pedido(fila, ped, productos_txt):
-    """Similitud 0-1 de una fila de Excel contra un pedido (nombre + producto)."""
+def _sim(a, b):
+    """Similitud 0-1 *token-aware*: además de comparar el texto entero (fuzzy, tolera typos),
+    premia cuando los tokens de uno son subconjunto del otro. Así un nombre/destino del Excel
+    que viene COMPLETO ('Juan Pérez Gómez, Av. Lima 123') cruza con la versión corta del pedido
+    ('Juan Pérez' / 'Lima') sin exigir coincidencia exacta."""
     import difflib
-    sn = difflib.SequenceMatcher(None, _norm(fila.get('nombre')), _norm(ped.nombre_cliente)).ratio()
-    sp = difflib.SequenceMatcher(None, _norm(fila.get('producto')), _norm(productos_txt)).ratio()
+    na, nb = _norm(a), _norm(b)
+    if not na or not nb:
+        return 0.0
+    ta, tb = set(na.split()), set(nb.split())
+    cobertura = len(ta & tb) / min(len(ta), len(tb)) if (ta and tb) else 0.0
+    seq = difflib.SequenceMatcher(None, na, nb).ratio()
+    return max(cobertura, seq)
+
+
+def _destino_pedido(ped):
+    """Texto de destino del pedido (dirección + distrito + provincia) para comparar con la
+    columna 'destino' del Excel."""
+    return ' '.join(filter(None, [ped.direccion, ped.distrito, ped.provincia]))
+
+
+# Umbral mínimo de score para aceptar un cruce, por modo. Robusto/Simple son más permisivos.
+_UMBRAL_MODO = {'exacto': 0.72, 'robusto': 0.50, 'simple': 0.55}
+
+
+def _score_modo(fila, ped, productos_txt, modo='exacto'):
+    """Similitud 0-1 de una fila de Excel contra un pedido, según el modo de cruce:
+      - 'exacto'  → nombre + producto (comportamiento histórico).
+      - 'robusto' → nombre + producto + destino, con empujón si el teléfono coincide (ve todo).
+      - 'simple'  → solo nombre + destino (cuando el Excel no trae teléfono/producto fiables)."""
+    sn = _sim(fila.get('nombre'), ped.nombre_cliente)
+    if modo == 'simple':
+        sd = _sim(fila.get('destino'), _destino_pedido(ped))
+        return round(0.5 * sn + 0.5 * sd, 3)
+    if modo == 'robusto':
+        sp = _sim(fila.get('producto'), productos_txt)
+        sd = _sim(fila.get('destino'), _destino_pedido(ped))
+        cel = _digitos(fila.get('celular'))
+        tel_ok = bool(cel) and cel == _digitos(ped.telefono)
+        base = 0.45 * sn + 0.20 * sp + 0.35 * sd
+        return round(min(1.0, base + (0.25 if tel_ok else 0.0)), 3)
+    sp = _sim(fila.get('producto'), productos_txt)
     return round(0.6 * sn + 0.4 * sp, 3)
+
+
+def _score_pedido(fila, ped, productos_txt):
+    """Compat: similitud nombre+producto (modo exacto). La usa el cruce con IA."""
+    return _score_modo(fila, ped, productos_txt, 'exacto')
+
+
+def _elegir_pedido(fila, pedidos, por_tel, prod_txt, modo, umbral):
+    """Elige el mejor pedido para una fila según el modo. Devuelve (pedido|None, confianza).
+    'exacto' prioriza el teléfono (como hoy); 'robusto'/'simple' rankean TODOS los pedidos por
+    el score del modo y aceptan el mejor si supera el umbral."""
+    cel = _digitos(fila.get('celular'))
+    if modo == 'exacto':
+        candidatos = por_tel.get(cel, []) if cel else []
+        if len(candidatos) == 1:
+            return candidatos[0], 'alta'
+        if len(candidatos) > 1:
+            candidatos.sort(key=lambda p: _score_modo(fila, p, prod_txt[p.id], modo), reverse=True)
+            return candidatos[0], 'media'
+        # Sin teléfono: similitud por nombre+producto sobre todos
+        mejor_s, mejor_p = 0.0, None
+        for p in pedidos:
+            s = _score_modo(fila, p, prod_txt[p.id], modo)
+            if s > mejor_s:
+                mejor_s, mejor_p = s, p
+        return (mejor_p, 'media') if (mejor_p and mejor_s >= umbral) else (None, '')
+    # robusto / simple: rankear todos con el score del modo
+    mejor_s, mejor_p = 0.0, None
+    for p in pedidos:
+        s = _score_modo(fila, p, prod_txt[p.id], modo)
+        if s > mejor_s:
+            mejor_s, mejor_p = s, p
+    if mejor_p and mejor_s >= umbral:
+        cel_ok = bool(cel) and cel == _digitos(mejor_p.telefono)
+        conf = 'alta' if (cel_ok or mejor_s >= 0.9) else 'media'
+        return mejor_p, conf
+    return None, ''
 
 
 @login_required
@@ -1207,9 +1281,12 @@ def cruce_excel_preview(request):
     if request.method != 'POST':
         return HttpResponseNotAllowed(['POST'])
     try:
-        filas = json.loads(request.body or '{}').get('filas') or []
+        payload = json.loads(request.body or '{}')
     except ValueError:
-        filas = []
+        payload = {}
+    filas = payload.get('filas') or []
+    modo = payload.get('modo') if payload.get('modo') in _UMBRAL_MODO else 'exacto'
+    umbral = _UMBRAL_MODO[modo]
     if not filas:
         return JsonResponse({'ok': False, 'error': 'El Excel no tiene filas.'}, status=400)
 
@@ -1225,22 +1302,8 @@ def cruce_excel_preview(request):
     matches, sin_cruce = [], []
     for fila in filas:
         estado_nuevo = _mapear_estado(fila.get('estado'))
-        cel = _digitos(fila.get('celular'))
-        candidatos = por_tel.get(cel, []) if cel else []
-
-        # Cruce DETERMINÍSTICO (rápido). La IA queda para resolver los "sin cruce" aparte.
-        elegido, confianza = None, ''
-        if len(candidatos) == 1:
-            elegido, confianza = candidatos[0], 'alta'
-        elif len(candidatos) > 1:
-            candidatos.sort(key=lambda p: _score_pedido(fila, p, prod_txt[p.id]), reverse=True)
-            elegido, confianza = candidatos[0], 'media'
-        else:
-            # Sin teléfono: similitud por nombre+producto sobre todos
-            ranked = sorted(((_score_pedido(fila, p, prod_txt[p.id]), p) for p in pedidos),
-                            key=lambda x: x[0], reverse=True)[:1]
-            if ranked and ranked[0][0] >= 0.72:
-                elegido, confianza = ranked[0][1], 'media'
+        # Cruce DETERMINÍSTICO (rápido) según el modo. La IA resuelve los "sin cruce" aparte.
+        elegido, confianza = _elegir_pedido(fila, pedidos, por_tel, prod_txt, modo, umbral)
 
         # Si el pedido ya está en el estado que indica el Excel, no hay nada que cambiar → ocultar
         if elegido and estado_nuevo and estado_nuevo == elegido.estado:
@@ -1253,11 +1316,13 @@ def cruce_excel_preview(request):
                     'nombre': elegido.nombre_cliente, 'celular': elegido.telefono,
                     'productos': prod_txt[elegido.id], 'total': float(elegido.total or 0),
                     'estado_actual': elegido.get_estado_display(),
+                    'destino': _destino_pedido(elegido),
                 },
                 'excel': {
                     'nombre': fila.get('nombre', ''), 'celular': fila.get('celular', ''),
                     'producto': fila.get('producto', ''), 'precio': fila.get('precio', ''),
                     'delivery': fila.get('delivery', ''), 'estado_texto': fila.get('estado', ''),
+                    'destino': fila.get('destino', ''),
                 },
                 'estado_nuevo': estado_nuevo,
                 'estado_nuevo_label': dict(Pedido.ESTADO_CHOICES).get(estado_nuevo, ''),
@@ -1276,7 +1341,7 @@ def _fila_pend(fila):
     """Normaliza una fila de Excel para guardarla/transportarla como pendiente."""
     return {'nombre': fila.get('nombre', ''), 'celular': fila.get('celular', ''),
             'producto': fila.get('producto', ''), 'precio': fila.get('precio', ''),
-            'delivery': fila.get('delivery', ''),
+            'delivery': fila.get('delivery', ''), 'destino': fila.get('destino', ''),
             'estado': fila.get('estado', ''), 'estado_texto': fila.get('estado', '')}
 
 
@@ -1328,10 +1393,12 @@ def cruce_excel_ia(request):
                 'pedido': {'id': elegido.id, 'numero': elegido.numero or elegido.external_id,
                            'nombre': elegido.nombre_cliente, 'celular': elegido.telefono,
                            'productos': prod_txt[elegido.id], 'total': float(elegido.total or 0),
-                           'estado_actual': elegido.get_estado_display()},
+                           'estado_actual': elegido.get_estado_display(),
+                           'destino': _destino_pedido(elegido)},
                 'excel': {'nombre': fila.get('nombre', ''), 'celular': fila.get('celular', ''),
                           'producto': fila.get('producto', ''), 'precio': fila.get('precio', ''),
-                          'delivery': fila.get('delivery', ''), 'estado_texto': fila.get('estado', '')},
+                          'delivery': fila.get('delivery', ''), 'estado_texto': fila.get('estado', ''),
+                          'destino': fila.get('destino', '')},
                 'estado_nuevo': estado_nuevo,
                 'estado_nuevo_label': dict(Pedido.ESTADO_CHOICES).get(estado_nuevo, ''),
                 'confianza': 'ia', 'ref': fila.get('ref'),
@@ -1407,7 +1474,8 @@ def cruce_guardar_pendientes(request):
     objs = [FilaPendiente(
         nombre=str(f.get('nombre', ''))[:200], celular=str(f.get('celular', ''))[:60],
         producto=str(f.get('producto', ''))[:300], precio=str(f.get('precio', ''))[:40],
-        costo_delivery=str(f.get('delivery', ''))[:40], estado_texto=str(f.get('estado', ''))[:80],
+        costo_delivery=str(f.get('delivery', ''))[:40], destino=str(f.get('destino', ''))[:300],
+        estado_texto=str(f.get('estado', ''))[:80],
         motivo=(f.get('motivo') if f.get('motivo') in ('sin_cruce', 'dudoso') else 'sin_cruce'),
         origen=origen, creado_por=request.user if request.user.is_authenticated else None,
     ) for f in filas]

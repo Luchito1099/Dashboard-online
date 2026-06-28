@@ -73,7 +73,9 @@
       "Bash(touch inventario/__init__.py inventario/migrations/__init__.py)",
       "Bash(sed -n '97,124p' core/static/core/js/rotulador/app.jsx)",
       "Bash(node --check /tmp/doprint_check.js)",
-      "Bash(python -c \"import ast; ast.parse\\(open\\('integraciones/shalom_scraper.py',encoding='utf-8'\\).read\\(\\)\\); ast.parse\\(open\\('integraciones/models.py',encoding='utf-8'\\).read\\(\\)\\); print\\('OK sintaxis'\\)\")"
+      "Bash(python -c \"import ast; ast.parse\\(open\\('integraciones/shalom_scraper.py',encoding='utf-8'\\).read\\(\\)\\); ast.parse\\(open\\('integraciones/models.py',encoding='utf-8'\\).read\\(\\)\\); print\\('OK sintaxis'\\)\")",
+      "PowerShell(python manage.py makemigrations integraciones)",
+      "PowerShell(python manage.py shell -c \"exec\\(open\\(r'C:\\\\Users\\\\LEGION\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-LEGION-Desktop-FINALPROYECTO-Dashboard-online\\\\4469f121-246c-477b-923c-be30e91f4f90\\\\scratchpad\\\\test_cruce.py', encoding='utf-8'\\).read\\(\\)\\)\")"
     ]
   }
 }
