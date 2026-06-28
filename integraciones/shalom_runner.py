@@ -202,25 +202,35 @@ def correr(integ, tipo='manual', user=None, solo=None, orden=None, codigo=None):
                             mensaje = 'Detenido por el usuario. '
                             break
                         _progreso(cfg, f'[{i}/{total_val}] Consultando {envio.orden}/{envio.codigo} ({envio.nombre or "sin nombre"})…')
+                        log_envio = lambda m, _i=i: _progreso(cfg, f'[{_i}/{total_val}] {m}')
+
+                        def _guardar_estado(estado_real, _i=i, _e=envio):
+                            _e.estado_real = estado_real or 'NO_ENCONTRADO'
+                            _e.ultima_validacion = timezone.now()
+                            _aplicar_estado(_e, estado_real)
+                            _e.save()
+                            _progreso(cfg, f'[{_i}/{total_val}] {_e.orden}/{_e.codigo} → {_e.estado_real}')
+
                         try:
-                            log_envio = lambda m, _i=i: _progreso(cfg, f'[{_i}/{total_val}] {m}')
                             estado_real = sc.validar_envio(pv, sel, envio.orden, envio.codigo, log=log_envio)
-                            envio.estado_real = estado_real or 'NO_ENCONTRADO'
-                            envio.ultima_validacion = timezone.now()
-                            _aplicar_estado(envio, estado_real)
+                            _guardar_estado(estado_real)
                             if envio.entregado:
                                 entregados += 1
-                            envio.save()
                             validados += 1
-                            _progreso(cfg, f'[{i}/{total_val}] {envio.orden}/{envio.codigo} → {envio.estado_real}')
                         except Exception:
-                            envio.estado_real = 'ERROR'
-                            envio.save()
-                            _progreso(cfg, f'[{i}/{total_val}] {envio.orden}/{envio.codigo} → ERROR (reconectando…)')
+                            # Sesión caída u otro error: reconectamos y REINTENTAMOS este mismo envío.
+                            _progreso(cfg, f'[{i}/{total_val}] {envio.orden}/{envio.codigo} → reconectando…')
                             try:
                                 sc.asegurar_sesion_rastreo(pv, sel, usuario, password, log=log2)
+                                estado_real = sc.validar_envio(pv, sel, envio.orden, envio.codigo, log=log_envio)
+                                _guardar_estado(estado_real)
+                                if envio.entregado:
+                                    entregados += 1
+                                validados += 1
                             except Exception:
-                                pass
+                                envio.estado_real = 'ERROR'
+                                envio.save()
+                                _progreso(cfg, f'[{i}/{total_val}] {envio.orden}/{envio.codigo} → ERROR')
                         cont += 1
                         if cont >= bloque:
                             _progreso(cfg, f'— Pausa de bloque ({cont} pedidos procesados, {validados} ok, {entregados} entregados) —')

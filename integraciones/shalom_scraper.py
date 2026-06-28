@@ -302,19 +302,34 @@ def _necesita_login_rastreo(page, sel):
     return page.locator(sel['rastrea_email_sel']).count() > 0
 
 
+def _rastrea_base(sel):
+    """URL base del rastreo (la página de consulta, SIN /login). De aquí se cuelgan los
+    detalles /rastrea/{orden}/{codigo}."""
+    return (sel.get('rastrea_base_url')
+            or sel.get('rastrea_url', '').replace('/login', '').rstrip('/'))
+
+
 def asegurar_sesion_rastreo(page, sel, usuario, password, log=_noop):
-    log('Conectando a la página de rastreo…')
-    ir_a(page, sel['rastrea_url'])
+    """Deja la sesión de rastreo lista, con el MISMO ingreso 'humano' que la etapa 1.
+
+    Caso principal: entra Google → Shalom → /rastrea (NO directo) reutilizando la sesión
+    ya guardada en el perfil; si ya está logueado, queda listo para consultar detalles.
+    Caso alternativo: si /rastrea pide iniciar sesión, recién ahí hace login con tecleo lento
+    y vuelve a /rastrea."""
+    base = _rastrea_base(sel)
+    log('Entrando al rastreo como humano (Google → Shalom → rastrea)…')
+    _calentar(page, [sel.get('google_url'), sel.get('home_url'), base], log)
     espera_humana(1, 2)
     movimiento_humano(page)
     if not _necesita_login_rastreo(page, sel):
-        log('Sesión ya activa, formulario de búsqueda listo.')
+        log('Sesión ya activa en rastreo: listo para consultar envíos.')
         return
 
-    log('No hay sesión → calentando navegación (Google → Shalom → login)…')
-    # Calentamiento: Google → home Shalom → login de rastreo.
-    _calentar(page, [sel.get('google_url'), sel.get('home_url'), sel['rastrea_url']], log)
-    log('Formulario de login detectado, ingresando credenciales despacio…')
+    # Caso alternativo: el rastreo pidió login.
+    log('El rastreo pidió iniciar sesión → login con tecleo lento…')
+    if '/login' not in (page.url or ''):
+        ir_a(page, sel['rastrea_url'])
+        espera_humana(1, 2)
 
     def _intento():
         movimiento_humano(page)
@@ -335,7 +350,9 @@ def asegurar_sesion_rastreo(page, sel, usuario, password, log=_noop):
     if not _intento() and _necesita_login_rastreo(page, sel):
         log('Login de rastreo no confirmado, reintentando con tecleo lento…')
         _intento()
-    log('Formulario de búsqueda listo.')
+    # Ya logueado: volver a /rastrea para quedar en la página de consulta.
+    _calentar(page, [base], log)
+    log('Listo para consultar envíos.')
 
 
 def _diagnostico(page, log):
@@ -378,49 +395,64 @@ def _url_detalle(sel, orden, codigo):
     plantilla = sel.get('rastrea_detalle_url', '')
     if plantilla:
         return plantilla.replace('{orden}', orden).replace('{codigo}', codigo)
-    base = sel.get('rastrea_url', '').replace('/login', '').rstrip('/')
+    base = _rastrea_base(sel)
     return f'{base}/{orden}/{codigo}' if base else ''
 
 
 def validar_envio(page, sel, orden, codigo, log=_noop):
     """Devuelve el estado real de un envío (o None).
-    Método 1 (principal): URL directa /rastrea/{orden}/{codigo}.
-    Método 2 (respaldo): formulario de búsqueda."""
+
+    Método principal: FORMULARIO de búsqueda (escribe orden y código en los dos campos).
+    Quedarse en /rastrea y buscar por el formulario no recarga la página (consulta AJAX),
+    así no se dispara el anti-bot que SÍ se activaba al navegar a la URL directa del detalle.
+
+    Método oculto (usar_url_directa=True, OFF por defecto): URL directa /rastrea/{orden}/{codigo}."""
     estado_sel = sel['rastrea_estado_sel']
     fb_sel = sel['rastrea_estado_sel_fallback']
 
-    # ── Método 1: URL directa ──
-    url = _url_detalle(sel, orden, codigo)
-    if url:
-        log(f'Abriendo URL directa: {url}')
-        try:
-            ir_a(page, url)
-            texto = _leer_estado(page, estado_sel, fb_sel)
-            if texto:
-                log(f'Estado leído (URL directa): {texto}')
-                return texto
-            log(f'URL directa sin estado (página: {page.url}). Probando formulario…')
-            _diagnostico(page, log)
-        except Exception as e:
-            log(f'URL directa falló ({type(e).__name__}: {e}). Probando formulario…')
+    # ── Método oculto: URL directa (solo si se activa a propósito) ──
+    if sel.get('usar_url_directa'):
+        url = _url_detalle(sel, orden, codigo)
+        if url:
+            log(f'Abriendo URL directa: {url}')
+            try:
+                ir_a(page, url)
+                if _necesita_login_rastreo(page, sel):
+                    raise RuntimeError('La sesión de rastreo se cayó (el detalle pidió login).')
+                texto = _leer_estado(page, estado_sel, fb_sel)
+                if texto:
+                    log(f'Estado leído (URL directa): {texto}')
+                    return texto
+                log(f'URL directa sin estado (página: {page.url}). Probando formulario…')
+                _diagnostico(page, log)
+            except RuntimeError:
+                raise
+            except Exception as e:
+                log(f'URL directa falló ({type(e).__name__}). Probando formulario…')
 
-    # ── Método 2: formulario de búsqueda ──
-    try:
-        ir_a(page, sel.get('rastrea_url', '').replace('/login', '').rstrip('/'))
-    except Exception:
-        pass
-    movimiento_humano(page)
+    # ── Método principal: formulario de búsqueda (dos campos) ──
+    # Solo volvemos a /rastrea si el formulario no está a la vista (evita recargas inútiles).
     in_orden = page.locator(sel['rastrea_orden_sel'])
-    in_codigo = page.locator(sel['rastrea_codigo_sel'])
+    if in_orden.count() == 0 or _necesita_login_rastreo(page, sel):
+        try:
+            ir_a(page, _rastrea_base(sel))
+        except Exception:
+            pass
+        movimiento_humano(page)
+        in_orden = page.locator(sel['rastrea_orden_sel'])
+
+    # Si la página pide login, la sesión se cayó: propagamos para que el runner reconecte.
+    if _necesita_login_rastreo(page, sel):
+        raise RuntimeError('La sesión de rastreo se cayó (pidió login).')
     if in_orden.count() == 0:
         log(f'⚠ No se encontró el formulario de búsqueda (página: {page.url}).')
         _diagnostico(page, log)
         return None
-    log(f'Escribiendo orden {orden} y código {codigo} en el formulario…')
-    in_orden.first.click(); espera_humana(0.3, 0.6)
-    in_orden.first.fill(''); in_orden.first.fill(orden); espera_humana(0.5, 1)
-    in_codigo.first.click(); espera_humana(0.3, 0.6)
-    in_codigo.first.fill(''); in_codigo.first.fill(codigo); espera_humana(0.5, 1)
+
+    log(f'Escribiendo orden {orden} y código {codigo} en los dos campos…')
+    _escribir_humano(page, sel['rastrea_orden_sel'], orden, rapido=True)
+    espera_humana(0.4, 0.9)
+    _escribir_humano(page, sel['rastrea_codigo_sel'], codigo, rapido=True)
     movimiento_humano(page)
     log('Enviando consulta y esperando resultado…')
     page.click(sel['rastrea_submit_sel'])

@@ -420,13 +420,17 @@ DEFAULT_SHALOM_SCRAPER = {
     'next_btn_sel': 'button[aria-label="Next"]',
     # Etapa 2 — validación (shalom.com.pe/rastrea)
     'rastrea_url': 'https://shalom.com.pe/rastrea/login',
+    'rastrea_base_url': 'https://shalom.com.pe/rastrea',   # página de rastreo (entrada, no el login)
     'rastrea_email_sel': 'input[type="email"]',
     'rastrea_pass_sel': 'input[type="password"]',
     'rastrea_submit_sel': 'button[type="submit"]',
     'rastrea_orden_sel': 'input[maxlength="8"]',
     'rastrea_codigo_sel': 'input[maxlength="4"]',
-    # URL directa del detalle (método principal). {orden}/{codigo} se reemplazan.
+    # URL directa del detalle. OCULTA por defecto: navegar al detalle parece disparar el
+    # anti-bot y tumbar la sesión. El método principal es el formulario (dos campos). Para
+    # reactivarla a propósito, poner usar_url_directa=True en config_scraper.
     'rastrea_detalle_url': 'https://shalom.com.pe/rastrea/{orden}/{codigo}',
+    'usar_url_directa': False,
     'rastrea_estado_sel': '.text-4xl.text-red-color-sidebar',
     'rastrea_estado_sel_fallback': '.text-red-color-sidebar',
     # Palabra que indica entrega en el estado real
