@@ -55,6 +55,10 @@ def _noop(_):
     pass
 
 
+def _nocap(_page, _etiqueta):
+    pass
+
+
 def _escribir_humano(page, selector, texto, rapido=False, log=_noop, etiqueta=''):
     """Escribe carácter por carácter disparando eventos de teclado reales.
     `fill()` setea el valor de golpe sin keydown/keyup/input, y varios formularios
@@ -309,7 +313,7 @@ def _rastrea_base(sel):
             or sel.get('rastrea_url', '').replace('/login', '').rstrip('/'))
 
 
-def asegurar_sesion_rastreo(page, sel, usuario, password, log=_noop):
+def asegurar_sesion_rastreo(page, sel, usuario, password, log=_noop, cap=_nocap):
     """Deja la sesión de rastreo lista, con el MISMO ingreso 'humano' que la etapa 1.
 
     Caso principal: entra Google → Shalom → /rastrea (NO directo) reutilizando la sesión
@@ -321,8 +325,10 @@ def asegurar_sesion_rastreo(page, sel, usuario, password, log=_noop):
     _calentar(page, [sel.get('google_url'), sel.get('home_url'), base], log)
     espera_humana(1, 2)
     movimiento_humano(page)
+    cap(page, 'Llegué a la página de rastreo')
     if not _necesita_login_rastreo(page, sel):
         log('Sesión ya activa en rastreo: listo para consultar envíos.')
+        cap(page, 'Sesión activa (sin pedir login)')
         return
 
     # Caso alternativo: el rastreo pidió login.
@@ -330,6 +336,7 @@ def asegurar_sesion_rastreo(page, sel, usuario, password, log=_noop):
     if '/login' not in (page.url or ''):
         ir_a(page, sel['rastrea_url'])
         espera_humana(1, 2)
+    cap(page, 'Formulario de login del rastreo')
 
     def _intento():
         movimiento_humano(page)
@@ -352,6 +359,7 @@ def asegurar_sesion_rastreo(page, sel, usuario, password, log=_noop):
         _intento()
     # Ya logueado: volver a /rastrea para quedar en la página de consulta.
     _calentar(page, [base], log)
+    cap(page, 'Tras login, de vuelta en /rastrea')
     log('Listo para consultar envíos.')
 
 
@@ -399,7 +407,7 @@ def _url_detalle(sel, orden, codigo):
     return f'{base}/{orden}/{codigo}' if base else ''
 
 
-def validar_envio(page, sel, orden, codigo, log=_noop):
+def validar_envio(page, sel, orden, codigo, log=_noop, cap=_nocap):
     """Devuelve el estado real de un envío (o None).
 
     Método principal: FORMULARIO de búsqueda (escribe orden y código en los dos campos).
@@ -446,6 +454,7 @@ def validar_envio(page, sel, orden, codigo, log=_noop):
         raise RuntimeError('La sesión de rastreo se cayó (pidió login).')
     if in_orden.count() == 0:
         log(f'⚠ No se encontró el formulario de búsqueda (página: {page.url}).')
+        cap(page, f'SIN formulario de búsqueda ({orden}/{codigo})')
         _diagnostico(page, log)
         return None
 
@@ -454,10 +463,12 @@ def validar_envio(page, sel, orden, codigo, log=_noop):
     espera_humana(0.4, 0.9)
     _escribir_humano(page, sel['rastrea_codigo_sel'], codigo, rapido=True)
     movimiento_humano(page)
+    cap(page, f'Datos escritos ({orden}/{codigo})')
     log('Enviando consulta y esperando resultado…')
     page.click(sel['rastrea_submit_sel'])
     esperar_carga(page)
     texto = _leer_estado(page, estado_sel, fb_sel)
+    cap(page, f'Resultado {orden}/{codigo}: {texto or "(sin estado)"}')
     if not texto:
         log(f'⚠ No se encontró el estado (formulario). Página final: {page.url}')
         _diagnostico(page, log)

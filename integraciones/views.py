@@ -1690,10 +1690,27 @@ def api_shalom_estado(request, integracion_id):
         'corriendo': corriendo,
         'progreso': cfg.progreso,
         'log': cfg.log_lineas or [],
+        'capturas': cfg.capturas or [],
         'zombie': bool(cfg.corriendo and not vivo),
         'ultima_corrida': cfg.ultima_corrida.strftime('%d/%m/%Y %H:%M') if cfg.ultima_corrida else '',
         'ultimo_resultado': cfg.ultimo_resultado,
     })
+
+
+@login_required
+def api_shalom_captura(request, integracion_id, seq):
+    """Sirve el PNG de una captura del navegador (paso a paso de la corrida). Solo admin."""
+    import os
+    from django.conf import settings
+    from django.http import FileResponse, Http404
+    if not es_admin(request.user):
+        return JsonResponse({'error': 'sin permiso'}, status=403)
+    ruta = os.path.join(settings.MEDIA_ROOT, 'shalom_capturas', str(integracion_id), f'{int(seq)}.png')
+    if not os.path.exists(ruta):
+        raise Http404('captura no encontrada')
+    resp = FileResponse(open(ruta, 'rb'), content_type='image/png')
+    resp['Cache-Control'] = 'no-cache'   # cada seq es único, pero por si acaso
+    return resp
 
 
 @login_required

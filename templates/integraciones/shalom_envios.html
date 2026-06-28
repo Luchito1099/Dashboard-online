@@ -36,13 +36,28 @@
     </div>
   </div>
 
-  {# Panel de logs — visible solo mientras corre #}
+  {# Panel de logs + capturas — visible solo mientras corre #}
   <div id="sh-logs-box" style="display:none;background:var(--bg-card,#1a1a2e);border:1px solid var(--border,#333);border-radius:8px;padding:12px 14px;margin-bottom:16px;">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-      <span style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;">Log en vivo</span>
-      <button id="sh-logs-limpiar" style="font-size:11px;background:none;border:none;color:var(--muted);cursor:pointer;padding:0;">Limpiar</button>
+    <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start;">
+      {# Columna izquierda: log de texto #}
+      <div style="flex:1 1 340px;min-width:0;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+          <span style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;">Log en vivo</span>
+          <button id="sh-logs-limpiar" style="font-size:11px;background:none;border:none;color:var(--muted);cursor:pointer;padding:0;">Limpiar</button>
+        </div>
+        <div id="sh-logs" style="font-family:monospace;font-size:12px;color:#aaa;max-height:280px;overflow-y:auto;line-height:1.7;"></div>
+      </div>
+      {# Columna derecha: capturas de lo que ve el navegador #}
+      <div style="flex:1 1 360px;min-width:0;">
+        <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">📸 Lo que ve el bot</div>
+        <div id="sh-cap-cap" style="font-size:11px;color:#9aa;margin-bottom:4px;min-height:14px;">—</div>
+        <a id="sh-cap-link" href="#" target="_blank" rel="noopener" style="display:block;">
+          <img id="sh-cap-actual" alt="captura" style="display:none;width:100%;border:1px solid var(--border,#333);border-radius:6px;background:#0d0d18;">
+        </a>
+        <div id="sh-cap-tira" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;max-height:120px;overflow-y:auto;"></div>
+        <div id="sh-cap-vacio" style="font-size:11px;color:#777;">Esperando capturas…</div>
+      </div>
     </div>
-    <div id="sh-logs" style="font-family:monospace;font-size:12px;color:#aaa;max-height:220px;overflow-y:auto;line-height:1.7;"></div>
   </div>
 
   {# Filtros #}
@@ -111,6 +126,41 @@
     });
   }
 
+  // Capturas: cada entrada es [seq, 'HH:MM:SS', etiqueta, url_pagina]. La imagen se sirve por vista.
+  const capActual=document.getElementById('sh-cap-actual');
+  const capLink=document.getElementById('sh-cap-link');
+  const capCap=document.getElementById('sh-cap-cap');
+  const capTira=document.getElementById('sh-cap-tira');
+  const capVacio=document.getElementById('sh-cap-vacio');
+  let ultimaCapSeq=0, capFirma='';
+
+  function urlCaptura(seq){return `/integraciones/shalom/${ID}/captura/${seq}/`;}
+
+  function mostrarCaptura(c){   // c = [seq, hora, etiqueta, url_pag]
+    capActual.src=urlCaptura(c[0]); capActual.style.display='';
+    capLink.href=urlCaptura(c[0]);
+    capCap.textContent=`[${c[1]}] ${c[2]}`+(c[3]?(' · '+c[3]):'');
+  }
+
+  function volcarCapturas(caps){
+    if(!caps||!caps.length)return;
+    capVacio.style.display='none';
+    // Firma para no re-renderizar la tira en cada poll si no cambió.
+    const firma=caps.map(function(c){return c[0];}).join(',');
+    const ultima=caps[caps.length-1];
+    if(ultima[0]>ultimaCapSeq){ultimaCapSeq=ultima[0];mostrarCaptura(ultima);}  // auto-avanza a la más nueva
+    if(firma===capFirma)return;
+    capFirma=firma;
+    capTira.innerHTML='';
+    caps.forEach(function(c){
+      const t=document.createElement('img');
+      t.src=urlCaptura(c[0]); t.title=`[${c[1]}] ${c[2]}`;
+      t.style.cssText='width:64px;height:42px;object-fit:cover;border:1px solid var(--border,#333);border-radius:4px;cursor:pointer;background:#0d0d18;';
+      t.addEventListener('click',function(){mostrarCaptura(c);});
+      capTira.appendChild(t);
+    });
+  }
+
   function esc(s){const d=document.createElement('div');d.textContent=s==null?'':s;return d.innerHTML;}
 
   async function cargar(){
@@ -162,6 +212,7 @@
 
   async function actualizar(solo){
     deteniendo=false;ultimoLog='';ultimoSeq=0;logsDiv.innerHTML='';
+    ultimaCapSeq=0;capFirma='';capTira.innerHTML='';capActual.style.display='none';capCap.textContent='—';capVacio.style.display='';
     btn.disabled=true;btnValidar.disabled=true;
     btn.textContent='⏳ Iniciando…';
     btnStop.style.display='';btnStop.disabled=false;btnStop.textContent='⏹ Detener';
@@ -187,6 +238,7 @@
         }
         if(d.progreso)estado.textContent=d.progreso;
         volcarLog(d.log);
+        volcarCapturas(d.capturas);
       } else {
         deteniendo=false;
         btn.disabled=false;btn.textContent='⚡ Actualizar ahora';
@@ -224,6 +276,7 @@
         btn.disabled=true;btn.textContent='⏳ Corriendo…';btnValidar.disabled=true;
         btnStop.style.display='';
         volcarLog(d.log);
+        volcarCapturas(d.capturas);
         iniciarPoll();
       } else if(d.zombie){
         agregarLog('⚠ La corrida anterior se interrumpió (servidor reiniciado). Pulsa «Actualizar ahora» para reanudar.');

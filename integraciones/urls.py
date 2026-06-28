@@ -43,6 +43,7 @@ urlpatterns = [
     path('integraciones/shalom/<int:integracion_id>/envios/', views.shalom_envios, name='shalom_envios'),
     path('integraciones/shalom/<int:integracion_id>/actualizar/', views.api_shalom_actualizar, name='shalom_actualizar'),
     path('integraciones/shalom/<int:integracion_id>/estado/', views.api_shalom_estado, name='shalom_estado'),
+    path('integraciones/shalom/<int:integracion_id>/captura/<int:seq>/', views.api_shalom_captura, name='shalom_captura'),
     path('integraciones/shalom/<int:integracion_id>/detener/', views.api_shalom_detener, name='shalom_detener'),
     path('integraciones/shalom/<int:integracion_id>/importar/', views.api_shalom_importar, name='shalom_importar'),
     path('integraciones/shalom/<int:integracion_id>/api/envios/', views.api_shalom_envios, name='shalom_api_envios'),

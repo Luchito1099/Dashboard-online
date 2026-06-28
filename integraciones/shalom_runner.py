@@ -34,6 +34,38 @@ def _progreso(cfg, texto):
     cfg.save(update_fields=['progreso', 'latido', 'log_lineas'])
 
 
+def _captura(cfg, page, etiqueta):
+    """Guarda un PNG de lo que el navegador ve ahora y lo registra para que el panel lo
+    muestre. Nunca rompe la corrida si falla (la captura es solo ayuda visual)."""
+    import os
+    from django.conf import settings
+    try:
+        rel = os.path.join('shalom_capturas', str(cfg.integracion_id))
+        carpeta = os.path.join(settings.MEDIA_ROOT, rel)
+        os.makedirs(carpeta, exist_ok=True)
+        caps = list(cfg.capturas or [])
+        seq = (caps[-1][0] + 1) if caps else 1
+        page.screenshot(path=os.path.join(carpeta, f'{seq}.png'), full_page=False)
+        try:
+            url_pag = page.url
+        except Exception:
+            url_pag = ''
+        caps.append([seq, timezone.localtime().strftime('%H:%M:%S'), etiqueta[:80], url_pag])
+        cfg.capturas = caps[-20:]   # guardamos referencia a las últimas 20
+        cfg.save(update_fields=['capturas'])
+    except Exception:
+        pass
+
+
+def _limpiar_capturas(integracion_id):
+    """Borra las capturas de la corrida anterior (carpeta + lista)."""
+    import os
+    import shutil
+    from django.conf import settings
+    shutil.rmtree(os.path.join(settings.MEDIA_ROOT, 'shalom_capturas', str(integracion_id)),
+                  ignore_errors=True)
+
+
 def arreglar_mojibake(s):
     """Corrige texto UTF-8 mal decodificado como latin-1 (ej. 'AÃ©reo' → 'Aéreo')."""
     if s and 'Ã' in s:
@@ -146,9 +178,11 @@ def correr(integ, tipo='manual', user=None, solo=None, orden=None, codigo=None):
         return False, 'Faltan usuario/contraseña de Shalom.'
 
     sel = cfg.selectores()
+    _limpiar_capturas(integ.id)
     cfg.corriendo = True
     cfg.log_lineas = []   # log limpio para esta corrida (el panel detecta el reinicio)
-    cfg.save(update_fields=['corriendo', 'cancelar', 'log_lineas'])
+    cfg.capturas = []     # capturas limpias para esta corrida
+    cfg.save(update_fields=['corriendo', 'cancelar', 'log_lineas', 'capturas'])
     corrida = CorridaShalom.objects.create(integracion=integ, tipo=tipo, por=user)
     nuevos = validados = entregados = 0
     ok = True
@@ -188,7 +222,8 @@ def correr(integ, tipo='manual', user=None, solo=None, orden=None, codigo=None):
                     # (diálogos, beforeunload) bloquee la navegación entre dominios.
                     pv = ctx.new_page()
                     log2 = lambda m: _progreso(cfg, f'Etapa 2: {m}')
-                    sc.asegurar_sesion_rastreo(pv, sel, usuario, password, log=log2)
+                    cap = lambda pg, et: _captura(cfg, pg, et)
+                    sc.asegurar_sesion_rastreo(pv, sel, usuario, password, log=log2, cap=cap)
                     if orden and codigo:
                         qs = EnvioShalom.objects.filter(integracion=integ, orden=orden, codigo=codigo)
                     else:
@@ -211,8 +246,9 @@ def correr(integ, tipo='manual', user=None, solo=None, orden=None, codigo=None):
                             _e.save()
                             _progreso(cfg, f'[{_i}/{total_val}] {_e.orden}/{_e.codigo} → {_e.estado_real}')
 
+                        cap_envio = lambda pg, et, _i=i: _captura(cfg, pg, f'[{_i}] {et}')
                         try:
-                            estado_real = sc.validar_envio(pv, sel, envio.orden, envio.codigo, log=log_envio)
+                            estado_real = sc.validar_envio(pv, sel, envio.orden, envio.codigo, log=log_envio, cap=cap_envio)
                             _guardar_estado(estado_real)
                             if envio.entregado:
                                 entregados += 1
@@ -221,8 +257,8 @@ def correr(integ, tipo='manual', user=None, solo=None, orden=None, codigo=None):
                             # Sesión caída u otro error: reconectamos y REINTENTAMOS este mismo envío.
                             _progreso(cfg, f'[{i}/{total_val}] {envio.orden}/{envio.codigo} → reconectando…')
                             try:
-                                sc.asegurar_sesion_rastreo(pv, sel, usuario, password, log=log2)
-                                estado_real = sc.validar_envio(pv, sel, envio.orden, envio.codigo, log=log_envio)
+                                sc.asegurar_sesion_rastreo(pv, sel, usuario, password, log=log2, cap=cap)
+                                estado_real = sc.validar_envio(pv, sel, envio.orden, envio.codigo, log=log_envio, cap=cap_envio)
                                 _guardar_estado(estado_real)
                                 if envio.entregado:
                                     entregados += 1

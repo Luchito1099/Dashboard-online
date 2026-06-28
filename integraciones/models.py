@@ -469,6 +469,9 @@ class ConfigShalom(models.Model):
     # Búfer de log paso a paso: lista de [seq, 'HH:MM:SS', texto]. El panel lo lee completo
     # para no perder pasos rápidos entre lecturas (el polling es cada pocos segundos).
     log_lineas = models.JSONField(default=list, blank=True)
+    # Capturas de pantalla del navegador en cada paso: lista de [seq, 'HH:MM:SS', etiqueta,
+    # url_pagina]. El PNG se guarda en media/shalom_capturas/<id>/<seq>.png y se sirve por vista.
+    capturas = models.JSONField(default=list, blank=True)
     latido = models.DateTimeField(null=True, blank=True)  # heartbeat: última señal de vida de la corrida
     ultima_corrida = models.DateTimeField(null=True, blank=True)
     ultimo_resultado = models.TextField(blank=True)
