@@ -51,6 +51,41 @@ def movimiento_humano(page):
         pass
 
 
+def _noop(_):
+    pass
+
+
+def _escribir_humano(page, selector, texto, rapido=False):
+    """Escribe carácter por carácter disparando eventos de teclado reales.
+    `fill()` setea el valor de golpe sin keydown/keyup/input, y varios formularios
+    anti-bot (como el de Shalom) no validan/activan el submit sin esos eventos.
+    `rapido=False` (default) va más lento: úsalo para la contraseña."""
+    loc = page.locator(selector).first
+    loc.click()
+    espera_humana(0.3, 0.7)
+    loc.fill('')   # limpiar por si el contexto persistente dejó algo
+    espera_humana(0.2, 0.5)
+    dmin, dmax = (60, 140) if rapido else (110, 240)
+    loc.press_sequentially(texto, delay=random.uniform(dmin, dmax))
+    espera_humana(0.4, 0.9)
+
+
+def _calentar(page, urls, log=_noop):
+    """Navega una secuencia de URLs (Google → home Shalom → login) antes del login,
+    con movimientos/pausas humanas. Da referrer y cookies de navegación legítima,
+    como cuando el usuario llega 'a mano'. URLs vacías se omiten."""
+    for url in urls:
+        if not url:
+            continue
+        log(f'Calentando navegación: {url}')
+        try:
+            ir_a(page, url)
+        except Exception:
+            continue
+        movimiento_humano(page)
+        espera_humana(1.2, 2.5)
+
+
 def pausa_larga_con_actividad(page, minimo=15, maximo=20):
     """Pausa entre bloques simulando distracción (mueve mouse/scroll)."""
     duracion = random.uniform(minimo, maximo)
@@ -130,8 +165,9 @@ def parse_fecha(texto):
 
 # ───────────────────────── Etapa 1: listado ─────────────────────────
 
-def _login_listado(page, sel, usuario, password):
-    ir_a(page, sel['login_url'])
+def _login_listado(page, sel, usuario, password, log=_noop):
+    # Calentamiento: Google → home Shalom → login (referrer + cookies legítimas).
+    _calentar(page, [sel.get('google_url'), sel.get('home_url'), sel['login_url']], log)
     espera_humana(1.5, 3)
 
     # Con contexto persistente puede que YA haya sesión: si no aparece el formulario
@@ -146,19 +182,31 @@ def _login_listado(page, sel, usuario, password):
     if not hay_form:
         return '/login' not in page.url  # ya estaba logueado
 
-    page.fill(sel['login_email_sel'], usuario)
-    espera_humana(0.5, 1.2)
-    page.fill(sel['login_pass_sel'], password)
-    espera_humana(0.5, 1.2)
-    try:
-        page.check(sel['login_remember_sel'])
-    except Exception:
-        pass
-    espera_humana(0.5, 1)
-    page.click(sel['login_submit_sel'])
-    esperar_carga(page)
-    espera_humana(2, 3)
-    return '/login' not in page.url
+    def _intento():
+        movimiento_humano(page)
+        _escribir_humano(page, sel['login_email_sel'], usuario, rapido=True)
+        _escribir_humano(page, sel['login_pass_sel'], password)   # contraseña: lento
+        try:
+            page.check(sel['login_remember_sel'])
+        except Exception:
+            pass
+        espera_humana(0.6, 1.3)
+        page.click(sel['login_submit_sel'])
+        # Esperar a salir de /login en vez de solo esperar carga.
+        try:
+            page.wait_for_function("() => !location.href.includes('/login')", timeout=20000)
+        except Exception:
+            esperar_carga(page)
+        espera_humana(1.5, 2.5)
+        return '/login' not in page.url
+
+    if _intento():
+        return True
+    # Reintento único: a veces el primer tecleo no "prende" el formulario.
+    log('Login no confirmado, reintentando con tecleo lento…')
+    if page.locator(sel['login_email_sel']).count() == 0:
+        return '/login' not in page.url
+    return _intento()
 
 
 def _extraer_filas(page, sel):
@@ -187,11 +235,11 @@ def _extraer_filas(page, sel):
     return datos
 
 
-def importar_listado(page, sel, usuario, password, corte, max_paginas, on_pagina=None):
+def importar_listado(page, sel, usuario, password, corte, max_paginas, on_pagina=None, log=_noop):
     """Recorre el listado paginado de pro.shalom.pe.
     `corte` = dict {orden, codigo, fecha(date|None)}: se detiene al alcanzarlo.
     Devuelve (lista_envios, alcanzo_corte)."""
-    if not _login_listado(page, sel, usuario, password):
+    if not _login_listado(page, sel, usuario, password, log=log):
         raise RuntimeError('Login en pro.shalom.pe falló (revisa credenciales).')
 
     page.click(sel['menu_operaciones_sel'])
@@ -242,27 +290,36 @@ def _necesita_login_rastreo(page, sel):
     return page.locator(sel['rastrea_email_sel']).count() > 0
 
 
-def _noop(_):
-    pass
-
-
 def asegurar_sesion_rastreo(page, sel, usuario, password, log=_noop):
     log('Conectando a la página de rastreo…')
     ir_a(page, sel['rastrea_url'])
     espera_humana(1, 2)
     movimiento_humano(page)
-    if _necesita_login_rastreo(page, sel):
-        log('Sesión no activa → iniciando sesión…')
-        page.fill(sel['rastrea_email_sel'], usuario)
-        espera_humana(0.5, 1)
-        page.fill(sel['rastrea_pass_sel'], password)
-        espera_humana(0.5, 1)
-        page.click(sel['rastrea_submit_sel'])
-        esperar_carga(page)
-        espera_humana(1.5, 2.5)
-        log('Login enviado, formulario de búsqueda listo.')
-    else:
+    if not _necesita_login_rastreo(page, sel):
         log('Sesión ya activa, formulario de búsqueda listo.')
+        return
+
+    log('Sesión no activa → calentando navegación e iniciando sesión…')
+    # Calentamiento: Google → home Shalom → login de rastreo.
+    _calentar(page, [sel.get('google_url'), sel.get('home_url'), sel['rastrea_url']], log)
+
+    def _intento():
+        movimiento_humano(page)
+        _escribir_humano(page, sel['rastrea_email_sel'], usuario, rapido=True)
+        _escribir_humano(page, sel['rastrea_pass_sel'], password)   # contraseña: lento
+        espera_humana(0.6, 1.2)
+        page.click(sel['rastrea_submit_sel'])
+        try:
+            page.wait_for_selector(sel['rastrea_email_sel'], state='detached', timeout=15000)
+        except Exception:
+            esperar_carga(page)
+        espera_humana(1.5, 2.5)
+        return not _necesita_login_rastreo(page, sel)
+
+    if not _intento() and _necesita_login_rastreo(page, sel):
+        log('Login de rastreo no confirmado, reintentando con tecleo lento…')
+        _intento()
+    log('Login enviado, formulario de búsqueda listo.')
 
 
 def _diagnostico(page, log):

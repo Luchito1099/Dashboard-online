@@ -161,8 +161,10 @@ def correr(integ, tipo='manual', user=None, solo=None, orden=None, codigo=None):
                     def _on_pagina(pagina, filas):
                         _progreso(cfg, f'Etapa 1: página {pagina} leída · {len(filas)} envíos en esta página…')
 
+                    log1 = lambda m: _progreso(cfg, f'Etapa 1: {m}')
                     filas, alcanzo = sc.importar_listado(
-                        page, sel, usuario, password, corte, cfg.max_paginas, on_pagina=_on_pagina
+                        page, sel, usuario, password, corte, cfg.max_paginas,
+                        on_pagina=_on_pagina, log=log1
                     )
                     _progreso(cfg, f'Etapa 1: guardando {len(filas)} envíos leídos en la base…')
                     palabra_ent = sel.get('palabra_entregado', 'entregado')
