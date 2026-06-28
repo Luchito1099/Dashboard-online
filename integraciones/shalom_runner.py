@@ -21,11 +21,17 @@ def _config(integ):
 
 
 def _progreso(cfg, texto):
-    """Actualiza el texto de avance en vivo (lo lee el panel por polling) y el
-    latido, para que una corrida muerta no deje el flag 'corriendo' trabado."""
-    cfg.progreso = texto[:255]
+    """Actualiza el titular de avance, ACUMULA la línea en el búfer de log (para que el
+    panel no pierda pasos rápidos entre lecturas) y refresca el latido, para que una
+    corrida muerta no deje el flag 'corriendo' trabado."""
+    txt = texto[:255]
+    cfg.progreso = txt
     cfg.latido = timezone.now()
-    cfg.save(update_fields=['progreso', 'latido'])
+    log = list(cfg.log_lineas or [])
+    seq = (log[-1][0] + 1) if log else 1
+    log.append([seq, timezone.localtime().strftime('%H:%M:%S'), txt])
+    cfg.log_lineas = log[-300:]   # tope para no crecer sin límite
+    cfg.save(update_fields=['progreso', 'latido', 'log_lineas'])
 
 
 def arreglar_mojibake(s):
@@ -141,7 +147,8 @@ def correr(integ, tipo='manual', user=None, solo=None, orden=None, codigo=None):
 
     sel = cfg.selectores()
     cfg.corriendo = True
-    cfg.save(update_fields=['corriendo', 'cancelar'])
+    cfg.log_lineas = []   # log limpio para esta corrida (el panel detecta el reinicio)
+    cfg.save(update_fields=['corriendo', 'cancelar', 'log_lineas'])
     corrida = CorridaShalom.objects.create(integracion=integ, tipo=tipo, por=user)
     nuevos = validados = entregados = 0
     ok = True

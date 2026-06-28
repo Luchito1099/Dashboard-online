@@ -78,21 +78,37 @@
   const logsBox=document.getElementById('sh-logs-box');
   const logsDiv=document.getElementById('sh-logs');
   document.getElementById('sh-logs-limpiar').addEventListener('click',()=>{logsDiv.innerHTML='';});
-  let timer=null, poll=null, deteniendo=false, ultimoLog='';
+  let timer=null, poll=null, deteniendo=false, ultimoLog='', ultimoSeq=0;
 
   function ts(){return new Date().toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit',second:'2-digit'});}
 
-  function agregarLog(msg){
-    if(!msg||msg===ultimoLog)return;
-    ultimoLog=msg;
+  // Pinta una línea de log. `tstamp` opcional (la hora real del servidor); si falta usa la local.
+  function pintarLog(msg,tstamp){
     logsBox.style.display='';
     const el=document.createElement('div');
     const esError=msg.includes('ERROR')||msg.includes('Pausa');
-    const esOk=msg.includes('→')&&!msg.includes('ERROR');
-    el.style.color=esError?'#f87171':(esOk?'#6ee7b7':'#aaa');
-    el.textContent=`[${ts()}] ${msg}`;
+    const esOk=msg.includes('→')||msg.includes('✓');
+    el.style.color=esError?'#f87171':(esOk&&!msg.includes('ERROR')?'#6ee7b7':'#aaa');
+    el.textContent=`[${tstamp||ts()}] ${msg}`;
     logsDiv.appendChild(el);
     logsBox.scrollTop=logsBox.scrollHeight;
+  }
+
+  // Línea suelta (mensajes del cliente). Dedup por texto repetido seguido.
+  function agregarLog(msg){
+    if(!msg||msg===ultimoLog)return;
+    ultimoLog=msg;
+    pintarLog(msg);
+  }
+
+  // Vuelca TODO el búfer de log del servidor sin perder pasos (dedup por nº de secuencia).
+  function volcarLog(lineas){
+    if(!lineas||!lineas.length)return;
+    // Si el servidor reinició el búfer (nueva corrida), su seq vuelve a empezar: lo detectamos.
+    if(lineas[lineas.length-1][0]<ultimoSeq)ultimoSeq=0;
+    lineas.forEach(function(L){
+      if(L[0]>ultimoSeq){ultimoSeq=L[0];pintarLog(L[2],L[1]);}
+    });
   }
 
   function esc(s){const d=document.createElement('div');d.textContent=s==null?'':s;return d.innerHTML;}
@@ -145,7 +161,7 @@
   }
 
   async function actualizar(solo){
-    deteniendo=false;ultimoLog='';
+    deteniendo=false;ultimoLog='';ultimoSeq=0;logsDiv.innerHTML='';
     btn.disabled=true;btnValidar.disabled=true;
     btn.textContent='⏳ Iniciando…';
     btnStop.style.display='';btnStop.disabled=false;btnStop.textContent='⏹ Detener';
@@ -169,7 +185,8 @@
           btn.textContent='⏳ Corriendo…';
           btnStop.style.display='';
         }
-        if(d.progreso){estado.textContent=d.progreso;agregarLog(d.progreso);}
+        if(d.progreso)estado.textContent=d.progreso;
+        volcarLog(d.log);
       } else {
         deteniendo=false;
         btn.disabled=false;btn.textContent='⚡ Actualizar ahora';
@@ -179,7 +196,7 @@
         agregarLog('Corrida finalizada: '+(d.ultimo_resultado||''));
         clearInterval(poll);poll=null;cargar();
       }
-    },4000);
+    },2000);
   }
 
   async function detener(){
@@ -206,7 +223,7 @@
       if(d.corriendo){
         btn.disabled=true;btn.textContent='⏳ Corriendo…';btnValidar.disabled=true;
         btnStop.style.display='';
-        if(d.progreso)agregarLog(d.progreso);
+        volcarLog(d.log);
         iniciarPoll();
       } else if(d.zombie){
         agregarLog('⚠ La corrida anterior se interrumpió (servidor reiniciado). Pulsa «Actualizar ahora» para reanudar.');

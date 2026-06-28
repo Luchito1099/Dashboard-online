@@ -1689,6 +1689,7 @@ def api_shalom_estado(request, integracion_id):
     return JsonResponse({
         'corriendo': corriendo,
         'progreso': cfg.progreso,
+        'log': cfg.log_lineas or [],
         'zombie': bool(cfg.corriendo and not vivo),
         'ultima_corrida': cfg.ultima_corrida.strftime('%d/%m/%Y %H:%M') if cfg.ultima_corrida else '',
         'ultimo_resultado': cfg.ultimo_resultado,

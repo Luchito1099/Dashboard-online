@@ -461,7 +461,10 @@ class ConfigShalom(models.Model):
     # Estado de ejecución
     corriendo = models.BooleanField(default=False)
     cancelar = models.BooleanField(default=False)   # bandera para detener una corrida
-    progreso = models.CharField(max_length=255, blank=True)   # texto de avance en vivo
+    progreso = models.CharField(max_length=255, blank=True)   # texto de avance en vivo (titular)
+    # Búfer de log paso a paso: lista de [seq, 'HH:MM:SS', texto]. El panel lo lee completo
+    # para no perder pasos rápidos entre lecturas (el polling es cada pocos segundos).
+    log_lineas = models.JSONField(default=list, blank=True)
     latido = models.DateTimeField(null=True, blank=True)  # heartbeat: última señal de vida de la corrida
     ultima_corrida = models.DateTimeField(null=True, blank=True)
     ultimo_resultado = models.TextField(blank=True)
