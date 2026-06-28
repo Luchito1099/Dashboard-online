@@ -51,6 +51,10 @@
         <span>Nº de pedido (opcional)</span>
         <input type="text" name="numero" placeholder="ej. WA-001">
       </label>
+      <label class="reg-field">
+        <span>Fecha del pedido</span>
+        <input type="date" name="fecha_pedido" id="regFecha">
+      </label>
     </div>
 
     <div class="reg-seccion">Productos</div>
@@ -173,6 +177,22 @@
   function toggleEnv() { envWrap.style.display = (env.value === 'Otros') ? '' : 'none'; }
   env.addEventListener('change', toggleEnv); toggleEnv();
 
+  // Fecha del pedido: por defecto hoy (editable; la IA puede sobrescribirla)
+  var fechaInp = document.getElementById('regFecha');
+  if (fechaInp && !fechaInp.value) {
+    var hoyD = new Date();
+    fechaInp.value = hoyD.getFullYear() + '-' + String(hoyD.getMonth() + 1).padStart(2, '0') +
+                     '-' + String(hoyD.getDate()).padStart(2, '0');
+  }
+  // Normaliza una fecha de la IA a YYYY-MM-DD (acepta dd/mm/yyyy o dd-mm-yyyy)
+  function normFecha(s) {
+    s = (s || '').trim(); if (!s) return '';
+    var m = s.match(/^(\d{4})-(\d{2})-(\d{2})/); if (m) return m[1] + '-' + m[2] + '-' + m[3];
+    m = s.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})/);
+    if (m) return m[3] + '-' + String(m[2]).padStart(2, '0') + '-' + String(m[1]).padStart(2, '0');
+    return '';
+  }
+
   // ── Autocompletar con IA ──
   var ia = document.getElementById('regIA');
   if (ia) {
@@ -231,6 +251,9 @@
           var par = campos[lbl];
           if (!setVal(par[0], par[1])) faltan.push(lbl);
         });
+        // Fecha (si la IA la trae; si no, se queda la de hoy por defecto)
+        var nf = normFecha(d.fecha);
+        if (nf && fechaInp) fechaInp.value = nf;
         // Productos
         if (d.productos && d.productos.length) llenarProductos(d.productos); else faltan.push('Productos');
         // Tipo de envío

@@ -1007,6 +1007,14 @@ def registro_crear(request):
         if vendedor is None:
             vendedor = request.user
 
+        # Fecha del pedido: la que indique el usuario (la real); si no, ahora.
+        from django.utils.dateparse import parse_date
+        from datetime import datetime, time
+        fstr = request.POST.get('fecha_pedido', '').strip()
+        fdate = parse_date(fstr) if fstr else None
+        fecha_pedido = (timezone.make_aware(datetime.combine(fdate, time(12, 0)))
+                        if fdate else timezone.now())
+
         integ = Integracion.get_manual()
         pedido = Pedido.objects.create(
             integracion=integ,
@@ -1024,7 +1032,7 @@ def registro_crear(request):
             vendedor=vendedor,
             editado_por=request.user,
             editado_en=timezone.now(),
-            fecha_pedido=timezone.now(),
+            fecha_pedido=fecha_pedido,
         )
         # Productos (una línea por nombre no vacío)
         nombres = request.POST.getlist('item_nombre')
