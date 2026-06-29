@@ -303,7 +303,13 @@ def importar_listado(page, sel, usuario, password, corte, max_paginas, on_pagina
 # ───────────────────────── Etapa 2: validación ─────────────────────────
 
 def _necesita_login_rastreo(page, sel):
-    return page.locator(sel['rastrea_email_sel']).count() > 0
+    """Hay formulario de login si está el campo de contraseña (señal más fiable) o el de email."""
+    try:
+        if page.locator(sel['rastrea_pass_sel']).count() > 0:
+            return True
+        return page.locator(sel['rastrea_email_sel']).count() > 0
+    except Exception:
+        return False
 
 
 def _rastrea_base(sel):
@@ -311,6 +317,37 @@ def _rastrea_base(sel):
     detalles /rastrea/{orden}/{codigo}."""
     return (sel.get('rastrea_base_url')
             or sel.get('rastrea_url', '').replace('/login', '').rstrip('/'))
+
+
+def _esperar_render_rastreo(page, sel, log=_noop, timeout=25000):
+    """shalom.com.pe/rastrea es una SPA: el HTML inicial llega casi vacío y el contenido lo
+    pinta el JS unos segundos después. Esperamos a que aparezca algo REAL (campos de login o
+    del formulario de búsqueda, o el botón) antes de leer/capturar; si no, queda en blanco.
+    Devuelve True si renderizó contenido."""
+    try:
+        page.wait_for_load_state('networkidle', timeout=timeout)
+    except Exception:
+        pass
+    selectores = ', '.join(filter(None, [
+        sel.get('rastrea_pass_sel'), sel.get('rastrea_email_sel'),
+        sel.get('rastrea_orden_sel'), sel.get('rastrea_codigo_sel'),
+        sel.get('rastrea_submit_sel'),
+    ]))
+    try:
+        page.wait_for_selector(selectores, state='visible', timeout=timeout)
+        espera_humana(0.6, 1.2)   # margen para animaciones de entrada
+        return True
+    except Exception:
+        # Último recurso: esperar a que el body tenga algo de texto visible.
+        try:
+            page.wait_for_function(
+                "() => document.body && document.body.innerText.trim().length > 40",
+                timeout=8000)
+            espera_humana(0.5, 1)
+            return True
+        except Exception:
+            log('La página de rastreo no renderizó contenido (quedó en blanco).')
+            return False
 
 
 def asegurar_sesion_rastreo(page, sel, usuario, password, log=_noop, cap=_nocap):
@@ -321,9 +358,12 @@ def asegurar_sesion_rastreo(page, sel, usuario, password, log=_noop, cap=_nocap)
     Caso alternativo: si /rastrea pide iniciar sesión, recién ahí hace login con tecleo lento
     y vuelve a /rastrea."""
     base = _rastrea_base(sel)
+    # La "página de rastreo" es en realidad /rastrea/login (ahí está "Inicia sesión para
+    # rastrear tu envío"). Entramos como humano vía Google → Shalom → /rastrea/login.
     log('Entrando al rastreo como humano (Google → Shalom → rastrea)…')
-    _calentar(page, [sel.get('google_url'), sel.get('home_url'), base], log)
-    espera_humana(1, 2)
+    _calentar(page, [sel.get('google_url'), sel.get('home_url'), sel['rastrea_url']], log)
+    # CLAVE: es una SPA; ESPERAR a que el JS pinte el contenido o se ve en blanco.
+    _esperar_render_rastreo(page, sel, log)
     movimiento_humano(page)
     cap(page, 'Llegué a la página de rastreo')
     if not _necesita_login_rastreo(page, sel):
@@ -331,11 +371,11 @@ def asegurar_sesion_rastreo(page, sel, usuario, password, log=_noop, cap=_nocap)
         cap(page, 'Sesión activa (sin pedir login)')
         return
 
-    # Caso alternativo: el rastreo pidió login.
+    # Caso alternativo: hay que iniciar sesión.
     log('El rastreo pidió iniciar sesión → login con tecleo lento…')
     if '/login' not in (page.url or ''):
         ir_a(page, sel['rastrea_url'])
-        espera_humana(1, 2)
+        _esperar_render_rastreo(page, sel, log)
     cap(page, 'Formulario de login del rastreo')
 
     def _intento():
@@ -357,9 +397,12 @@ def asegurar_sesion_rastreo(page, sel, usuario, password, log=_noop, cap=_nocap)
     if not _intento() and _necesita_login_rastreo(page, sel):
         log('Login de rastreo no confirmado, reintentando con tecleo lento…')
         _intento()
-    # Ya logueado: volver a /rastrea para quedar en la página de consulta.
-    _calentar(page, [base], log)
-    cap(page, 'Tras login, de vuelta en /rastrea')
+    # Ya logueado: si el formulario de búsqueda no está ya a la vista, ir a la página de
+    # consulta y esperar a que renderice. (La SPA puede mostrar el buscador en la misma página.)
+    if page.locator(sel['rastrea_orden_sel']).count() == 0:
+        ir_a(page, base)
+        _esperar_render_rastreo(page, sel, log)
+    cap(page, 'Tras login, en la página de consulta')
     log('Listo para consultar envíos.')
 
 
@@ -446,6 +489,7 @@ def validar_envio(page, sel, orden, codigo, log=_noop, cap=_nocap):
             ir_a(page, _rastrea_base(sel))
         except Exception:
             pass
+        _esperar_render_rastreo(page, sel, log)   # esperar a que la SPA pinte el formulario
         movimiento_humano(page)
         in_orden = page.locator(sel['rastrea_orden_sel'])
 

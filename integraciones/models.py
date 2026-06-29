@@ -400,7 +400,7 @@ class FilaPendiente(models.Model):
 DEFAULT_SHALOM_SCRAPER = {
     # Calentamiento de navegación (anti-bot): Google → home Shalom → login
     'google_url': 'https://www.google.com/',
-    'home_url': 'https://www.shalom.com.pe/',
+    'home_url': 'https://shalom.com.pe/',
     # Etapa 1 — listado (pro.shalom.pe)
     'login_url': 'https://pro.shalom.pe/login?origin=WEB',
     'login_email_sel': '#formLogin input[name="email"]',
