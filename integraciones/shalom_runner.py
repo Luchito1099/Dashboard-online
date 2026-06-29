@@ -215,15 +215,35 @@ def correr(integ, tipo='manual', user=None, solo=None, orden=None, codigo=None):
                             nuevos += 1
                     _progreso(cfg, f'Etapa 1 lista: {len(filas)} leídos, {nuevos} nuevos.')
 
-                # ── Etapa 2: validar pendientes (en una PESTAÑA NUEVA) ──
+                # ── Etapa 2: validar pendientes ──
                 if solo != 'importar':
-                    _progreso(cfg, 'Etapa 2: preparando rastreo…')
-                    # Pestaña limpia para rastrea: evita que el estado de pro.shalom
-                    # (diálogos, beforeunload) bloquee la navegación entre dominios.
-                    pv = ctx.new_page()
+                    usar_listado = sel.get('metodo_rastreo', 'listado') == 'listado'
                     log2 = lambda m: _progreso(cfg, f'Etapa 2: {m}')
                     cap = lambda pg, et: _captura(cfg, pg, et)
-                    sc.asegurar_sesion_rastreo(pv, sel, usuario, password, log=log2, cap=cap)
+                    if usar_listado:
+                        # Método nuevo: reutiliza la sesión logueada de pro.shalom.pe (la misma
+                        # página de etapa 1, donde el login SÍ entra) y rastrea con la lupita.
+                        _progreso(cfg, 'Etapa 2: preparando rastreo desde el listado (lupita)…')
+                        sc.abrir_seguimiento(page, sel, usuario, password, log=log2)
+                        pv = page
+                    else:
+                        # Método viejo: pestaña limpia hacia shalom.com.pe/rastrea (cross-dominio).
+                        _progreso(cfg, 'Etapa 2: preparando rastreo…')
+                        pv = ctx.new_page()
+                        sc.asegurar_sesion_rastreo(pv, sel, usuario, password, log=log2, cap=cap)
+
+                    def _validar(_envio, _log, _cap):
+                        if usar_listado:
+                            return sc.validar_envio_listado(
+                                pv, sel, _envio.orden, _envio.codigo, usuario, password, log=_log, cap=_cap)
+                        return sc.validar_envio(pv, sel, _envio.orden, _envio.codigo, log=_log, cap=_cap)
+
+                    def _reconectar():
+                        if usar_listado:
+                            sc.abrir_seguimiento(pv, sel, usuario, password, log=log2)
+                        else:
+                            sc.asegurar_sesion_rastreo(pv, sel, usuario, password, log=log2, cap=cap)
+
                     if orden and codigo:
                         qs = EnvioShalom.objects.filter(integracion=integ, orden=orden, codigo=codigo)
                     else:
@@ -248,7 +268,7 @@ def correr(integ, tipo='manual', user=None, solo=None, orden=None, codigo=None):
 
                         cap_envio = lambda pg, et, _i=i: _captura(cfg, pg, f'[{_i}] {et}')
                         try:
-                            estado_real = sc.validar_envio(pv, sel, envio.orden, envio.codigo, log=log_envio, cap=cap_envio)
+                            estado_real = _validar(envio, log_envio, cap_envio)
                             _guardar_estado(estado_real)
                             if envio.entregado:
                                 entregados += 1
@@ -257,8 +277,8 @@ def correr(integ, tipo='manual', user=None, solo=None, orden=None, codigo=None):
                             # Sesión caída u otro error: reconectamos y REINTENTAMOS este mismo envío.
                             _progreso(cfg, f'[{i}/{total_val}] {envio.orden}/{envio.codigo} → reconectando…')
                             try:
-                                sc.asegurar_sesion_rastreo(pv, sel, usuario, password, log=log2, cap=cap)
-                                estado_real = sc.validar_envio(pv, sel, envio.orden, envio.codigo, log=log_envio, cap=cap_envio)
+                                _reconectar()
+                                estado_real = _validar(envio, log_envio, cap_envio)
                                 _guardar_estado(estado_real)
                                 if envio.entregado:
                                     entregados += 1

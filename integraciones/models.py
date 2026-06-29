@@ -418,6 +418,17 @@ DEFAULT_SHALOM_SCRAPER = {
     'row_monto_sel': '.amount-info',
     'row_delivery_sel': '.delivery-info div',
     'next_btn_sel': 'button[aria-label="Next"]',
+    # Etapa 2 — método de rastreo:
+    #   'listado'         → (DEFAULT) reutiliza la sesión logueada de pro.shalom.pe, busca cada
+    #                        envío en el listado de seguimiento y hace clic en la lupita
+    #                        (Rastrea Pedido), que abre una pestaña nueva al rastreo.
+    #   'rastrea_directo' → método viejo: navega directo a shalom.com.pe/rastrea (se quedaba
+    #                        en blanco / pedía login en bucle).
+    'metodo_rastreo': 'listado',
+    # Buscador del listado de seguimiento (para traer la fila del envío a la vista).
+    'seguimiento_buscar_sel': 'input[placeholder*="Buscar" i], input[type="search"], input[name="search"]',
+    # Botón de la lupita "Rastrea Pedido" en la fila del listado.
+    'seguimiento_track_btn_sel': 'button.custom-tooltip--track, button[data-tooltip*="Rastrea"]',
     # Etapa 2 — validación (shalom.com.pe/rastrea)
     'rastrea_url': 'https://shalom.com.pe/rastrea/login',
     'rastrea_base_url': 'https://shalom.com.pe/rastrea',   # página de rastreo (entrada, no el login)

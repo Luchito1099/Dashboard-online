@@ -254,6 +254,10 @@ def _extraer_filas(page, sel):
 def importar_listado(page, sel, usuario, password, corte, max_paginas, on_pagina=None, log=_noop):
     """Recorre el listado paginado de pro.shalom.pe.
     `corte` = dict {orden, codigo, fecha(date|None)}: se detiene al alcanzarlo.
+
+    También se detiene al llegar a la 'cola de entregados': si una página entera ya está
+    ENTREGADA (en el estado del listado), de ahí hacia atrás todo está entregado, así que no
+    se sigue bajando. Así 'Actualizar todo' no re-descarga lo antiguo ya entregado.
     Devuelve (lista_envios, alcanzo_corte)."""
     if not _login_listado(page, sel, usuario, password, log=log):
         raise RuntimeError('Login en pro.shalom.pe falló (revisa credenciales).')
@@ -264,6 +268,7 @@ def importar_listado(page, sel, usuario, password, corte, max_paginas, on_pagina
     esperar_carga(page)
     espera_humana(2, 3)
 
+    palabra_ent = (sel.get('palabra_entregado') or 'entregado').lower()
     todos = []
     alcanzo_corte = False
     pagina = 1
@@ -274,8 +279,11 @@ def importar_listado(page, sel, usuario, password, corte, max_paginas, on_pagina
             on_pagina(pagina, filas)
 
         # Corte: detener si llegamos al límite (de aquí hacia atrás todo entregado)
+        pendientes_pagina = 0
         for f in filas:
             todos.append(f)
+            if palabra_ent not in (f.get('estado', '') or '').lower():
+                pendientes_pagina += 1
             if corte.get('orden') and f['orden'] == corte['orden'] and f['codigo'] == corte['codigo']:
                 alcanzo_corte = True
                 break
@@ -284,6 +292,13 @@ def importar_listado(page, sel, usuario, password, corte, max_paginas, on_pagina
                 alcanzo_corte = True
                 break
         if alcanzo_corte:
+            break
+
+        # Parada por entrega: si en TODA la página no hubo ningún envío sin entregar,
+        # de aquí hacia atrás todo está entregado → no seguimos descargando.
+        if filas and pendientes_pagina == 0:
+            alcanzo_corte = True
+            log(f'Página {pagina} completa ya entregada: detengo la descarga (lo antiguo ya está entregado).')
             break
 
         if pagina >= max_paginas:
@@ -448,6 +463,148 @@ def _url_detalle(sel, orden, codigo):
         return plantilla.replace('{orden}', orden).replace('{codigo}', codigo)
     base = _rastrea_base(sel)
     return f'{base}/{orden}/{codigo}' if base else ''
+
+
+# ─────────── Etapa 2 (método 'listado'): clic en la lupita ───────────
+
+def abrir_seguimiento(page, sel, usuario, password, log=_noop):
+    """Deja `page` logueada en pro.shalom.pe y en el listado 'Seguimiento de envíos'.
+
+    Reutiliza la MISMA sesión/página donde el login SÍ funciona (la etapa 1). Si venimos
+    de la etapa 1 ya estamos logueados; si la corrida es 'solo validar', inicia sesión."""
+    necesita_login = (
+        '/login' in (page.url or '')
+        or 'shalom.pe' not in (page.url or '')
+        or page.locator(sel['login_email_sel']).count() > 0
+    )
+    if necesita_login:
+        if not _login_listado(page, sel, usuario, password, log=log):
+            raise RuntimeError('Login en pro.shalom.pe falló (revisa credenciales).')
+
+    # Asegurar que estamos en el listado de seguimiento (idempotente).
+    try:
+        page.click(sel['menu_operaciones_sel'])
+        espera_humana(0.8, 1.5)
+        page.click(f"text={sel['menu_seguimiento_text']}")
+        esperar_carga(page)
+        espera_humana(1.5, 2.5)
+    except Exception:
+        # Puede que ya estuviéramos en el listado (etapa 1 lo deja abierto).
+        pass
+    log('Listo para rastrear desde el listado (lupita).')
+
+
+def _buscar_en_listado(page, sel, termino):
+    """Escribe el término (orden o código) en el buscador del listado y espera el filtrado AJAX.
+    Devuelve True si encontró el buscador."""
+    buscador = page.locator(sel['seguimiento_buscar_sel']).first
+    if buscador.count() == 0:
+        return False
+    buscador.click()
+    espera_humana(0.2, 0.5)
+    buscador.fill('')
+    espera_humana(0.2, 0.4)
+    buscador.press_sequentially(termino, delay=random.uniform(80, 160))
+    espera_humana(1.4, 2.4)   # margen para que el listado filtre
+    return True
+
+
+def _login_rastreo_popup(page, sel, usuario, password, log=_noop):
+    """Login en la pestaña de rastreo (mismo tecleo lento humano que la etapa 1)."""
+    def _intento():
+        movimiento_humano(page)
+        _escribir_humano(page, sel['rastrea_email_sel'], usuario, rapido=True, log=log, etiqueta='el usuario')
+        _escribir_humano(page, sel['rastrea_pass_sel'], password, log=log, etiqueta='la contraseña')   # lento
+        espera_humana(0.6, 1.2)
+        log('Enviando el formulario de login del rastreo…')
+        page.click(sel['rastrea_submit_sel'])
+        try:
+            page.wait_for_selector(sel['rastrea_email_sel'], state='detached', timeout=15000)
+        except Exception:
+            esperar_carga(page)
+        espera_humana(1.2, 2.0)
+        return not _necesita_login_rastreo(page, sel)
+
+    if not _intento() and _necesita_login_rastreo(page, sel):
+        log('Login de rastreo no confirmado, reintentando…')
+        _intento()
+
+
+def validar_envio_listado(page, sel, orden, codigo, usuario, password, log=_noop, cap=_nocap):
+    """Valida un envío SIN salir de pro.shalom.pe.
+
+    Flujo: busca la fila por orden (o código) en el listado de seguimiento → clic en la lupita
+    'Rastrea Pedido' → eso abre una PESTAÑA NUEVA al rastreo → ahí lee el estado. En esa pestaña
+    maneja los 3 casos: (A) pide login, (B) pide orden+código, (C) muestra directo.
+    Si no encuentra la fila/botón, propaga para que el runner reconecte y reintente."""
+    estado_sel = sel['rastrea_estado_sel']
+    fb_sel = sel['rastrea_estado_sel_fallback']
+
+    # 1) Filtrar el listado para traer la fila a la vista y ubicar la lupita.
+    _buscar_en_listado(page, sel, orden)
+    boton = page.locator(sel['seguimiento_track_btn_sel']).first
+    try:
+        boton.wait_for(state='visible', timeout=8000)
+    except Exception:
+        _buscar_en_listado(page, sel, codigo)   # reintento por código
+        boton = page.locator(sel['seguimiento_track_btn_sel']).first
+        if boton.count() == 0:
+            log(f'⚠ No encontré la fila/lupita de {orden}/{codigo} en el listado.')
+            cap(page, f'SIN fila/lupita ({orden}/{codigo})')
+            _diagnostico(page, log)
+            return None
+
+    # 2) Clic en la lupita → debería abrir una pestaña nueva.
+    log(f'Clic en la lupita (Rastrea Pedido) de {orden}/{codigo}…')
+    ctx = page.context
+    try:
+        with ctx.expect_page(timeout=15000) as pop_info:
+            boton.click()
+        popup = pop_info.value
+    except Exception:
+        # No abrió pestaña nueva: tal vez navegó en la misma o abrió un modal inline.
+        popup = page
+
+    es_popup = popup is not page
+    try:
+        _esperar_render_rastreo(popup, sel, log)
+        movimiento_humano(popup)
+        cap(popup, f'Rastreo abierto ({orden}/{codigo})')
+
+        # Caso A: la pestaña pide iniciar sesión.
+        if _necesita_login_rastreo(popup, sel):
+            log('La pestaña de rastreo pidió login → ingresando…')
+            _login_rastreo_popup(popup, sel, usuario, password, log=log)
+            _esperar_render_rastreo(popup, sel, log)
+            cap(popup, f'Tras login en rastreo ({orden}/{codigo})')
+
+        # Caso B: la pestaña pide orden + código (formulario, sin estado todavía).
+        pide_form = (popup.locator(sel['rastrea_orden_sel']).count() > 0
+                     and _leer_estado(popup, estado_sel, fb_sel) is None)
+        if pide_form:
+            log(f'La pestaña pide orden y código → escribiendo {orden}/{codigo}…')
+            _escribir_humano(popup, sel['rastrea_orden_sel'], orden, rapido=True)
+            espera_humana(0.4, 0.9)
+            _escribir_humano(popup, sel['rastrea_codigo_sel'], codigo, rapido=True)
+            movimiento_humano(popup)
+            cap(popup, f'Datos escritos ({orden}/{codigo})')
+            popup.click(sel['rastrea_submit_sel'])
+            esperar_carga(popup)
+
+        # Caso C (o tras A/B): leer el estado.
+        texto = _leer_estado(popup, estado_sel, fb_sel)
+        cap(popup, f'Resultado {orden}/{codigo}: {texto or "(sin estado)"}')
+        if not texto:
+            log(f'⚠ No se encontró el estado. Página: {popup.url}')
+            _diagnostico(popup, log)
+        return texto
+    finally:
+        # Cerrar la pestaña del rastreo para no acumular pestañas; la del listado queda viva.
+        if es_popup:
+            try:
+                popup.close()
+            except Exception:
+                pass
 
 
 def validar_envio(page, sel, orden, codigo, log=_noop, cap=_nocap):
