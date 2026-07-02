@@ -141,6 +141,11 @@ const API={
   extraer:d=>api("/rotulador/api/extraer/",{method:"POST",body:JSON.stringify(d)}),
 };
 
+// Fecha local YYYY-MM-DD (para filtrar rótulos por día en la zona del navegador)
+const isoLocal=d=>{const x=new Date(d.getTime()-d.getTimezoneOffset()*60000);return x.toISOString().slice(0,10);};
+const hoyISO=()=>isoLocal(new Date());
+const isoMasDias=n=>{const d=new Date();d.setDate(d.getDate()+n);return isoLocal(d);};
+
 const pJSON=t=>{try{const m=t.match(/\{[\s\S]*\}/);return m?JSON.parse(m[0]):null;}catch{return null;}};
 const f2b64=f=>new Promise((r,j)=>{const x=new FileReader();x.onload=()=>r(x.result.split(",")[1]);x.onerror=j;x.readAsDataURL(f);});
 const f2url=f=>new Promise((r,j)=>{const x=new FileReader();x.onload=()=>r(x.result);x.onerror=j;x.readAsDataURL(f);});
@@ -426,6 +431,26 @@ function RotuloCard({order,cfg,logoUrl,open,onToggle,onEdit,onDelete}){
   </div>);
 }
 
+// Barra de filtro por rango de fechas (día de registro del rótulo)
+function FiltroFecha({desde,setDesde,hasta,setHasta,activo,setActivo,total,visibles}){
+  const ID={...I,padding:"7px 9px",width:"auto",fontSize:13};
+  const chip=(label,on,fn)=><button onClick={fn} style={{padding:"6px 11px",border:`1.5px solid ${on?"var(--primary)":"var(--border-dark)"}`,borderRadius:8,background:on?"var(--primary-bg)":"var(--surface)",fontSize:12.5,fontWeight:on?700:500,color:on?"var(--primary-dark)":"var(--text-secondary)",cursor:"pointer",whiteSpace:"nowrap"}}>{label}</button>;
+  const esHoy=activo&&desde===hoyISO()&&hasta===hoyISO();
+  const es7=activo&&desde===isoMasDias(-6)&&hasta===hoyISO();
+  return(<div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",padding:"10px 12px",background:"var(--surface)",border:"1px solid var(--border-dark)",borderRadius:10,marginBottom:12}}>
+    <span style={{fontSize:12.5,fontWeight:700,color:"var(--text-secondary)"}}>📅 Fecha</span>
+    {chip("Hoy",esHoy,()=>{setDesde(hoyISO());setHasta(hoyISO());setActivo(true);})}
+    {chip("Últ. 7 días",es7,()=>{setDesde(isoMasDias(-6));setHasta(hoyISO());setActivo(true);})}
+    {chip("Todos",!activo,()=>setActivo(false))}
+    <div style={{display:"flex",alignItems:"center",gap:6,opacity:activo?1:.5}}>
+      <input type="date" value={desde} max={hasta||undefined} onChange={e=>{setDesde(e.target.value);setActivo(true);}} style={ID}/>
+      <span style={{color:"var(--muted)"}}>—</span>
+      <input type="date" value={hasta} min={desde||undefined} onChange={e=>{setHasta(e.target.value);setActivo(true);}} style={ID}/>
+    </div>
+    <span style={{fontSize:12,color:"var(--muted)",marginLeft:"auto"}}>{activo?`Mostrando ${visibles} de ${total}`:`${total} en total`}</span>
+  </div>);
+}
+
 // ── App ──
 function App(){
   const[cfg,setCfg]=useState(null);          // config flat (incl. visual)
@@ -440,6 +465,10 @@ function App(){
   const[printOpen,setPrintOpen]=useState(false);
   const[shalomOpen,setShalomOpen]=useState(false);
   const[openId,setOpenId]=useState(null);
+  // Filtro por día: por defecto solo los rótulos registrados hoy
+  const[desde,setDesde]=useState(hoyISO());
+  const[hasta,setHasta]=useState(hoyISO());
+  const[filtroActivo,setFiltroActivo]=useState(true);
 
   useEffect(()=>{(async()=>{
     try{
@@ -452,7 +481,12 @@ function App(){
   })();},[]);
 
   const logoUrl=useMemo(()=>(logos.find(l=>l.id===activeLogo)||{}).dataUrl||null,[logos,activeLogo]);
-  const totalPages=Math.max(1,Math.ceil(orders.length/PER_PAGE));
+  // Rótulos visibles según el rango de fechas. El Excel y la impresión usan esta lista.
+  const visibleOrders=useMemo(()=>{
+    if(!filtroActivo)return orders;
+    return orders.filter(o=>{const d=o.creado_iso||"";return d&&d>=desde&&d<=hasta;});
+  },[orders,filtroActivo,desde,hasta]);
+  const totalPages=Math.max(1,Math.ceil(visibleOrders.length/PER_PAGE));
 
   const addOrder=async d=>{try{const o=await API.crear(d);setOrders(p=>[o,...p]);}catch(e){alert(e.message);}};
   const saveOrder=async f=>{try{const o=await API.editar(f.id,f);setOrders(p=>p.map(x=>x.id===o.id?o:x));setEditing(null);}catch(e){alert(e.message);}};
@@ -485,22 +519,24 @@ function App(){
     {/* Panel derecho: lista + acciones */}
     <div>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12,flexWrap:"wrap",gap:8}}>
-        <div style={{fontSize:14,fontWeight:700,color:"var(--text)"}}>Rótulos ({orders.length}) · {totalPages} hoja(s)</div>
+        <div style={{fontSize:14,fontWeight:700,color:"var(--text)"}}>Rótulos ({visibleOrders.length}) · {totalPages} hoja(s)</div>
         <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
           <button onClick={()=>setShowSettings(true)} style={BTN_SEC}>⚙ Configuración</button>
-          <button onClick={()=>setShalomOpen(true)} disabled={!orders.length} style={{...BTN_OK,opacity:!orders.length?.55:1}}>📦 Shalom</button>
-          <button onClick={()=>setPrintOpen(true)} disabled={!orders.length} style={{...BTN,opacity:!orders.length?.55:1}}>🖨 Imprimir</button>
+          <button onClick={()=>setShalomOpen(true)} disabled={!visibleOrders.length} style={{...BTN_OK,opacity:!visibleOrders.length?.55:1}}>📦 Shalom</button>
+          <button onClick={()=>setPrintOpen(true)} disabled={!visibleOrders.length} style={{...BTN,opacity:!visibleOrders.length?.55:1}}>🖨 Imprimir</button>
         </div>
       </div>
+      <FiltroFecha desde={desde} setDesde={setDesde} hasta={hasta} setHasta={setHasta} activo={filtroActivo} setActivo={setFiltroActivo} total={orders.length} visibles={visibleOrders.length}/>
       {orders.length===0?<div className="rot-empty">Sin rótulos. Importa pedidos o agrega uno por mensaje/manual.</div>:
+       visibleOrders.length===0?<div className="rot-empty">Ningún rótulo en este rango de fechas. Cambia el rango o usa «Todos».</div>:
       <div className="rot-cards">
-        {orders.map(o=><RotuloCard key={o.id} order={o} cfg={cfg} logoUrl={logoUrl} open={openId===o.id} onToggle={()=>setOpenId(openId===o.id?null:o.id)} onEdit={()=>setEditing(o)} onDelete={()=>delOrder(o.id)}/>)}
+        {visibleOrders.map(o=><RotuloCard key={o.id} order={o} cfg={cfg} logoUrl={logoUrl} open={openId===o.id} onToggle={()=>setOpenId(openId===o.id?null:o.id)} onEdit={()=>setEditing(o)} onDelete={()=>delOrder(o.id)}/>)}
       </div>}
     </div>
 
     {editing&&<EditModal order={editing} products={products} onSave={saveOrder} onClose={()=>setEditing(null)}/>}
-    {printOpen&&<PrintModal orders={orders} totalPages={totalPages} cfg={cfg} logoUrl={logoUrl} onClose={()=>setPrintOpen(false)}/>}
-    {shalomOpen&&<ShalomModal orders={orders} products={products} onClose={()=>setShalomOpen(false)}/>}
+    {printOpen&&<PrintModal orders={visibleOrders} totalPages={totalPages} cfg={cfg} logoUrl={logoUrl} onClose={()=>setPrintOpen(false)}/>}
+    {shalomOpen&&<ShalomModal orders={visibleOrders} products={products} onClose={()=>setShalomOpen(false)}/>}
     {showSettings&&<SettingsModal cfg={cfg} setCfg={setCfg} logos={logos} setLogos={setLogos} activeLogo={activeLogo} setActiveLogo={setActiveLogo} products={products} setProducts={setProducts} ai={ai} setAi={setAi} onSave={saveSettings} onClose={()=>setShowSettings(false)}/>}
   </div>);
 }

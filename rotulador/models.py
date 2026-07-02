@@ -1,6 +1,7 @@
 # rotulador/models.py
 from django.db import models
 from django.contrib.auth.models import User
+from django.utils import timezone
 
 from integraciones.crypto import EncryptedTextField
 
@@ -100,6 +101,10 @@ class Rotulo(models.Model):
         return f'{self.nombres or "(sin nombre)"} · {self.get_origen_display()}'
 
     def to_dict(self):
+        # Se guarda en UTC (USE_TZ) y se muestra/agrupa en hora local (America/Lima),
+        # para que el filtro por día del rotulador coincida con la fecha real del negocio.
+        creado_local = timezone.localtime(self.creado) if self.creado else None
+        actualizado_local = timezone.localtime(self.actualizado) if self.actualizado else None
         return {
             'id': self.id,
             'nombres': self.nombres,
@@ -112,5 +117,7 @@ class Rotulo(models.Model):
             'origen': self.origen,
             'pedido_id': self.pedido_id,
             'creado_por': (self.creado_por.get_full_name() or self.creado_por.username) if self.creado_por else '',
-            'creado': self.creado.strftime('%d/%m/%Y %H:%M') if self.creado else '',
+            'creado': creado_local.strftime('%d/%m/%Y %H:%M') if creado_local else '',
+            'creado_iso': creado_local.strftime('%Y-%m-%d') if creado_local else '',
+            'actualizado_iso': actualizado_local.strftime('%Y-%m-%d') if actualizado_local else '',
         }
