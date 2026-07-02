@@ -14,7 +14,9 @@
     <thead>
       <tr>
         <th>Producto</th><th class="ped-num">Gasto</th><th class="ped-num">Meta dice</th>
-        <th class="ped-num">Confirmados</th><th class="ped-num">Despachados</th><th class="ped-num">Entregados</th>
+        <th class="ped-num" title="Confirmado + despachado (aún sin entregar)">Preventa</th>
+        <th class="ped-num" title="Entregado">Venta</th>
+        <th class="ped-num" title="Total concretado = preventa + venta">Ambos</th>
         <th class="ped-num ads-col-cambia">N (<span class="ads-etapa-txt">venta</span>)</th>
         <th class="ped-num ads-col-cambia">CPA real</th><th class="ped-num ads-col-cambia">ROAS real</th>
       </tr>
@@ -31,9 +33,9 @@
         </td>
         <td class="ped-num">{{ moneda }} {{ f.gasto|floatformat:2 }}</td>
         <td class="ped-num">{{ f.meta_atribuidos }}</td>
-        <td class="ped-num">{{ f.confirmados }}{% if f.caida_conf != None %} <span class="ads-caida">↓{{ f.caida_conf }}%</span>{% endif %}</td>
         <td class="ped-num">{{ f.n_preventa }}</td>
-        <td class="ped-num">{{ f.entregados }}{% if f.caida_entr != None %} <span class="ads-caida">↓{{ f.caida_entr }}%</span>{% endif %}</td>
+        <td class="ped-num">{{ f.n_venta }}</td>
+        <td class="ped-num">{{ f.n_ambos }}{% if f.caida_conf != None %} <span class="ads-caida" title="No concretado de lo que Meta reporta">↓{{ f.caida_conf }}%</span>{% endif %}</td>
         <td class="ped-num ads-col-cambia ads-cell-n">{{ f.n_venta }}</td>
         <td class="ped-num ads-col-cambia ads-cell-cpa">{% if f.cpa_venta != None %}{{ moneda }} {{ f.cpa_venta }}{% else %}—{% endif %}</td>
         <td class="ped-num ads-col-cambia ads-cell-roas">
@@ -47,9 +49,9 @@
   </table>
 </div>
 <p class="ads-nota">CPA real = gasto ÷ N de la etapa elegida. ROAS real = ingreso de la etapa ÷ gasto.
-  <b>Preventa</b> = confirmado + despachado · <b>Venta</b> = entregado · <b>Ambos</b> = los tres.
+  <b>Preventa</b> = confirmado + despachado (sin entregar) · <b>Venta</b> = entregado · <b>Ambos</b> = preventa + venta (total concretado).
   Los pedidos se cuentan por su fecha de creación dentro del rango (mismo periodo que el gasto).</p>
-<p class="ads-nota">¿Confirmados/entregados en 0? Es que los productos de tus <b>pedidos</b> aún no están vinculados al catálogo.
+<p class="ads-nota">¿Preventa/Venta en 0? Es que los productos de tus <b>pedidos</b> aún no están vinculados al catálogo.
   Hazlo en <a href="{% url 'productos:reconocer' %}"><b>Productos › Reconocer de pedidos</b></a> y volverá a cuadrar.
   ⚠️ Ojo: el gasto está en USD y los ingresos de pedidos en soles; el ROAS mezcla monedas hasta que configuremos el tipo de cambio.</p>
 
