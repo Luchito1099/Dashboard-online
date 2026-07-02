@@ -151,6 +151,11 @@ def dashboard(request):
         ctx['hm'] = services.heatmap(desde, hasta, integracion_id)
     elif vista == 'rendimiento':
         ctx['rend'] = services.rendimiento_embudo(desde, hasta, integracion_id, campana_ids)
+        comparar = request.GET.get('comparar', '')
+        if comparar in ('dia', 'semana', 'mes', 'anterior'):
+            ctx['comparar'] = comparar
+            ctx['comparativo'] = services.comparativo_rendimiento(
+                desde, hasta, comparar, integracion_id, campana_ids)
     else:
         serie = services.serie_diaria(desde, hasta, integracion_id, campana_ids, producto_ids)
         ctx['serie'] = serie

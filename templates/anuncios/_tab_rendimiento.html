@@ -1,3 +1,4 @@
+{% load humanize %}
 {% comment %} Rendimiento del anuncio: embudo con % de conversión + métricas + ROAS real {% endcomment %}
 {% with t=rend.total m=rend.moneda %}
 
@@ -49,6 +50,55 @@
   </div>
 </div>
 
+{# ── Comparativo "misma hora" ── #}
+{% with base="?vista=rendimiento&tienda="|add:f_tienda|add:"&proyecto="|add:f_proyecto|add:"&campana="|add:f_campana|add:"&desde="|add:f_desde|add:"&hasta="|add:f_hasta %}
+<div class="av-card av-card-wide" style="margin-top:14px;">
+  <div class="av-card-title">🆚 Comparar con período anterior (misma hora)</div>
+  <div class="ads-cmp-pills">
+    <a href="{{ base }}&comparar=dia" class="ads-cmp-pill {% if comparar == 'dia' %}active{% endif %}">vs Día anterior</a>
+    <a href="{{ base }}&comparar=semana" class="ads-cmp-pill {% if comparar == 'semana' %}active{% endif %}">vs Semana anterior</a>
+    <a href="{{ base }}&comparar=mes" class="ads-cmp-pill {% if comparar == 'mes' %}active{% endif %}">vs Mes anterior</a>
+    <a href="{{ base }}&comparar=anterior" class="ads-cmp-pill {% if comparar == 'anterior' %}active{% endif %}">vs Período anterior</a>
+    {% if comparar %}<a href="{{ base }}" class="ads-cmp-pill ads-cmp-off">✕ Quitar</a>{% endif %}
+  </div>
+
+  {% if comparativo %}
+  <div class="ads-cmp-rangos">
+    <span><b>Actual:</b> {{ comparativo.label_actual }}</span>
+    <span><b>{{ comparativo.label_comparar|capfirst }}:</b> {{ comparativo.label_previo }}</span>
+    {% if comparativo.parcial %}<span class="ads-cmp-nota">⏱ recortado hasta las {{ comparativo.hora_corte }}:00 en ambos</span>{% endif %}
+  </div>
+  <div class="ped-tabla-wrap">
+    <table class="ped-tabla">
+      <thead>
+        <tr><th>Métrica</th><th class="ped-num">Actual</th><th class="ped-num">{{ comparativo.label_comparar|capfirst }}</th><th class="ped-num">Δ</th></tr>
+      </thead>
+      <tbody>
+        {% for r in comparativo.filas %}
+        <tr>
+          <td>{{ r.etiqueta }}{% if not r.preciso %} <span class="ads-cmp-nota" title="Sin dato por hora: comparación por día completo">*</span>{% endif %}</td>
+          <td class="ped-num">{% include 'anuncios/_cmp_val.html' with val=r.actual fmt=r.formato m=comparativo.moneda %}</td>
+          <td class="ped-num">{% include 'anuncios/_cmp_val.html' with val=r.previo fmt=r.formato m=comparativo.moneda %}</td>
+          <td class="ped-num">
+            {% if r.delta == None %}—
+            {% else %}
+              {% if r.delta > 0 %}<span class="ads-delta {% if r.bueno %}up-good{% elif r.bueno == False %}up-bad{% else %}neutral{% endif %}">▲ {{ r.delta }}%</span>
+              {% elif r.delta < 0 %}<span class="ads-delta {% if r.bueno %}down-bad{% elif r.bueno == False %}down-good{% else %}neutral{% endif %}">▼ {{ r.delta }}%</span>
+              {% else %}<span class="ads-delta neutral">0%</span>{% endif %}
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="ads-nota">* Resultados-Meta y Alcance no tienen dato por hora: se comparan por día completo (en el día en curso, el valor es el acumulado hasta ahora).</p>
+  {% else %}
+  <p class="ads-nota">Elige un período para comparar el rendimiento actual contra el mismo tramo horario del período anterior.</p>
+  {% endif %}
+</div>
+{% endwith %}
+
 {# ── Embudo ── #}
 <div class="av-card av-card-wide" style="margin-top:14px;">
   <div class="av-card-title">📊 Embudo del anuncio (dónde se cae)</div>
@@ -58,11 +108,8 @@
     <div class="ads-embudo-fila">
       <div class="ads-embudo-lbl">{{ e.etapa }}</div>
       <div class="ads-embudo-track">
-        {% if e.etapa == 'Impresiones' %}
-          <div class="ads-embudo-bar" style="width:100%;">{{ e.n }}</div>
-        {% else %}
-          <div class="ads-embudo-bar" style="width:{% if e.pct == None %}0{% elif e.pct > 100 %}100{% else %}{{ e.pct }}{% endif %}%;">{{ e.n }}</div>
-        {% endif %}
+        {# Ancho = proporción absoluta vs impresiones (funnel real). widthratio emite entero, no rompe con la coma decimal del locale. #}
+        <div class="ads-embudo-bar" style="width:{% widthratio e.n t.impresiones 100 %}%;">{{ e.n|intcomma }}</div>
       </div>
       <div class="ads-embudo-pct">
         {% if e.de %}{% if e.pct != None %}{{ e.pct }}%{% else %}—{% endif %} <span class="ads-embudo-de">{{ e.de }}</span>{% else %}100%{% endif %}
@@ -104,16 +151,16 @@
         {% for f in rend.por_campana %}
         <tr>
           <td>{{ f.nombre }}<div class="ped-editado-fecha">{{ f.n_anuncios }} anuncio(s)</div></td>
-          <td class="ped-num">{{ f.impresiones }}</td>
-          <td class="ped-num">{{ f.reach }}</td>
+          <td class="ped-num">{{ f.impresiones|intcomma }}</td>
+          <td class="ped-num">{{ f.reach|intcomma }}</td>
           <td class="ped-num">{% if f.frecuencia != None %}{{ f.frecuencia }}{% else %}—{% endif %}</td>
-          <td class="ped-num">{{ f.clicks }}</td>
+          <td class="ped-num">{{ f.clicks|intcomma }}</td>
           <td class="ped-num">{% if f.ctr != None %}{{ f.ctr }}%{% else %}—{% endif %}</td>
           <td class="ped-num">{% if f.cpc != None %}{{ m }} {{ f.cpc }}{% else %}—{% endif %}</td>
           <td class="ped-num">{% if f.cpm != None %}{{ m }} {{ f.cpm }}{% else %}—{% endif %}</td>
-          <td class="ped-num">{{ f.resultados }}</td>
-          <td class="ped-num">{{ f.n_ambos }}</td>
-          <td class="ped-num">{{ f.n_venta }}</td>
+          <td class="ped-num">{{ f.resultados|intcomma }}</td>
+          <td class="ped-num">{{ f.n_ambos|intcomma }}</td>
+          <td class="ped-num">{{ f.n_venta|intcomma }}</td>
           <td class="ped-num">{% if f.cpa_real != None %}{{ m }} {{ f.cpa_real }}{% else %}—{% endif %}</td>
           <td class="ped-num">{% if f.roas_real != None %}<span class="ads-roas {% if f.roas_real >= 1 %}ok{% else %}bad{% endif %}">{{ f.roas_real }}x</span>{% else %}—{% endif %}</td>
         </tr>
@@ -140,5 +187,18 @@
 .ads-embudo-de { font-weight:500; color:var(--text-soft,#64748b); font-size:11.5px; }
 .ads-diag { margin:0; padding-left:18px; font-size:13px; color:var(--text-soft,#475569); line-height:1.7; }
 .ads-diag b { color:var(--text); }
+.ads-cmp-pills { display:flex; gap:8px; flex-wrap:wrap; margin:4px 0 6px; }
+.ads-cmp-pill { padding:7px 13px; border:1px solid var(--border-dark,#cbd5e1); border-radius:20px; font-size:12.5px;
+  font-weight:600; color:var(--text); text-decoration:none; background:var(--surface); transition:.15s; }
+.ads-cmp-pill:hover { border-color:var(--primary,#0ea5a4); }
+.ads-cmp-pill.active { background:var(--primary,#0ea5a4); color:#fff; border-color:var(--primary,#0ea5a4); }
+.ads-cmp-pill.ads-cmp-off { color:#dc2626; border-color:#fca5a5; }
+.ads-cmp-rangos { display:flex; gap:18px; flex-wrap:wrap; font-size:12.5px; color:var(--text-soft,#64748b); margin:8px 0 12px; }
+.ads-cmp-rangos b { color:var(--text); }
+.ads-cmp-nota { color:var(--text-soft,#94a3b8); font-size:11.5px; }
+.ads-delta { font-weight:700; font-size:12.5px; }
+.ads-delta.up-good, .ads-delta.down-good { color:#16a34a; }
+.ads-delta.up-bad, .ads-delta.down-bad { color:#dc2626; }
+.ads-delta.neutral { color:var(--text-soft,#94a3b8); }
 </style>
 {% endwith %}

@@ -1,0 +1,9 @@
+{% load humanize %}{% spaceless %}
+{% if val == None %}—
+{% elif fmt == 'money' %}{{ m }} {{ val|floatformat:2 }}
+{% elif fmt == 'int' %}{{ val|intcomma }}
+{% elif fmt == 'pct' %}{{ val }}%
+{% elif fmt == 'x' %}{{ val }}x
+{% else %}{{ val }}
+{% endif %}
+{% endspaceless %}

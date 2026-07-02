@@ -5,8 +5,9 @@ producto, heatmap) y la evaluación de alertas."""
 import base64
 import hashlib
 import hmac
+import calendar
 from collections import defaultdict
-from datetime import date, timedelta
+from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 
 from django.conf import settings
@@ -389,6 +390,141 @@ def rendimiento_embudo(fecha_ini, fecha_fin, integracion_id=None, campana_ids=No
 
     total = _fila('Total', list(todas_campana_ids), list(productos_all.values()))
     return {'total': total, 'por_campana': por_campana, 'moneda': moneda, 'tipo_cambio': tc}
+
+
+# ───────────────────────── Comparativo "misma hora" ─────────────────────────
+
+def _shift_meses(d, n):
+    """Resta n meses a una fecha ajustando el fin de mes (ej. 31-mar − 1 mes → 28-feb)."""
+    y, m = d.year, d.month - n
+    while m <= 0:
+        m += 12
+        y -= 1
+    return date(y, m, min(d.day, calendar.monthrange(y, m)[1]))
+
+
+def _pedidos_dt(productos, start_dt, end_dt, integracion_id=None):
+    """Como _pedidos_de_productos pero acotando por fecha_pedido (datetime) — permite el
+    corte 'hasta la misma hora'."""
+    if not productos:
+        return 0, 0, 0.0
+    prod_nombres = {p.nombre for p in productos}
+    nombres = set()
+    for p in productos:
+        nombres.update(_nombres_de_producto(p))
+    base = Pedido.objects.filter(
+        Q(items__producto__nombre__in=prod_nombres) | Q(items__nombre__in=nombres),
+        fecha_pedido__range=(start_dt, end_dt))
+    if integracion_id:
+        base = base.filter(integracion_id=integracion_id)
+    base = base.distinct()
+    n_ambos = base.filter(estado__in=ESTADOS_CONFIRMADOS).count()
+    venta = base.filter(estado__in=ESTADOS_VENTA)
+    return n_ambos, venta.count(), float(venta.aggregate(s=Sum('total'))['s'] or 0)
+
+
+def _metricas_periodo(campana_ids, productos, start_dt, end_dt, integracion_id, tc):
+    """Métricas de un período [start_dt, end_dt]. Gasto/impresiones/clicks se toman por HORA
+    (InsightHorarioMeta) para respetar el corte 'misma hora'; resultados y alcance solo
+    existen por día (InsightDiarioMeta) → se suman por día completo (aprox. en día parcial)."""
+    sd, ed, eh = start_dt.date(), end_dt.date(), end_dt.hour
+    # Horario (preciso a la hora): todo desde sd; en el último día solo hasta la hora eh.
+    hq = (InsightHorarioMeta.objects
+          .filter(campana_id__in=campana_ids, fecha__gte=sd)
+          .filter(Q(fecha__lt=ed) | Q(fecha=ed, hora__lte=eh)))
+    h = hq.order_by().aggregate(gasto=Sum('gasto'), impr=Sum('impresiones'), clicks=Sum('clicks'))
+    gasto, impr, clicks = float(h['gasto'] or 0), int(h['impr'] or 0), int(h['clicks'] or 0)
+    # Diario (sin hora): resultados y alcance.
+    d = (InsightDiarioMeta.objects
+         .filter(campana_id__in=campana_ids, fecha__range=(sd, ed))
+         .order_by().aggregate(result=Sum('resultados'), reach=Sum('reach')))
+    resultados, reach = int(d['result'] or 0), int(d['reach'] or 0)
+    n_ambos, n_venta, ing = _pedidos_dt(productos, start_dt, end_dt, integracion_id)
+    rend = _metricas_rendimiento(gasto, impr, clicks, reach, resultados)
+    return {
+        'gasto': gasto, 'gasto_pen': round(gasto * tc, 2), 'impresiones': impr, 'reach': reach,
+        'clicks': clicks, 'resultados': resultados, 'n_ambos': n_ambos, 'n_venta': n_venta,
+        'ingreso': ing, 'ctr': rend['ctr'], 'cpc': rend['cpc'], 'cpm': rend['cpm'],
+        'roas_real': round(ing / (gasto * tc), 2) if gasto else None,
+        'cpa_real': round(gasto / n_venta, 2) if n_venta else None,
+    }
+
+
+def comparativo_rendimiento(desde, hasta, comparar, integracion_id=None, campana_ids=None):
+    """Compara el rango actual (recortado 'hasta la hora actual' si incluye hoy) contra el
+    período anterior equivalente, de la misma duración y hasta la misma hora.
+
+    comparar: 'dia' | 'semana' | 'mes' | 'anterior'. Devuelve actual/comparacion/filas(Δ%)."""
+    matches = (MatchProductoAnuncio.objects
+               .filter(campana__incluir_en_extraccion=True)
+               .select_related('producto', 'campana', 'campana__cuenta'))
+    if campana_ids is not None:
+        matches = matches.filter(campana_id__in=campana_ids)
+    if integracion_id:
+        matches = matches.filter(campana__cuenta__integracion_id=integracion_id)
+    cids, productos = set(), {}
+    for m in matches:
+        cids.add(m.campana_id)
+        productos[m.producto_id] = m.producto
+    cids, productos = list(cids), list(productos.values())
+
+    tc = tipo_cambio_usd_pen()
+    now = timezone.localtime()
+    tzinfo = now.tzinfo
+    parcial = hasta >= now.date()
+
+    start_dt = datetime.combine(desde, time.min, tzinfo=tzinfo)
+    end_dt = now if parcial else datetime.combine(hasta, time.max, tzinfo=tzinfo)
+    dur = end_dt - start_dt
+
+    if comparar == 'dia':
+        ps = desde - timedelta(days=1)
+    elif comparar == 'semana':
+        ps = desde - timedelta(days=7)
+    elif comparar == 'mes':
+        ps = _shift_meses(desde, 1)
+    else:   # 'anterior' → bloque inmediatamente anterior, del mismo largo
+        ps = desde - timedelta(days=(hasta - desde).days + 1)
+    start_prev = datetime.combine(ps, time.min, tzinfo=tzinfo)
+    end_prev = start_prev + dur
+
+    actual = _metricas_periodo(cids, productos, start_dt, end_dt, integracion_id, tc)
+    previo = _metricas_periodo(cids, productos, start_prev, end_prev, integracion_id, tc)
+
+    def _delta(a, b):
+        if b in (None, 0):
+            return None
+        if a is None:
+            return None
+        return round((a - b) / b * 100, 1)
+
+    # (clave, etiqueta, formato, preciso_por_hora, subir_es_bueno)
+    defs = [
+        ('gasto', 'Gasto', 'money', True, None),
+        ('impresiones', 'Impresiones', 'int', True, True),
+        ('clicks', 'Clicks', 'int', True, True),
+        ('ctr', 'CTR', 'pct', True, True),
+        ('resultados', 'Resultados Meta', 'int', False, True),
+        ('reach', 'Alcance', 'int', False, True),
+        ('n_ambos', 'Pedidos reales', 'int', True, True),
+        ('n_venta', 'Entregados', 'int', True, True),
+        ('roas_real', 'ROAS real', 'x', True, True),
+    ]
+    filas = [{
+        'clave': k, 'etiqueta': lbl, 'formato': fmt, 'preciso': preciso, 'bueno': bueno,
+        'actual': actual.get(k), 'previo': previo.get(k), 'delta': _delta(actual.get(k), previo.get(k)),
+    } for (k, lbl, fmt, preciso, bueno) in defs]
+
+    et = {'dia': 'día anterior', 'semana': 'semana anterior',
+          'mes': 'mes anterior', 'anterior': 'período anterior'}.get(comparar, comparar)
+    return {
+        'comparar': comparar, 'moneda': moneda_ads(integracion_id),
+        'parcial': parcial, 'hora_corte': now.hour if parcial else 23,
+        'label_actual': f'{start_dt:%d/%m %H:%M} – {end_dt:%d/%m %H:%M}',
+        'label_previo': f'{start_prev:%d/%m %H:%M} – {end_prev:%d/%m %H:%M}',
+        'label_comparar': et,
+        'filas': filas,
+    }
 
 
 _SIMBOLOS = {'USD': 'US$', 'PEN': 'S/', 'EUR': '€', 'MXN': 'MX$', 'COP': 'COL$', 'CLP': 'CLP$'}
