@@ -171,6 +171,13 @@
 
   <div class="sidebar-bottom">
     {% if puede_editar %}
+    <a href="{% url 'core:salud_datos' %}" class="nav-item {% block nav_salud %}{% endblock %}">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+      </svg>
+      <span class="nav-label">Salud de Datos</span>
+    </a>
+
     <a href="{% url 'core:configuracion' %}" class="nav-item {% block nav_config %}{% endblock %}">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
         <circle cx="12" cy="12" r="3"/>

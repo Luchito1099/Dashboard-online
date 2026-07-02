@@ -1,5 +1,7 @@
 # core/views.py
-from django.shortcuts import render, redirect
+import json
+
+from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import login, logout, authenticate
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
@@ -375,6 +377,105 @@ def _get_perfil(user_id):
         return None
     perfil, _ = Perfil.objects.get_or_create(usuario=usuario)
     return perfil
+
+
+# ───────────────────────── Salud de Datos (calidad del matching) ─────────────────────────
+
+@login_required
+def salud_datos(request):
+    """Pestaña «Salud de Datos»: calidad del matching de productos (NO operación como los
+    Logs de Shalom/sync). Muestra % matcheado por integración, nombres sin resolver con
+    acción rápida de alias, campañas de Meta sin match y la evolución de snapshots.
+    El diagnóstico se calcula en vivo; «correr diagnóstico ahora» además guarda un snapshot."""
+    from capacitacion.views import es_admin
+    from .diagnostico import generar_diagnostico, guardar_snapshot
+    from .models import ReporteMatching
+
+    if not es_admin(request.user):
+        messages.error(request, 'No tienes permisos para ver la salud de datos.')
+        return redirect('core:home')
+
+    if request.method == 'POST' and request.POST.get('accion') == 'correr':
+        data = generar_diagnostico()
+        snap = guardar_snapshot(data, request.user)
+        messages.success(request, f'Diagnóstico ejecutado y guardado (snapshot #{snap.id}).')
+        return redirect('core:salud_datos')
+
+    from productos.models import Producto, VarianteProducto
+
+    diag = generar_diagnostico()
+
+    # Productos + sus variantes activas para los dropdowns de la acción rápida de alias.
+    productos = list(Producto.objects.all())
+    variantes_por_producto = {}
+    for v in VarianteProducto.objects.filter(activo=True).order_by('producto_id', 'orden'):
+        variantes_por_producto.setdefault(v.producto_id, []).append({'id': v.id, 'nombre': v.nombre})
+
+    context = {
+        'diag': diag,
+        'productos': productos,
+        'variantes_json': json.dumps(variantes_por_producto),
+        'negocios': Producto.NEGOCIO_CHOICES,
+        'snapshots': ReporteMatching.objects.all()[:10],
+    }
+    return render(request, 'core/salud_datos.html', context)
+
+
+@login_required
+def salud_crear_alias(request):
+    """Acción rápida desde «Salud de Datos»: crea un ProductoAlias global para un nombre
+    sin resolver y enlaza los PedidoItem con ese nombre. Admite elegir un Producto (con
+    Variante opcional) existente, o crear un Producto nuevo al vuelo. Solo admin (POST)."""
+    from capacitacion.views import es_admin
+    from productos.models import Producto, VarianteProducto, ProductoAlias
+    from integraciones.models import PedidoItem
+    from decimal import Decimal, InvalidOperation
+
+    if not es_admin(request.user):
+        return JsonResponse({'error': 'sin permiso'}, status=403)
+    if request.method != 'POST':
+        from django.http import HttpResponseNotAllowed
+        return HttpResponseNotAllowed(['POST'])
+
+    nombre = request.POST.get('nombre', '').strip()
+    if not nombre:
+        messages.error(request, 'Falta el nombre externo a vincular.')
+        return redirect('core:salud_datos')
+
+    # Producto: existente o nuevo (nuevo exige negocio, que va sin default a propósito).
+    producto_id = request.POST.get('producto_id', '').strip()
+    if producto_id:
+        producto = get_object_or_404(Producto, id=producto_id)
+    else:
+        nuevo_nombre = request.POST.get('nuevo_nombre', '').strip()
+        negocio = request.POST.get('negocio', '').strip()
+        if not nuevo_nombre or negocio not in dict(Producto.NEGOCIO_CHOICES):
+            messages.error(request, 'Para crear un producto nuevo indica nombre y negocio (klynea/novashop).')
+            return redirect('core:salud_datos')
+        producto = Producto.objects.create(nombre=nuevo_nombre, negocio=negocio)
+
+    # Variante opcional: debe pertenecer al producto elegido.
+    variante = None
+    variante_id = request.POST.get('variante_id', '').strip()
+    if variante_id:
+        variante = VarianteProducto.objects.filter(id=variante_id, producto=producto).first()
+
+    # Factor de conversión opcional (default 1).
+    try:
+        factor = Decimal(request.POST.get('factor_conversion', '1').replace(',', '.'))
+        if factor <= 0:
+            factor = Decimal('1')
+    except (InvalidOperation, AttributeError):
+        factor = Decimal('1')
+
+    ProductoAlias.objects.update_or_create(
+        integracion=None, nombre_externo=nombre,
+        defaults={'producto': producto, 'variante': variante, 'factor_conversion': factor})
+    n = PedidoItem.objects.filter(nombre__iexact=nombre, producto__isnull=True).update(producto=producto)
+
+    detalle = f' · variante «{variante.nombre}»' if variante else ''
+    messages.success(request, f'«{nombre}» → «{producto.nombre}»{detalle} ({n} línea(s) enlazada(s)).')
+    return redirect('core:salud_datos')
 
 
 # ───────────────────────── Buscador global (topbar ⌘K) ─────────────────────────

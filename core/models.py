@@ -38,6 +38,29 @@ class Perfil(models.Model):
         return self.rol == 'vendedor'
 
 
+class ReporteMatching(models.Model):
+    """Snapshot del diagnóstico de salud de datos de matching, generado por el command
+    `diagnostico_matching`. Guarda los agregados clave (para graficar evolución) más el
+    detalle completo en JSON, de modo que se pueda ver cómo mejora/empeora la calidad
+    del matching a lo largo del tiempo, no solo el estado actual."""
+    creado = models.DateTimeField(auto_now_add=True)
+    total_items_sin_match = models.PositiveIntegerField(default=0)
+    total_monto_afectado = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    # Reporte completo tal como lo devuelve core.diagnostico.generar_diagnostico()
+    detalle = models.JSONField(default=dict, blank=True)
+    # Quién lo disparó (null si vino de un cron/management command sin usuario)
+    generado_por = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True,
+                                     related_name='reportes_matching')
+
+    class Meta:
+        ordering = ['-creado']
+        verbose_name = 'Reporte de matching'
+        verbose_name_plural = 'Reportes de matching'
+
+    def __str__(self):
+        return f'Reporte {self.creado:%d/%m/%Y %H:%M} · {self.total_items_sin_match} sin match'
+
+
 class ConfiguracionSistema(models.Model):
     """Configuración global del sistema (singleton: siempre una sola fila, pk=1).
     Controla qué puede hacer el rol vendedor."""

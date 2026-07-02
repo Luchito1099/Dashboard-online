@@ -4,9 +4,33 @@ from django.db import models
 
 class Producto(models.Model):
     """Producto del catálogo de Dashboard (cuidado personal / ortopédicos)."""
+
+    # Unidad en la que se contabiliza canónicamente una unidad vendida del producto.
+    # Los alias convierten su cantidad a esta unidad vía ProductoAlias.factor_conversion.
+    UNIDAD_UNIDAD = 'unidad'
+    UNIDAD_PAR = 'par'
+    UNIDAD_KIT = 'kit'
+    UNIDAD_VENTA_CHOICES = [
+        (UNIDAD_UNIDAD, 'Unidad'),
+        (UNIDAD_PAR, 'Par'),
+        (UNIDAD_KIT, 'Kit'),
+    ]
+
+    # Negocio/marca al que pertenece el producto. Sin default a propósito: obliga a
+    # decidir explícitamente el negocio de cada producto (nuevos y existentes).
+    NEGOCIO_KLYNEA = 'klynea'
+    NEGOCIO_NOVASHOP = 'novashop'
+    NEGOCIO_CHOICES = [
+        (NEGOCIO_KLYNEA, 'Klynea'),
+        (NEGOCIO_NOVASHOP, 'NovaShop'),
+    ]
+
     nombre = models.CharField(max_length=200)
     sku = models.CharField(max_length=50, blank=True)
     categoria = models.CharField(max_length=100, blank=True)
+    unidad_venta_canonica = models.CharField(max_length=10, choices=UNIDAD_VENTA_CHOICES,
+                                             default=UNIDAD_UNIDAD)
+    negocio = models.CharField(max_length=10, choices=NEGOCIO_CHOICES)
     orden = models.PositiveSmallIntegerField(default=0)
     activo = models.BooleanField(default=True)
 
@@ -98,11 +122,36 @@ class ProductoAlias(models.Model):
     # Tienda/fuente del alias (null = alias global, aplica a cualquier fuente)
     integracion = models.ForeignKey('integraciones.Integracion', on_delete=models.CASCADE,
                                     null=True, blank=True, related_name='alias_productos')
+    # Variante concreta que identifica este alias (null = aplica al producto en general).
+    # Permite que un nombre externo apunte no solo al Producto sino a un color/talla puntual.
+    variante = models.ForeignKey('VarianteProducto', on_delete=models.SET_NULL,
+                                 null=True, blank=True, related_name='alias')
+    # Convierte la cantidad que llega con este alias a la unidad canónica del producto
+    # (Producto.unidad_venta_canonica). Ej.: el alias vende "pack x2" → factor 2 para que
+    # 1 unidad externa cuente como 2 unidades canónicas.
+    factor_conversion = models.DecimalField(
+        max_digits=6, decimal_places=2, default=1,
+        help_text='Multiplica la cantidad del alias para expresarla en la unidad canónica '
+                  'del producto. 1 = misma unidad; 2 = cada unidad externa equivale a 2.')
     creado = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         ordering = ['nombre_externo']
-        unique_together = ('integracion', 'nombre_externo')
+        # unique_together no sirve aquí: en Postgres NULL != NULL, así que
+        # ('integracion', 'nombre_externo') NO bloquea duplicados de alias globales
+        # (integracion IS NULL). Se separa en dos UniqueConstraint parciales:
+        constraints = [
+            # Alias por tienda: único (integracion, nombre_externo) cuando hay integración.
+            models.UniqueConstraint(
+                fields=['integracion', 'nombre_externo'],
+                condition=models.Q(integracion__isnull=False),
+                name='uniq_alias_integracion_nombre'),
+            # Alias globales (integracion IS NULL): único por nombre_externo.
+            models.UniqueConstraint(
+                fields=['nombre_externo'],
+                condition=models.Q(integracion__isnull=True),
+                name='uniq_alias_global_nombre'),
+        ]
         verbose_name = 'Alias de producto'
         verbose_name_plural = 'Alias de productos'
 

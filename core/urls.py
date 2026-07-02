@@ -12,6 +12,9 @@ urlpatterns = [
     path('configuracion/', views.configuracion, name='configuracion'),
     # Página de respaldo cuando el vendedor no tiene módulos habilitados
     path('sin-acceso/', views.sin_acceso, name='sin_acceso'),
+    # Salud de Datos (calidad del matching de productos) — solo admin
+    path('salud-datos/', views.salud_datos, name='salud_datos'),
+    path('salud-datos/crear-alias/', views.salud_crear_alias, name='salud_crear_alias'),
     # Buscador global del topbar (devuelve JSON)
     path('buscar/', views.api_buscar, name='buscar'),
 ]
