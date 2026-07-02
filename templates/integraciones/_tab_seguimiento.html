@@ -11,7 +11,14 @@
     <tbody>
       {% for p in pedidos %}
       {% with seg=p.seguimiento %}
-      <tr data-id="{{ p.id }}" data-url-seg="{% url 'integraciones:pedido_seguimiento_editar' p.id %}">
+      <tr data-id="{{ p.id }}" data-url-seg="{% url 'integraciones:pedido_seguimiento_editar' p.id %}"
+          class="js-fila"
+          data-nombre="{{ p.nombre_cliente|lower }}" data-tel="{{ p.telefono }}"
+          data-numero="{{ p.numero|default:p.external_id|lower }}"
+          data-fuente="{{ p.integracion_id }}" data-estado="{{ p.estado }}"
+          data-envio="{{ p.tipo_envio|lower }}" data-vendedor="{{ p.vendedor_id|default:'sin' }}"
+          data-fecha="{{ p.fecha_pedido|date:'Y-m-d' }}"
+          data-productos="{% for it in p.items.all %}{{ it.nombre|lower }}|{% endfor %}">
         <td>{{ p.numero|default:p.external_id }}</td>
         <td class="ped-cli">
           <div class="ped-cliente-nombre">{{ p.nombre_cliente|default:"—" }}</div>

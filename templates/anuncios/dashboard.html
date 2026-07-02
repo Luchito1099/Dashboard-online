@@ -9,6 +9,9 @@
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'core/css/integraciones.css' %}">
 <link rel="stylesheet" href="{% static 'core/css/anuncios.css' %}">
+<style>
+.ads-filtrando { opacity:.55; transition:opacity .15s; pointer-events:none; }
+</style>
 {% endblock %}
 
 {% block breadcrumb %}<span>›</span><span>Publicidad</span>{% endblock %}
@@ -40,19 +43,19 @@
   {# ── Filtros ── #}
   <form method="get" class="ped-filtros" id="adsFiltros">
     <input type="hidden" name="vista" value="{{ vista }}">
-    <select name="tienda" onchange="this.form.submit()">
+    <select name="tienda">
       <option value="">Todas las tiendas</option>
       {% for t in tiendas %}
       <option value="{{ t.id }}" {% if f_tienda == t.id|stringformat:"s" %}selected{% endif %}>{{ t.nombre }}</option>
       {% endfor %}
     </select>
-    <select name="proyecto" onchange="this.form.submit()">
+    <select name="proyecto">
       <option value="">Todos los proyectos</option>
       {% for pr in proyectos %}
       <option value="{{ pr }}" {% if f_proyecto == pr %}selected{% endif %}>🗂 {{ pr }}</option>
       {% endfor %}
     </select>
-    <select name="campana" onchange="this.form.submit()">
+    <select name="campana">
       <option value="">Todas las campañas</option>
       {% for c in campanas_lista %}
       <option value="{{ c.campaign_id }}" {% if f_campana == c.campaign_id %}selected{% endif %}>{{ c.campaign_name|default:"(sin campaña)" }}</option>
@@ -66,8 +69,8 @@
       <button type="button" class="ads-rango-btn" data-rango="todo">Todo</button>
     </div>
     <div class="ped-fechas">
-      <label>Desde <input type="date" name="desde" value="{{ f_desde }}" onchange="this.form.submit()"></label>
-      <label>Hasta <input type="date" name="hasta" value="{{ f_hasta }}" onchange="this.form.submit()"></label>
+      <label>Desde <input type="date" name="desde" value="{{ f_desde }}"></label>
+      <label>Hasta <input type="date" name="hasta" value="{{ f_hasta }}"></label>
     </div>
     <button type="button" class="btn-probar ads-fijar {% if filtro_fijado %}activo{% endif %}" id="adsFijar"
             data-url="{% url 'anuncios:fijar_filtro' %}" data-fijado="{% if filtro_fijado %}1{% else %}0{% endif %}">
@@ -175,6 +178,20 @@
 (function () {
   const form = document.getElementById('adsFiltros');
   if (!form) return;
+
+  // ── Filtros fluidos: en vez de recargar en cada cambio (lo que hacía que se aplicaran
+  // "de uno" y dependieran del orden), se juntan los cambios y se aplican una sola vez
+  // tras una breve pausa. Así puedes elegir tienda + proyecto + campaña seguidos. ──
+  let deb = null;
+  function aplicarPronto() {
+    if (deb) clearTimeout(deb);
+    form.classList.add('ads-filtrando');
+    deb = setTimeout(function () { form.submit(); }, 450);
+  }
+  ['tienda', 'proyecto', 'campana', 'desde', 'hasta'].forEach(function (n) {
+    const el = form.elements[n];
+    if (el) el.addEventListener('change', aplicarPronto);
+  });
 
   function ymdLocal(d) {
     return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');

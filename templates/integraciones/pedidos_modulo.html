@@ -8,6 +8,12 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'core/css/integraciones.css' %}">
+<style>
+.ped-multi-acciones { display:flex; gap:6px; padding:6px 4px; border-bottom:1px solid var(--border,#e2e8f0); margin-bottom:4px; }
+.ped-multi-accion { flex:1; padding:5px 8px; font-size:12px; font-weight:600; border:1px solid var(--border-dark,#cbd5e1);
+  border-radius:6px; background:var(--surface); color:var(--text); cursor:pointer; }
+.ped-multi-accion:hover { border-color:var(--primary,#0ea5a4); color:var(--primary,#0ea5a4); }
+</style>
 {% endblock %}
 
 {% block breadcrumb %}
@@ -46,37 +52,38 @@
   {% endwith %}
 
   {# ── Filtros (compartidos por Listado, Seguimiento y Avances) ── #}
-  <form method="get" class="ped-filtros">
+  <form method="get" class="ped-filtros" id="pedFiltros">
     <input type="hidden" name="vista" value="{{ vista }}">
+    <input type="hidden" name="rango" id="fRango" value="{{ f_rango }}">
     <div class="ped-buscar">
-      <input type="text" name="q" value="{{ f_q }}" placeholder="Buscar cliente o teléfono…">
+      <input type="text" name="q" value="{{ f_q }}" placeholder="Buscar cliente, teléfono o producto…" autocomplete="off">
     </div>
-    <select name="fuente" onchange="this.form.submit()">
+    <select name="fuente">
       <option value="">Todas las fuentes</option>
       {% for fu in fuentes %}
       <option value="{{ fu.id }}" {% if f_fuente == fu.id|stringformat:"s" %}selected{% endif %}>{{ fu.nombre }}</option>
       {% endfor %}
     </select>
-    <select name="estado" onchange="this.form.submit()">
+    <select name="estado">
       <option value="">Todos los estados</option>
       {% for valor, etiqueta in estados %}
       <option value="{{ valor }}" {% if f_estado == valor %}selected{% endif %}>{{ etiqueta }}</option>
       {% endfor %}
     </select>
-    <select name="envio" onchange="this.form.submit()">
+    <select name="envio">
       <option value="">Todos los envíos</option>
       {% for e in envios %}
       <option value="{{ e }}" {% if f_envio == e %}selected{% endif %}>{{ e }}</option>
       {% endfor %}
     </select>
-    <select name="vendedor" onchange="this.form.submit()" title="Vendedor">
+    <select name="vendedor" title="Vendedor">
       <option value="">Todos los vendedores</option>
       <option value="sin" {% if f_vendedor == 'sin' %}selected{% endif %}>Sin asignar</option>
       {% for v in vendedores %}
       <option value="{{ v.id }}" {% if f_vendedor == v.id|stringformat:"s" %}selected{% endif %}>{{ v.get_full_name|default:v.username }}</option>
       {% endfor %}
     </select>
-    <select name="orden" class="ped-orden" onchange="this.form.submit()" title="Ordenar por">
+    <select name="orden" class="ped-orden" title="Ordenar por">
       {% for clave, etiqueta in ordenes %}
       <option value="{{ clave }}" {% if f_orden == clave %}selected{% endif %}>↕ {{ etiqueta }}</option>
       {% endfor %}
@@ -87,10 +94,14 @@
         🛍️ Productos{% if f_productos %} <span class="ped-multi-badge">{{ f_productos|length }}</span>{% endif %} ▾
       </button>
       <div class="ped-multi-panel" id="prodMultiPanel">
-        <input type="text" class="ped-multi-buscar" id="prodMultiBuscar" placeholder="Filtrar productos…">
+        <input type="text" class="ped-multi-buscar" id="prodMultiBuscar" placeholder="Filtrar productos…" autocomplete="off">
+        <div class="ped-multi-acciones">
+          <button type="button" class="ped-multi-accion" id="prodTodo">Seleccionar todo</button>
+          <button type="button" class="ped-multi-accion" id="prodNinguno">Ninguno</button>
+        </div>
         <div class="ped-multi-lista">
           {% for prod in productos_lista %}
-          <label class="ped-multi-opt"><input type="checkbox" name="producto" value="{{ prod }}" {% if prod in f_productos %}checked{% endif %} onchange="this.form.submit()"> <span>{{ prod }}</span></label>
+          <label class="ped-multi-opt"><input type="checkbox" name="producto" value="{{ prod }}" {% if prod in f_productos %}checked{% endif %}> <span>{{ prod }}</span></label>
           {% empty %}
           <div class="ped-multi-vacio">Sin productos registrados.</div>
           {% endfor %}
@@ -99,15 +110,13 @@
     </div>
     <div class="ped-rangos">
       {% for clave, etiqueta in rangos_btn %}
-      <button type="submit" name="rango" value="{{ clave }}" class="ped-rango {% if f_rango == clave %}activo{% endif %}">{{ etiqueta }}</button>
+      <button type="button" data-rango="{{ clave }}" class="ped-rango js-rango {% if f_rango == clave %}activo{% endif %}">{{ etiqueta }}</button>
       {% endfor %}
     </div>
     <div class="ped-fechas">
-      <label>Desde <input type="date" name="desde" value="{{ f_desde }}" onchange="this.form.submit()"></label>
-      <label>Hasta <input type="date" name="hasta" value="{{ f_hasta }}" onchange="this.form.submit()"></label>
-      {% if f_desde or f_hasta %}
-      <button type="button" class="ped-fechas-limpiar" onclick="this.form.desde.value='';this.form.hasta.value='';this.form.submit()">✕ limpiar</button>
-      {% endif %}
+      <label>Desde <input type="date" name="desde" value="{{ f_desde }}"></label>
+      <label>Hasta <input type="date" name="hasta" value="{{ f_hasta }}"></label>
+      <button type="button" class="ped-fechas-limpiar js-fechas-limpiar" {% if not f_desde and not f_hasta %}style="display:none;"{% endif %}>✕ limpiar</button>
     </div>
     {# Fijador: recuerda estos filtros (atado a tu usuario, en cualquier dispositivo) #}
     <button type="button" class="ped-fijar {% if filtro_fijado %}activo{% endif %}" id="pedFijar"
@@ -175,6 +184,8 @@
     if (estado) estado.addEventListener('change', function () {
       guardar(row, 'url', { estado: estado.value }, function (j) {
         estado.dataset.estado = j.estado;
+        row.dataset.estado = j.estado;   // mantiene el filtro/KPIs en sync
+        document.dispatchEvent(new CustomEvent('ped:recalc'));
       });
     });
     [total, adelanto].forEach(function (inp) {
@@ -188,6 +199,7 @@
           if (restante) restante.textContent = j.restante;
           total.value = j.total; adelanto.value = j.adelanto;
           row.querySelectorAll('.ped-monto').forEach(function (i) { i.classList.remove('dirty'); });
+          document.dispatchEvent(new CustomEvent('ped:recalc'));
         });
       });
     });
@@ -306,4 +318,5 @@
   }
 })();
 </script>
+<script src="{% static 'core/js/ped_filtros.js' %}"></script>
 {% endblock %}

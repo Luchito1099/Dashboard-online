@@ -79,7 +79,10 @@
       "PowerShell(python -m py_compile integraciones/shalom_scraper.py integraciones/shalom_runner.py integraciones/models.py)",
       "PowerShell(if \\($?\\) { \"OK compila\" })",
       "Bash(echo \"exit: $?\")",
-      "Bash(python manage.py makemigrations anuncios --name insight_reach_frequency_ajustespublicidad)"
+      "Bash(python manage.py makemigrations anuncios --name insight_reach_frequency_ajustespublicidad)",
+      "Bash(python manage.py check)",
+      "Bash(python manage.py shell -c ' *)",
+      "Bash(node --check core/static/core/js/ped_filtros.js)"
     ]
   }
 }

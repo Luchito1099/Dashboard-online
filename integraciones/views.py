@@ -424,12 +424,17 @@ def pedidos_modulo(request):
     # Edición de montos/estado en Listado solo con el permiso clásico
     context['puede_editar_listado'] = puede_ver(request.user, 'vendedor_puede_editar_pedidos')
 
-    if vista == 'seguimiento':
-        _context_seguimiento(qs, context)
-    elif vista == 'avances':
-        _context_avances(qs, context)
+    if vista == 'avances':
+        _context_avances(qs, context)   # agregados: se filtran en el servidor
     else:
-        _context_listado(qs, context)
+        # Listado/Seguimiento cargan el set COMPLETO; el filtrado es instantáneo en el
+        # navegador (core/js/ped_filtros.js). qs/filtros solo pre-marcan los controles.
+        completo = (Pedido.objects.select_related('integracion', 'editado_por', 'vendedor')
+                    .prefetch_related('items'))
+        if vista == 'seguimiento':
+            _context_seguimiento(completo, context)
+        else:
+            _context_listado(completo, context)
 
     return render(request, 'integraciones/pedidos_modulo.html', context)
 
