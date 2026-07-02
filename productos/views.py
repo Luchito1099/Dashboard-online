@@ -13,7 +13,7 @@ from django.http import JsonResponse
 from capacitacion.views import es_admin
 from core.models import ConfiguracionSistema
 from .models import (Producto, ObjecionProducto, LinkProducto, MediaProducto, ProductoAlias,
-                     AtributoProducto, ValorAtributo, generar_variantes)
+                     AtributoProducto, ValorAtributo, VarianteProducto, generar_variantes)
 
 
 # ───────────────────────── Helpers ─────────────────────────
@@ -232,8 +232,14 @@ def reconocer_productos(request):
     items = [{'nombre': r['nombre'], 'n': r['n']} for r in nombres]
 
     # Aliases ya vinculados (para la sección "Ya vinculados")
-    aliases = (ProductoAlias.objects.select_related('producto')
+    aliases = (ProductoAlias.objects.select_related('producto', 'variante')
                .order_by('nombre_externo'))
+
+    # Variantes activas por producto, para el selector dependiente color/talla.
+    import json
+    variantes_por_producto = {}
+    for v in VarianteProducto.objects.filter(activo=True).order_by('producto_id', 'orden'):
+        variantes_por_producto.setdefault(v.producto_id, []).append({'id': v.id, 'nombre': v.nombre})
 
     context = {
         'items': items,
@@ -241,6 +247,7 @@ def reconocer_productos(request):
         'total': len(items),
         'vinculados': PedidoItem.objects.filter(producto__isnull=False).count(),
         'aliases': aliases,
+        'variantes_json': json.dumps(variantes_por_producto),
     }
     return render(request, 'productos/reconocer.html', context)
 
@@ -260,12 +267,26 @@ def vincular_producto(request):
     if not nombre:
         return redirect('productos:reconocer')
 
+    # Variante opcional (color/talla): debe pertenecer al producto elegido.
+    variante = None
+    variante_id = request.POST.get('variante_id', '').strip()
+    if variante_id:
+        variante = VarianteProducto.objects.filter(id=variante_id, producto=producto).first()
+
     # Alias global (aplica a cualquier fuente) para futuras sincronizaciones
     ProductoAlias.objects.update_or_create(
-        integracion=None, nombre_externo=nombre, defaults={'producto': producto})
-    # Vincular los pedidos existentes con ese nombre
-    n = PedidoItem.objects.filter(nombre__iexact=nombre, producto__isnull=True).update(producto=producto)
-    messages.success(request, f'«{nombre}» vinculado a «{producto.nombre}» ({n} línea(s) de pedido).')
+        integracion=None, nombre_externo=nombre,
+        defaults={'producto': producto, 'variante': variante})
+    # Vincular los pedidos existentes con ese nombre. Si se eligió variante y la línea no
+    # trae texto de variante, se rellena con el nombre de la variante para que quede visible.
+    items = PedidoItem.objects.filter(nombre__iexact=nombre, producto__isnull=True)
+    n = items.count()
+    items.update(producto=producto)
+    if variante:
+        items.model.objects.filter(nombre__iexact=nombre, producto=producto, variante='').update(
+            variante=variante.nombre)
+    detalle = f' · {variante.nombre}' if variante else ''
+    messages.success(request, f'«{nombre}» vinculado a «{producto.nombre}»{detalle} ({n} línea(s) de pedido).')
     return redirect('productos:reconocer')
 
 

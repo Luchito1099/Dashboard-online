@@ -32,12 +32,15 @@
       <div style="font-family:monospace;font-size:15px;font-weight:700;color:var(--text);letter-spacing:.02em;">{{ it.nombre }}</div>
       <div class="match-ad-meta">Nombre exacto en pedidos · aparece en {{ it.n }} línea(s)</div>
     </div>
-    <form method="post" action="{% url 'productos:vincular' %}" style="display:flex;gap:8px;align-items:center;flex-shrink:0;">
+    <form method="post" action="{% url 'productos:vincular' %}" class="alias-form" style="display:flex;gap:8px;align-items:center;flex-shrink:0;flex-wrap:wrap;">
       {% csrf_token %}
       <input type="hidden" name="nombre" value="{{ it.nombre }}">
-      <select name="producto_id" required style="padding:8px 10px;border:1px solid var(--border-dark);border-radius:8px;font-size:13px;font-family:inherit;background:var(--surface);color:var(--text);min-width:220px;">
+      <select name="producto_id" class="sel-producto" required style="padding:8px 10px;border:1px solid var(--border-dark);border-radius:8px;font-size:13px;font-family:inherit;background:var(--surface);color:var(--text);min-width:220px;">
         <option value="">— Elegir producto del catálogo…</option>
         {% for p in productos %}<option value="{{ p.id }}">{{ p.nombre }}</option>{% endfor %}
+      </select>
+      <select name="variante_id" class="sel-variante" disabled style="padding:8px 10px;border:1px solid var(--border-dark);border-radius:8px;font-size:13px;font-family:inherit;background:var(--surface);color:var(--text);min-width:150px;">
+        <option value="">(sin variante)</option>
       </select>
       <button type="submit" class="btn-guardar">Vincular</button>
     </form>
@@ -62,14 +65,17 @@
           {% for a in aliases %}
           <tr>
             <td><code style="font-size:13px;background:var(--surface-2,#f0f4f8);padding:3px 8px;border-radius:5px;font-family:monospace;">{{ a.nombre_externo }}</code></td>
-            <td><strong>{{ a.producto.nombre }}</strong></td>
+            <td><strong>{{ a.producto.nombre }}</strong>{% if a.variante %} <span style="color:var(--primary,#0ea5a4);font-size:12px;">· {{ a.variante.nombre }}</span>{% endif %}</td>
             <td>
-              <form method="post" action="{% url 'productos:vincular' %}" style="display:flex;gap:6px;align-items:center;">
+              <form method="post" action="{% url 'productos:vincular' %}" class="alias-form" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
                 {% csrf_token %}
                 <input type="hidden" name="nombre" value="{{ a.nombre_externo }}">
-                <select name="producto_id" required style="padding:6px 8px;border:1px solid var(--border-dark);border-radius:7px;font-size:12.5px;font-family:inherit;background:var(--surface);color:var(--text);min-width:170px;">
+                <select name="producto_id" class="sel-producto" required style="padding:6px 8px;border:1px solid var(--border-dark);border-radius:7px;font-size:12.5px;font-family:inherit;background:var(--surface);color:var(--text);min-width:170px;">
                   <option value="">— Cambiar a…</option>
                   {% for p in productos %}<option value="{{ p.id }}" {% if p.id == a.producto.id %}selected{% endif %}>{{ p.nombre }}</option>{% endfor %}
+                </select>
+                <select name="variante_id" class="sel-variante" data-sel="{{ a.variante_id|default:'' }}" style="padding:6px 8px;border:1px solid var(--border-dark);border-radius:7px;font-size:12.5px;font-family:inherit;background:var(--surface);color:var(--text);min-width:130px;">
+                  <option value="">(sin variante)</option>
                 </select>
                 <button type="submit" class="btn-guardar" style="padding:6px 12px;font-size:12px;">Cambiar</button>
               </form>
@@ -89,4 +95,31 @@
   </div>
   {% endif %}
 </div>
+
+<script>
+// Selector dependiente: al elegir un producto se cargan sus variantes (color/talla).
+(function () {
+  var variantes = {{ variantes_json|safe }};
+  function poblar(form) {
+    var selP = form.querySelector('.sel-producto');
+    var selV = form.querySelector('.sel-variante');
+    if (!selP || !selV) return;
+    var preselec = selV.getAttribute('data-sel') || '';
+    function repoblar() {
+      var lista = variantes[selP.value] || [];
+      selV.innerHTML = '<option value="">(sin variante)</option>';
+      lista.forEach(function (v) {
+        var o = document.createElement('option');
+        o.value = v.id; o.textContent = v.nombre;
+        if (String(v.id) === String(preselec)) o.selected = true;
+        selV.appendChild(o);
+      });
+      selV.disabled = lista.length === 0;
+    }
+    selP.addEventListener('change', function () { preselec = ''; repoblar(); });
+    repoblar();   // estado inicial (respeta producto ya seleccionado + variante guardada)
+  }
+  document.querySelectorAll('.alias-form').forEach(poblar);
+})();
+</script>
 {% endblock %}
