@@ -1,0 +1,144 @@
+{% comment %} Rendimiento del anuncio: embudo con % de conversión + métricas + ROAS real {% endcomment %}
+{% with t=rend.total m=rend.moneda %}
+
+{# ── KPIs de rendimiento ── #}
+<div class="ped-kpis" style="grid-template-columns:repeat(4,1fr);">
+  <div class="ped-kpi">
+    <div class="ped-kpi-num naranja">{{ m }} {{ t.gasto|floatformat:2 }}</div>
+    <div class="ped-kpi-label">Gasto Meta</div>
+    <div class="ped-kpi-sub">≈ S/ {{ t.gasto_pen|floatformat:2 }} (TC {{ rend.tipo_cambio }})</div>
+  </div>
+  <div class="ped-kpi">
+    <div class="ped-kpi-num">{% if t.ctr != None %}{{ t.ctr }}%{% else %}—{% endif %}</div>
+    <div class="ped-kpi-label">CTR</div>
+    <div class="ped-kpi-sub">clicks ÷ impresiones</div>
+  </div>
+  <div class="ped-kpi">
+    <div class="ped-kpi-num">{% if t.cpc != None %}{{ m }} {{ t.cpc }}{% else %}—{% endif %}</div>
+    <div class="ped-kpi-label">CPC</div>
+    <div class="ped-kpi-sub">costo por click</div>
+  </div>
+  <div class="ped-kpi">
+    <div class="ped-kpi-num">{% if t.cpm != None %}{{ m }} {{ t.cpm }}{% else %}—{% endif %}</div>
+    <div class="ped-kpi-label">CPM</div>
+    <div class="ped-kpi-sub">costo por mil impresiones</div>
+  </div>
+</div>
+<div class="ped-kpis" style="grid-template-columns:repeat(4,1fr);margin-top:10px;">
+  <div class="ped-kpi">
+    <div class="ped-kpi-num">{% if t.frecuencia != None %}{{ t.frecuencia }}{% else %}—{% endif %}</div>
+    <div class="ped-kpi-label">Frecuencia</div>
+    <div class="ped-kpi-sub">impresiones ÷ persona{% if t.frecuencia and t.frecuencia >= 3 %} · <span style="color:#dc2626;">alta (fatiga)</span>{% endif %}</div>
+  </div>
+  <div class="ped-kpi">
+    <div class="ped-kpi-num">{% if t.cpp != None %}{{ m }} {{ t.cpp }}{% else %}—{% endif %}</div>
+    <div class="ped-kpi-label">CPP</div>
+    <div class="ped-kpi-sub">costo por persona (alcance)</div>
+  </div>
+  <div class="ped-kpi">
+    <div class="ped-kpi-num verde">{% if t.cpa_real != None %}{{ m }} {{ t.cpa_real }}{% else %}—{% endif %}</div>
+    <div class="ped-kpi-label">CPA real</div>
+    <div class="ped-kpi-sub">gasto ÷ entregados</div>
+  </div>
+  <div class="ped-kpi">
+    <div class="ped-kpi-num">
+      {% if t.roas_real != None %}<span class="ads-roas {% if t.roas_real >= 1 %}ok{% else %}bad{% endif %}">{{ t.roas_real }}x</span>{% else %}—{% endif %}
+    </div>
+    <div class="ped-kpi-label">ROAS real</div>
+    <div class="ped-kpi-sub">ingreso ÷ gasto (en soles)</div>
+  </div>
+</div>
+
+{# ── Embudo ── #}
+<div class="av-card av-card-wide" style="margin-top:14px;">
+  <div class="av-card-title">📊 Embudo del anuncio (dónde se cae)</div>
+  {% if t.impresiones %}
+  <div class="ads-embudo">
+    {% for e in t.embudo %}
+    <div class="ads-embudo-fila">
+      <div class="ads-embudo-lbl">{{ e.etapa }}</div>
+      <div class="ads-embudo-track">
+        {% if e.etapa == 'Impresiones' %}
+          <div class="ads-embudo-bar" style="width:100%;">{{ e.n }}</div>
+        {% else %}
+          <div class="ads-embudo-bar" style="width:{% if e.pct == None %}0{% elif e.pct > 100 %}100{% else %}{{ e.pct }}{% endif %}%;">{{ e.n }}</div>
+        {% endif %}
+      </div>
+      <div class="ads-embudo-pct">
+        {% if e.de %}{% if e.pct != None %}{{ e.pct }}%{% else %}—{% endif %} <span class="ads-embudo-de">{{ e.de }}</span>{% else %}100%{% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="integ-vacio" style="padding:28px 0;">Sin impresiones en este rango. Sincroniza una cuenta en Ajustes o amplía el rango de fechas.</div>
+  {% endif %}
+</div>
+
+{# ── Diagnóstico: qué mejorar según dónde se cae ── #}
+<div class="av-card av-card-wide" style="margin-top:14px;">
+  <div class="av-card-title">🧭 Cómo leer el embudo</div>
+  <ul class="ads-diag">
+    <li><b>CTR bajo</b> (impresiones → clicks): el creativo o la segmentación no enganchan. Prueba otro copy/imagen o público.</li>
+    <li><b>Pocos resultados</b> (clicks → resultados Meta): llegan clics pero no convierten. Revisa landing, oferta o velocidad de carga.</li>
+    <li><b>Meta dice muchos pero pocos pedidos reales</b> (resultados → pedidos): atribución inflada o leads de baja calidad. Ajusta el evento de conversión.</li>
+    <li><b>Confirmados sin entregar</b> (pedidos → entregados): el cuello es operativo/logístico, no del anuncio.</li>
+  </ul>
+</div>
+
+{# ── Tabla por campaña ── #}
+<div class="av-card av-card-wide" style="margin-top:14px;">
+  <div class="av-card-title">📁 Rendimiento por campaña</div>
+  <div class="ped-tabla-wrap">
+    <table class="ped-tabla">
+      <thead>
+        <tr>
+          <th>Campaña</th>
+          <th class="ped-num">Impres.</th><th class="ped-num">Alcance</th><th class="ped-num">Frec.</th>
+          <th class="ped-num">Clicks</th><th class="ped-num">CTR</th><th class="ped-num">CPC</th><th class="ped-num">CPM</th>
+          <th class="ped-num">Result. Meta</th><th class="ped-num">Pedidos</th><th class="ped-num">Entreg.</th>
+          <th class="ped-num">CPA</th><th class="ped-num">ROAS</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for f in rend.por_campana %}
+        <tr>
+          <td>{{ f.nombre }}<div class="ped-editado-fecha">{{ f.n_anuncios }} anuncio(s)</div></td>
+          <td class="ped-num">{{ f.impresiones }}</td>
+          <td class="ped-num">{{ f.reach }}</td>
+          <td class="ped-num">{% if f.frecuencia != None %}{{ f.frecuencia }}{% else %}—{% endif %}</td>
+          <td class="ped-num">{{ f.clicks }}</td>
+          <td class="ped-num">{% if f.ctr != None %}{{ f.ctr }}%{% else %}—{% endif %}</td>
+          <td class="ped-num">{% if f.cpc != None %}{{ m }} {{ f.cpc }}{% else %}—{% endif %}</td>
+          <td class="ped-num">{% if f.cpm != None %}{{ m }} {{ f.cpm }}{% else %}—{% endif %}</td>
+          <td class="ped-num">{{ f.resultados }}</td>
+          <td class="ped-num">{{ f.n_ambos }}</td>
+          <td class="ped-num">{{ f.n_venta }}</td>
+          <td class="ped-num">{% if f.cpa_real != None %}{{ m }} {{ f.cpa_real }}{% else %}—{% endif %}</td>
+          <td class="ped-num">{% if f.roas_real != None %}<span class="ads-roas {% if f.roas_real >= 1 %}ok{% else %}bad{% endif %}">{{ f.roas_real }}x</span>{% else %}—{% endif %}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="13" class="integ-vacio-cell">No hay campañas con anuncios casados a producto. Ve a «Matching».</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="ads-nota">El gasto viene de Meta (US$) y se convierte a soles con el tipo de cambio de Ajustes para el ROAS real.
+    <b>Alcance/Frecuencia</b> son aproximados en rangos de varios días (las personas únicas se solapan entre días).
+    Los pedidos se atribuyen por producto casado; una campaña que comparte producto con otra puede solaparse en el conteo por campaña (el <b>Total</b> no duplica).</p>
+</div>
+
+<style>
+.ads-embudo { display:flex; flex-direction:column; gap:8px; padding:6px 0; }
+.ads-embudo-fila { display:flex; align-items:center; gap:12px; }
+.ads-embudo-lbl { width:130px; flex-shrink:0; font-size:13px; font-weight:600; color:var(--text); text-align:right; }
+.ads-embudo-track { flex:1; background:var(--surface-2,#eef2f6); border-radius:7px; overflow:hidden; height:30px; }
+.ads-embudo-bar { height:100%; min-width:34px; background:linear-gradient(90deg,var(--primary,#0ea5a4),#22c55e);
+  color:#fff; font-size:12.5px; font-weight:700; display:flex; align-items:center; padding:0 10px; white-space:nowrap;
+  border-radius:7px; transition:width .3s; }
+.ads-embudo-pct { width:150px; flex-shrink:0; font-size:13px; font-weight:700; color:var(--text); }
+.ads-embudo-de { font-weight:500; color:var(--text-soft,#64748b); font-size:11.5px; }
+.ads-diag { margin:0; padding-left:18px; font-size:13px; color:var(--text-soft,#475569); line-height:1.7; }
+.ads-diag b { color:var(--text); }
+</style>
+{% endwith %}

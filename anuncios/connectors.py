@@ -136,7 +136,7 @@ def sincronizar(cuenta, dias=30):
     try:
         # 1) Insights diarios, por ventanas de CHUNK_DIARIO días
         campos = ('campaign_id,campaign_name,adset_id,adset_name,ad_id,ad_name,'
-                  'spend,impressions,clicks,actions,account_currency')
+                  'spend,impressions,clicks,actions,account_currency,reach,frequency')
         for ini, fin in _ventanas(desde, hasta, CHUNK_DIARIO):
             params = dict(base, fields=campos, time_range=_rango(ini, fin))
             for row in _paginar(url, params):
@@ -148,6 +148,8 @@ def sincronizar(cuenta, dias=30):
                     'impresiones': row.get('impressions') or 0,
                     'clicks': row.get('clicks') or 0,
                     'resultados': _resultados(row.get('actions')),
+                    'reach': row.get('reach') or 0,
+                    'frequency': row.get('frequency') or 0,
                     'moneda': row.get('account_currency') or '',
                 })
 

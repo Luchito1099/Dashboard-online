@@ -103,6 +103,8 @@ def ingerir_payload(data):
                     'impresiones': _int(ins.get('impresiones')),
                     'clicks': _int(ins.get('clicks')),
                     'resultados': _int(ins.get('resultados')),
+                    'reach': _int(ins.get('reach')),
+                    'frequency': _dec(ins.get('frequency')),
                     'moneda': ins.get('moneda') or '',
                 },
             )
@@ -271,6 +273,122 @@ def tabla_productos(fecha_ini, fecha_fin, integracion_id=None, campana_ids=None)
     # Orden por ROAS de venta (los None al final), luego por gasto
     filas.sort(key=lambda f: (f['roas_venta'] is None, -(f['roas_venta'] or 0), -f['gasto']))
     return filas
+
+
+def tipo_cambio_usd_pen():
+    """Soles por 1 USD (config editable en Ajustes). Para convertir el gasto de Meta a
+    la moneda de los ingresos (soles) y calcular un ROAS real de la misma moneda."""
+    from .models import AjustesPublicidad
+    return float(AjustesPublicidad.get_solo().tipo_cambio_usd_pen)
+
+
+def _metricas_rendimiento(gasto, impresiones, clicks, reach, resultados):
+    """Métricas estándar de rendimiento del anuncio a partir de los crudos de Meta."""
+    return {
+        'ctr': round(clicks / impresiones * 100, 2) if impresiones else None,   # % clicks/impresiones
+        'cpc': round(gasto / clicks, 2) if clicks else None,                    # costo por click
+        'cpm': round(gasto / impresiones * 1000, 2) if impresiones else None,   # costo por mil impresiones
+        'cpp': round(gasto / reach, 2) if reach else None,                      # costo por persona (alcance)
+        'frecuencia': round(impresiones / reach, 2) if reach else None,         # impresiones por persona
+    }
+
+
+def _pedidos_de_productos(productos, fecha_ini, fecha_fin, integracion_id=None):
+    """(n_ambos, n_venta, ingreso_venta) para un conjunto de productos, contando pedidos
+    por RELACIÓN (nombre propio + alias) igual que tabla_productos, con DISTINCT para no
+    duplicar. Reutiliza _nombres_de_producto y las constantes de estado."""
+    if not productos:
+        return 0, 0, 0.0
+    prod_nombres = {p.nombre for p in productos}
+    nombres = set()
+    for p in productos:
+        nombres.update(_nombres_de_producto(p))
+    base = Pedido.objects.filter(
+        Q(items__producto__nombre__in=prod_nombres) | Q(items__nombre__in=nombres),
+        fecha_pedido__date__range=(fecha_ini, fecha_fin))
+    if integracion_id:
+        base = base.filter(integracion_id=integracion_id)
+    base = base.distinct()
+    n_ambos = base.filter(estado__in=ESTADOS_CONFIRMADOS).count()
+    venta = base.filter(estado__in=ESTADOS_VENTA)
+    n_venta = venta.count()
+    ing_venta = float(venta.aggregate(s=Sum('total'))['s'] or 0)
+    return n_ambos, n_venta, ing_venta
+
+
+def rendimiento_embudo(fecha_ini, fecha_fin, integracion_id=None, campana_ids=None):
+    """Embudo del anuncio con % de conversión por etapa + métricas de rendimiento + ROAS/CPA
+    reales en soles. Devuelve {'total': {...}, 'por_campana': [...], 'moneda', 'tipo_cambio'}.
+
+    Embudo: Impresiones → Clicks (CTR) → Resultados Meta (click→result) → Pedidos reales
+    (result→pedido = atribución real) → Entregados (confirmado→entrega).
+
+    Nota: los pedidos se atribuyen por producto casado. En el desglose POR CAMPAÑA, un
+    producto casado a varias campañas puede contarse en más de una fila (indicativo); el
+    TOTAL cuenta el conjunto DISTINCT de productos, sin duplicar."""
+    matches = (MatchProductoAnuncio.objects
+               .filter(campana__incluir_en_extraccion=True)
+               .select_related('producto', 'campana', 'campana__cuenta'))
+    if campana_ids is not None:
+        matches = matches.filter(campana_id__in=campana_ids)
+    if integracion_id:
+        matches = matches.filter(campana__cuenta__integracion_id=integracion_id)
+
+    tc = tipo_cambio_usd_pen()
+    moneda = moneda_ads(integracion_id)
+
+    # Agrupar por CAMPAÑA (campaign_id): sus ad-ids (campana_ids) y sus productos casados.
+    camp_info = defaultdict(lambda: {'nombre': '', 'campana_ids': set(), 'productos': {}})
+    todas_campana_ids, productos_all = set(), {}
+    for m in matches:
+        c = camp_info[m.campana.campaign_id]
+        c['nombre'] = m.campana.campaign_name or m.campana.campaign_id
+        c['campana_ids'].add(m.campana_id)
+        c['productos'][m.producto_id] = m.producto
+        todas_campana_ids.add(m.campana_id)
+        productos_all[m.producto_id] = m.producto
+
+    def _insights(cids):
+        a = (InsightDiarioMeta.objects
+             .filter(campana_id__in=cids, fecha__range=(fecha_ini, fecha_fin))
+             .order_by().aggregate(gasto=Sum('gasto'), impresiones=Sum('impresiones'),
+                                   clicks=Sum('clicks'), reach=Sum('reach'), result=Sum('resultados')))
+        return (float(a['gasto'] or 0), int(a['impresiones'] or 0), int(a['clicks'] or 0),
+                int(a['reach'] or 0), int(a['result'] or 0))
+
+    def _pct(n, base):
+        return round(n / base * 100, 1) if base else None
+
+    def _fila(nombre, cids, productos):
+        gasto, impr, clicks, reach, result = _insights(cids)
+        n_ambos, n_venta, ing_venta = _pedidos_de_productos(productos, fecha_ini, fecha_fin, integracion_id)
+        gasto_pen = round(gasto * tc, 2)
+        rend = _metricas_rendimiento(gasto, impr, clicks, reach, result)
+        embudo = [
+            {'etapa': 'Impresiones', 'n': impr, 'pct': 100.0 if impr else 0.0, 'de': ''},
+            {'etapa': 'Clicks', 'n': clicks, 'pct': _pct(clicks, impr), 'de': 'CTR'},
+            {'etapa': 'Resultados Meta', 'n': result, 'pct': _pct(result, clicks), 'de': 'click→resultado'},
+            {'etapa': 'Pedidos reales', 'n': n_ambos, 'pct': _pct(n_ambos, result), 'de': 'atribución real'},
+            {'etapa': 'Entregados', 'n': n_venta, 'pct': _pct(n_venta, n_ambos), 'de': 'entrega'},
+        ]
+        return {
+            'nombre': nombre, 'n_anuncios': len(cids),
+            'gasto': gasto, 'gasto_pen': gasto_pen,
+            'impresiones': impr, 'reach': reach, 'clicks': clicks, 'resultados': result,
+            'n_ambos': n_ambos, 'n_venta': n_venta, 'ingreso': ing_venta,
+            'ctr': rend['ctr'], 'cpc': rend['cpc'], 'cpm': rend['cpm'],
+            'cpp': rend['cpp'], 'frecuencia': rend['frecuencia'],
+            'cpa_real': round(gasto / n_venta, 2) if n_venta else None,       # en la moneda del gasto (US$)
+            'roas_real': round(ing_venta / gasto_pen, 2) if gasto_pen else None,  # soles/soles
+            'embudo': embudo,
+        }
+
+    por_campana = [_fila(c['nombre'], list(c['campana_ids']), list(c['productos'].values()))
+                   for c in camp_info.values()]
+    por_campana.sort(key=lambda f: -f['gasto'])
+
+    total = _fila('Total', list(todas_campana_ids), list(productos_all.values()))
+    return {'total': total, 'por_campana': por_campana, 'moneda': moneda, 'tipo_cambio': tc}
 
 
 _SIMBOLOS = {'USD': 'US$', 'PEN': 'S/', 'EUR': '€', 'MXN': 'MX$', 'COP': 'COL$', 'CLP': 'CLP$'}

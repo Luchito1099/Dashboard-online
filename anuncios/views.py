@@ -21,7 +21,8 @@ from core.permisos import puede_ver_ads, puede_matching, puede_admin_ads, destin
 from productos.models import Producto
 from integraciones.models import Integracion
 from . import services
-from .models import (CuentaPublicitaria, CampanaMeta, MatchProductoAnuncio, UmbralAlerta)
+from .models import (CuentaPublicitaria, CampanaMeta, MatchProductoAnuncio, UmbralAlerta,
+                     AjustesPublicidad)
 
 
 # ───────────────────────── Webhook n8n → ERP ─────────────────────────
@@ -138,7 +139,7 @@ def dashboard(request):
     _auto_sync_si_necesario()
 
     vista = request.GET.get('vista', 'diario')
-    if vista not in ('diario', 'productos', 'heatmap'):
+    if vista not in ('diario', 'productos', 'heatmap', 'rendimiento'):
         vista = 'diario'
     ctx = _ctx_base(request, vista)
     desde, hasta, integracion_id = ctx['desde'], ctx['hasta'], ctx['integracion_id']
@@ -148,6 +149,8 @@ def dashboard(request):
         ctx['filas'] = services.tabla_productos(desde, hasta, integracion_id, campana_ids)
     elif vista == 'heatmap':
         ctx['hm'] = services.heatmap(desde, hasta, integracion_id)
+    elif vista == 'rendimiento':
+        ctx['rend'] = services.rendimiento_embudo(desde, hasta, integracion_id, campana_ids)
     else:
         serie = services.serie_diaria(desde, hasta, integracion_id, campana_ids, producto_ids)
         ctx['serie'] = serie
@@ -439,6 +442,20 @@ def ajustes(request):
             cfg.save()
             messages.success(request, 'Umbral de alerta guardado.')
 
+        elif accion == 'guardar_tipo_cambio':
+            from decimal import Decimal, InvalidOperation
+            ajustes_pub = AjustesPublicidad.get_solo()
+            try:
+                tc = Decimal((request.POST.get('tipo_cambio_usd_pen') or '0').replace(',', '.'))
+                if tc > 0:
+                    ajustes_pub.tipo_cambio_usd_pen = tc
+                    ajustes_pub.save()
+                    messages.success(request, f'Tipo de cambio guardado: 1 USD = S/ {tc}.')
+                else:
+                    messages.error(request, 'El tipo de cambio debe ser mayor que 0.')
+            except InvalidOperation:
+                messages.error(request, 'Tipo de cambio inválido.')
+
         return redirect('anuncios:ajustes')
 
     cuentas = CuentaPublicitaria.objects.select_related('integracion').all()
@@ -450,6 +467,7 @@ def ajustes(request):
         'anuncios': anuncios,
         'tiendas': Integracion.objects.filter(categoria=Integracion.CATEGORIA_FUENTE),
         'umbral': UmbralAlerta.get_solo(),
+        'ajustes_pub': AjustesPublicidad.get_solo(),
     }
     return render(request, 'anuncios/ajustes.html', context)
 

@@ -128,6 +128,20 @@
     </form>
   </div>
 
+  {# ── Tipo de cambio (para ROAS real en una sola moneda) ── #}
+  <div class="av-card av-card-wide" style="margin-top:14px;">
+    <div class="av-card-title">Tipo de cambio USD → PEN</div>
+    <form method="post" class="ads-umbral-form">
+      {% csrf_token %}
+      <input type="hidden" name="accion" value="guardar_tipo_cambio">
+      <label class="reg-field"><span>Soles por 1 USD</span>
+        <input type="text" name="tipo_cambio_usd_pen" value="{{ ajustes_pub.tipo_cambio_usd_pen }}" placeholder="3.750"></label>
+      <button type="submit" class="btn-guardar">Guardar tipo de cambio</button>
+    </form>
+    <p class="ads-nota">El gasto de Meta viene en USD y los ingresos de pedidos en soles. Este tipo de
+      cambio convierte el gasto a soles para que el <b>ROAS real</b> compare la misma moneda.</p>
+  </div>
+
   {# ── Umbral de alerta ── #}
   <div class="av-card av-card-wide" style="margin-top:14px;">
     <div class="av-card-title">Alerta de CPA real alto (→ Telegram vía n8n)</div>

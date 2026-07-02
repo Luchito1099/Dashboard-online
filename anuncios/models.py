@@ -2,6 +2,8 @@
 """Módulo de Publicidad (Meta Ads): conecta el gasto en Meta con la realidad del
 negocio (pedidos confirmados/entregados). Los datos llegan desde un workflow n8n
 vía webhook; el ERP los guarda, los casa con productos y calcula métricas reales."""
+from decimal import Decimal
+
 from django.db import models
 
 from integraciones.crypto import EncryptedTextField
@@ -99,6 +101,11 @@ class InsightDiarioMeta(models.Model):
     impresiones = models.PositiveIntegerField(default=0)
     clicks = models.PositiveIntegerField(default=0)
     resultados = models.PositiveIntegerField(default=0)   # leads/compras que Meta atribuye
+    # Alcance (personas únicas) y frecuencia (impresiones/persona) que reporta Meta ese día.
+    # Ojo: reach NO es aditivo entre días (las personas se solapan); en rangos multi-día
+    # la frecuencia se recalcula como impresiones/reach y es aproximada.
+    reach = models.PositiveIntegerField(default=0)
+    frequency = models.DecimalField(max_digits=6, decimal_places=2, default=0)
     moneda = models.CharField(max_length=10, blank=True)
     actualizado = models.DateTimeField(auto_now=True)
 
@@ -156,6 +163,27 @@ class MatchProductoAnuncio(models.Model):
 
     def __str__(self):
         return f'{self.campana} → {self.producto}'
+
+
+class AjustesPublicidad(models.Model):
+    """Configuración global del módulo de Publicidad (singleton, pk=1). Hoy guarda el tipo
+    de cambio USD→PEN para poder comparar el gasto de Meta (en USD) contra los ingresos de
+    los pedidos (en soles) en la misma moneda y así calcular un ROAS real."""
+    tipo_cambio_usd_pen = models.DecimalField(
+        max_digits=6, decimal_places=3, default=Decimal('3.75'),
+        help_text='Soles por 1 USD. Convierte el gasto de Meta a soles para el ROAS real.')
+
+    class Meta:
+        verbose_name = 'Ajustes de publicidad'
+        verbose_name_plural = 'Ajustes de publicidad'
+
+    def __str__(self):
+        return f'Ajustes publicidad · TC {self.tipo_cambio_usd_pen}'
+
+    @classmethod
+    def get_solo(cls):
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
 
 
 class UmbralAlerta(models.Model):

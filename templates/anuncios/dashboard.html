@@ -31,6 +31,7 @@
   {% with qs="&tienda="|add:f_tienda|add:"&desde="|add:f_desde|add:"&hasta="|add:f_hasta|add:"&proyecto="|add:f_proyecto|add:"&campana="|add:f_campana %}
   <div class="ped-subtabs">
     <a href="?vista=diario{{ qs }}" class="ped-subtab {% if vista == 'diario' %}active{% endif %}">📈 Diario</a>
+    <a href="?vista=rendimiento{{ qs }}" class="ped-subtab {% if vista == 'rendimiento' %}active{% endif %}">📊 Rendimiento</a>
     <a href="?vista=productos{{ qs }}" class="ped-subtab {% if vista == 'productos' %}active{% endif %}">📦 Por producto</a>
     <a href="?vista=heatmap{{ qs }}" class="ped-subtab {% if vista == 'heatmap' %}active{% endif %}">🗓️ Heatmap</a>
   </div>
@@ -78,6 +79,8 @@
     {% include 'anuncios/_tab_productos.html' %}
   {% elif vista == 'heatmap' %}
     {% include 'anuncios/_tab_heatmap.html' %}
+  {% elif vista == 'rendimiento' %}
+    {% include 'anuncios/_tab_rendimiento.html' %}
   {% else %}
     {# ── Diario ── #}
     <div class="ped-kpis" style="grid-template-columns:repeat(4,1fr);">

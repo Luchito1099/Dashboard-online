@@ -78,7 +78,8 @@
       "PowerShell(python manage.py shell -c \"exec\\(open\\(r'C:\\\\Users\\\\LEGION\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-LEGION-Desktop-FINALPROYECTO-Dashboard-online\\\\4469f121-246c-477b-923c-be30e91f4f90\\\\scratchpad\\\\test_cruce.py', encoding='utf-8'\\).read\\(\\)\\)\")",
       "PowerShell(python -m py_compile integraciones/shalom_scraper.py integraciones/shalom_runner.py integraciones/models.py)",
       "PowerShell(if \\($?\\) { \"OK compila\" })",
-      "Bash(echo \"exit: $?\")"
+      "Bash(echo \"exit: $?\")",
+      "Bash(python manage.py makemigrations anuncios --name insight_reach_frequency_ajustespublicidad)"
     ]
   }
 }
